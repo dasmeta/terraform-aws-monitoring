@@ -1,9 +1,5 @@
-variable "webhook" {
-  type = string
-  description = "to send notification to opsgenie"
-}
 resource "aws_sns_topic" "sns-sec" {
-  name            = "send-to-opsgenie"
+  name            = var.sns-topic-name
   delivery_policy = <<EOF
 {
   "http": {
@@ -27,6 +23,6 @@ EOF
 
 resource "aws_sns_topic_subscription" "sns-sec-sub" {
     topic_arn = aws_sns_topic.sns-sec.arn
-    protocol = "https"
-    endpoint = var.webhook
+    protocol = var.protocol
+    endpoint = var.opsgenie-webhook
 }
