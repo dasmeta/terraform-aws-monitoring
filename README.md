@@ -18,7 +18,7 @@ git config core.hooksPath githooks
 ```
 
 ## What
-- terraform-aws-opsgenie
+- aws-security-hub-opsgenie
 - terraform-docs
 - terraform fmt
 - pre-commit hooks
