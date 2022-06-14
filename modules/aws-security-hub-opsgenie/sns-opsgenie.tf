@@ -22,7 +22,7 @@ EOF
 }
 
 resource "aws_sns_topic_subscription" "sns-sec-sub" {
-    topic_arn = aws_sns_topic.sns-sec.arn
-    protocol = var.protocol
-    endpoint = var.opsgenie-webhook
+  topic_arn = aws_sns_topic.sns-sec.arn
+  protocol  = var.protocol
+  endpoint  = var.opsgenie-webhook
 }

@@ -1,25 +1,25 @@
 variable "securityhub-name" {
-  type = string
+  type    = string
   default = "Send-to-SNS"
 }
 
 variable "opsgenie-webhook" {
-  type = string
+  type        = string
   description = "Webhook for sending notification to opsgenie"
 }
 
 variable "sns-topic-name" {
-  type = string
+  type        = string
   description = "Topic name"
-  default = "Send-to-Opsgenie"
+  default     = "Send-to-Opsgenie"
 }
 
 variable "protocol" {
-  type = string
+  type    = string
   default = "https"
 }
 
 variable "link-mode" {
-    type = string
+  type    = string
   default = "ALL_REGIONS"
 }
