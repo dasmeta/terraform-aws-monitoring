@@ -38,7 +38,7 @@ No modules.
 | <a name="input_name"></a> [name](#input\_name) | n/a | `string` | `"account-billing-alarm-topic"` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | n/a | `string` | `"AWS/Billing"` | no |
 | <a name="input_notification_type"></a> [notification\_type](#input\_notification\_type) | n/a | `string` | `"FORECASTED"` | no |
-| <a name="input_opsgenie-webhook"></a> [opsgenie-webhook](#input\_opsgenie-webhook) | Webhook for sending notification to opsgenie | `string` | `"https://api.opsgenie.com/v1/json/amazonsns?apiKey=2993a918-f151-4446-aaf5-42cb5f1a255e"` | no |
+| <a name="input_opsgenie-webhook"></a> [opsgenie-webhook](#input\_opsgenie-webhook) | Webhook for sending notification to opsgenie | `string` | `""` | no |
 | <a name="input_period"></a> [period](#input\_period) | n/a | `string` | `"28800"` | no |
 | <a name="input_protocol"></a> [protocol](#input\_protocol) | n/a | `string` | `"https"` | no |
 | <a name="input_statistic"></a> [statistic](#input\_statistic) | n/a | `string` | `"Maximum"` | no |
