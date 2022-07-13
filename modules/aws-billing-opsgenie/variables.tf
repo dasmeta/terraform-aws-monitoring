@@ -87,5 +87,5 @@ variable "protocol" {
 variable "opsgenie-webhook" {
   type        = string
   description = "Webhook for sending notification to opsgenie"
-  default     = "https://api.opsgenie.com/v1/json/amazonsns?apiKey=2993a918-f151-4446-aaf5-42cb5f1a255e"
+  default     = ""
 }
