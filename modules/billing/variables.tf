@@ -82,5 +82,5 @@ variable "protocol" {
 variable "opsgenie_endpoints" {
   type        = list(any)
   description = "for sending notification"
-  default     = ["https://api.opsgenie.com/v1/json/amazonsns?apiKey=2993a918-f151-4446-aaf5-42cb5f1a255e"]
+  default     = [""]
 }
