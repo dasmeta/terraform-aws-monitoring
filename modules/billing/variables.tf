@@ -33,6 +33,16 @@ variable "threshold" {
   default = "200"
 }
 
+variable "time_period_end"{
+  type = string
+  default =  "2087-06-15_00:00"
+}
+
+variable "time_period_start" {
+  type = string
+  default = "2022-01-01_00:00"
+}
+
 variable "threshold_type" {
   type    = string
   default = "PERCENTAGE"
@@ -73,14 +83,49 @@ variable "statistic" {
   default = "Maximum"
 }
 
-variable "protocol" {
-  type    = list(any)
-  default = ["https"]
+variable "sns_subscription_email_address_list" {
+  type        = list(string)
+  default     = []
+  description = "List of email addresses"
 }
 
+variable "sns_subscription_phone_number_list" {
+  type        = list(string)
+  default     = []
+  description = "List of telephone numbers to subscribe to SNS."
+}
 
-variable "opsgenie_endpoints" {
-  type        = list(any)
-  description = "for sending notification"
-  default     = [""]
+variable "sms_message_body" {
+  type    = string
+  default = "sms_message_body"
+}
+
+variable "slack_hook_url" {
+  type        = string
+  default     = ""
+  description = "This is slack webhook url path without domain"
+}
+
+variable "slack_channel" {
+  type        = string
+  default     = ""
+  description = "Slack Channel"
+}
+
+variable "slack_username" {
+  type        = string
+  default     = ""
+  description = "Slack User Name"
+}
+
+variable "opsgenie_endpoint" {
+  type        = list(string)
+  default     = []
+  description = "Opsigenie platform integration url"
+}
+
+variable "cloudwatch_log_group_retention_in_days" {
+  description = "Specifies the number of days you want to retain log events in log group for Lambda."
+  type        = number
+  default     = 0
 }
