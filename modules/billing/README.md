@@ -1,4 +1,4 @@
-## What 
+## What
 
 Our module is seting up billing alert to opsgenie and budget limit.
 
