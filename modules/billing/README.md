@@ -35,7 +35,7 @@ module "monitoring_billing" {
   threshold = "200"
   comparison_operator = "GREATER_THAN"
 }
-`
+```
 
 ## Requirements
 
