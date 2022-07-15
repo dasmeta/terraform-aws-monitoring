@@ -5,9 +5,9 @@ Our module is seting up billing alert to opsgenie and budget limit.
 ## Minimal Example
 
 ```terraform
-module "monitoring_aws-billing-opsgenie" {
+module "monitoring_billing" {
   source  = "dasmeta/monitoring/aws//modules/billing"
-  version = "0.1.1"
+  version = "0.2.1"
   name = "Account Monthly Budget"
   sns_subscription_email_address_list = ["example@gmail.com"]
   sns_subscription_phone_number_list  = ["000000000"]
@@ -19,9 +19,9 @@ module "monitoring_aws-billing-opsgenie" {
 ## Minimal Example
 
 ```terraform
-module "monitoring_aws-billing-opsgenie" {
+module "monitoring_billing" {
   source  = "dasmeta/monitoring/aws//modules/billing"
-  version = "0.1.1"
+  version = "0.2.1"
   name = "Account Monthly Budget"
   account_budget_limit = "200"
   limit_unit = "USD"
