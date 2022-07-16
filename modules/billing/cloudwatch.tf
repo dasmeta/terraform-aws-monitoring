@@ -7,18 +7,18 @@ locals {
 }
 
 resource "aws_cloudwatch_metric_alarm" "billing" {
-  count = length(var.account_budget_limit) > 0 ? 1 : 0
-  alarm_name          = var.alarm_name
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = var.evaluation_periods
-  metric_name         = var.metric_name
-  namespace           = var.namespace
-  period              = var.period
-  statistic           = var.statistic
-  threshold           = var.threshold
+  count = length(var.metric_alarm_billing.alarm_name)
+  alarm_name          = var.metric_alarm_billing.alarm_name
+  comparison_operator = var.metric_alarm_billing.comparison_operator-billing
+  evaluation_periods  = var.metric_alarm_billing.evaluation_periods
+  metric_name         = var.metric_alarm_billing.metric_name
+  namespace           = var.metric_alarm_billing.namespace
+  period              = var.metric_alarm_billing.period
+  statistic           = var.metric_alarm_billing.statistic
+  threshold           = var.metric_alarm_billing.threshold
   alarm_actions       = local.actions
 
   dimensions = {
-    Currency = var.threshold_type
+    Currency = var.notification.threshold_type
   }
 }

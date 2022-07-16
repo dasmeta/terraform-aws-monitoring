@@ -2,17 +2,21 @@
 
 Our module is seting up billing alert to opsgenie and budget limit.
 
+## MUST BE
+
+Make sure that the cloudwatch is in the eu-east-1 region.
+
 ## Minimal Example
 
 ```terraform
 module "monitoring_billing" {
   source  = "dasmeta/monitoring/aws//modules/billing"
   version = "0.2.1"
+
   name = "Account Monthly Budget"
   sns_subscription_email_address_list = ["example@gmail.com"]
   sns_subscription_phone_number_list  = ["000000000"]
   opsgenie_endpoint = ["https://xxxxxxx"]
-  slack_hook_url = ["https://xxxxxxx"]
 }
 ```
 
@@ -22,6 +26,7 @@ module "monitoring_billing" {
 module "monitoring_billing" {
   source  = "dasmeta/monitoring/aws//modules/billing"
   version = "0.2.1"
+
   name = "Account Monthly Budget"
   account_budget_limit = "200"
   limit_unit = "USD"

@@ -1,131 +1,54 @@
-variable "name" {
-  type    = string
-  default = "Account-Monthly-Budget"
+variable "notification" {
+  default = {
+    "comparison_operator"        = "GREATER_THAN"
+    "threshold"                  = "200"
+    "threshold_type"             = "PERCENTAGE"
+    "notification_type"          = "ACTUAL"
+  }
 }
 
-variable "account_budget_limit" {
-  type    = string
-  default = "200"
+variable "metric_alarm_billing" {
+  default = {
+    "alarm_name"          = "Billing-alarm"
+    "comparison_operator-billing" = "GreaterThanOrEqualToThreshold"
+    "evaluation_periods"  = "1"
+    "metric_name"         = "EstimatedCharges"
+    "namespace"           = "Billing"
+    "period"              = "28800"
+    "statistic"           = "Maximum"
+    "threshold"           = "200"
+  }
 }
 
-variable "budget_type" {
-  type    = string
-  default = "COST"
-}
-
-variable "limit_unit" {
-  type    = string
-  default = "USD"
-}
-
-variable "time_unit" {
-  type    = string
-  default = "MONTHLY"
-}
-
-variable "comparison_operator" {
-  type    = string
-  default = "GREATER_THAN"
-}
-
-variable "threshold" {
-  type    = string
-  default = "200"
-}
-
-variable "time_period_end"{
-  type = string
-  default =  "2087-06-15_00:00"
-}
-
-variable "time_period_start" {
-  type = string
-  default = "2022-01-01_00:00"
-}
-
-variable "threshold_type" {
-  type    = string
-  default = "PERCENTAGE"
-}
-
-variable "notification_type" {
-  type    = string
-  default = "ACTUAL"
-}
-
-variable "alarm_name" {
-  type    = string
-  default = "Billing-alarm"
-}
-
-variable "evaluation_periods" {
-  type    = string
-  default = "1"
-}
-
-variable "metric_name" {
-  type    = string
-  default = "EstimatedCharges"
-}
-
-variable "namespace" {
-  type    = string
-  default = "Billing"
-}
-
-variable "period" {
-  type    = string
-  default = "28800"
-}
-
-variable "statistic" {
-  type    = string
-  default = "Maximum"
-}
-
-variable "sns_subscription_email_address_list" {
-  type        = list(string)
-  default     = []
-  description = "List of email addresses"
-}
-
-variable "sns_subscription_phone_number_list" {
-  type        = list(string)
-  default     = []
-  description = "List of telephone numbers to subscribe to SNS."
-}
-
-variable "sms_message_body" {
-  type    = string
-  default = "sms_message_body"
-}
-
-variable "slack_hook_url" {
+variable "delivery_policy" {
   type        = string
-  default     = ""
-  description = "This is slack webhook url path without domain"
+  default     = <<EOF
+  { "http": { "defaultHealthyRetryPolicy": { "minDelayTarget": 20, "maxDelayTarget": 20, "numRetries": 3, "numMaxDelayRetries": 0, "numNoDelayRetries": 0, "numMinDelayRetries": 0,"backoffFunction": "linear"},"disableSubscriptionOverrides": false, "defaultThrottlePolicy": { "maxReceivesPerSecond": 1 } }}
+  EOF
+  description = "The access logs format to sync into cloudwatch log group"
 }
 
-variable "slack_channel" {
-  type        = string
-  default     = ""
-  description = "Slack Channel"
+variable "budget_settings" {
+  default = {
+    "name"         = "Account-Monthly-Budget"
+    "budget_type"  = "COST"
+    "limit_amount" = "200"
+    "limit_unit"   = "USD"
+    "time_unit"    = "MONTHLY"
+    "time_period_end"   = "2087-06-15_00:00"
+    "time_period_start" = "2022-01-01_00:00"
+  }
 }
 
-variable "slack_username" {
-  type        = string
-  default     = ""
-  description = "Slack User Name"
-}
-
-variable "opsgenie_endpoint" {
-  type        = list(string)
-  default     = []
-  description = "Opsigenie platform integration url"
-}
-
-variable "cloudwatch_log_group_retention_in_days" {
-  description = "Specifies the number of days you want to retain log events in log group for Lambda."
-  type        = number
-  default     = 0
+variable "sns_subscription" {
+  default = {
+    "sns_subscription_email_address_list" = []
+    "sns_subscription_phone_number_list" = []
+    "sms_message_body" = "sms_message_body"
+    "slack_webhook_url" = ""
+    "slack_channel" = ""
+    "slack_username" = ""
+    "cloudwatch_log_group_retention_in_days" = 0
+    "opsgenie_endpoint" = ["https://api.opsgenie.com/v1/json/amazonsns?apiKey=5736f9c8-409d-4b67-b922-45926096bf54"]
+  }
 }
