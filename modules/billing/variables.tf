@@ -1,55 +1,55 @@
 variable "comparison_operator" {
-  type = string
+  type    = string
   default = "GREATER_THAN"
 }
 
 variable "threshold" {
-  type = string
+  type    = string
   default = "200"
 }
 
 variable "threshold_type" {
-  type = string
+  type    = string
   default = "PERCENTAGE"
 }
 
 variable "notification_type" {
-  type = string
+  type    = string
   default = "ACTUAL"
 }
 
 variable "statistic" {
-  type = string
+  type    = string
   default = "Maximum"
 }
 
 variable "period" {
-  type = string
+  type    = string
   default = "28800"
 }
 
 variable "namespace" {
-  type = string
+  type    = string
   default = "Billing"
 }
 
 variable "alarm_name" {
-  type = string
+  type    = string
   default = "Billing-alarm"
 }
 
 variable "comparison_operator_billing" {
-  type = string
+  type    = string
   default = "GreaterThanOrEqualToThreshold"
 }
 
 variable "evaluation_periods" {
-  type = string
+  type    = string
   default = "1"
 }
 
 variable "metric_name" {
-  type = string
+  type    = string
   default = "EstimatedCharges"
 }
 
@@ -62,49 +62,49 @@ variable "delivery_policy" {
 }
 
 variable "name" {
-  type = string
+  type    = string
   default = "Account-Monthly-Budget"
 }
 
 variable "budget_type" {
-  type = string
+  type    = string
   default = "COST"
 }
 
 variable "limit_amount" {
-  type = string
+  type    = string
   default = "200"
 }
 
 variable "limit_unit" {
-  type = string
+  type    = string
   default = "USD"
 }
 
 variable "time_unit" {
-  type = string
+  type    = string
   default = "MONTHLY"
 }
 
 variable "time_period_end" {
-  type = string
+  type    = string
   default = "2087-06-15_00:00"
 }
 
 variable "time_period_start" {
-  type = string
+  type    = string
   default = "2022-01-01_00:00"
 }
 
 variable "sns_subscription" {
   default = {
-    "sns_subscription_email_address_list" = []
-    "sns_subscription_phone_number_list" = []
-    "sms_message_body" = "sms_message_body"
-    "slack_webhook_url" = ""
-    "slack_channel" = ""
-    "slack_username" = ""
+    "sns_subscription_email_address_list"    = []
+    "sns_subscription_phone_number_list"     = []
+    "sms_message_body"                       = "sms_message_body"
+    "slack_webhook_url"                      = ""
+    "slack_channel"                          = ""
+    "slack_username"                         = ""
     "cloudwatch_log_group_retention_in_days" = 0
-    "opsgenie_endpoint" = ["https://api.opsgenie.com/v1/json/amazonsns?apiKey=5736f9c8-409d-4b67-b922-45926096bf54"]
+    "opsgenie_endpoint"                      = ["https://api.opsgenie.com/v1/json/amazonsns?apiKey=5736f9c8-409d-4b67-b922-45926096bf54"]
   }
 }

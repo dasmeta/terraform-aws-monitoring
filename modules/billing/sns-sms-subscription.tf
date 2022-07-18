@@ -1,7 +1,7 @@
 resource "aws_sns_topic" "alerts_notify_sms" {
   count = length(var.sns_subscription.sns_subscription_phone_number_list)
 
-  name = "${replace(var.alarm_name, ".", "-")}-sms"
+  name            = "${replace(var.alarm_name, ".", "-")}-sms"
   delivery_policy = var.delivery_policy
 }
 
