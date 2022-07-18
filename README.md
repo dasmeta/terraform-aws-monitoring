@@ -9,6 +9,7 @@ We use terraform-fmt, terraform-docs, trailing whitespace, detect-aws-credential
 ## Requirements for pre-commit hooks
 for Run our pre-commit hooks you need to install
 	- terraform
+	- terraform-docs
 
 ## Config for GitHooks
 
@@ -19,4 +20,5 @@ git config core.hooksPath githooks
 ## What
 - aws-security-hub-opsgenie
 - aws-billing
+- eventbridge
 - pre-commit hooks
