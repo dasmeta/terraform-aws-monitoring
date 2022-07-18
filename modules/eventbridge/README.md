@@ -45,8 +45,11 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_account"></a> [account](#input\_account) | n/a | `string` | `"565580475168"` | no |
-| <a name="input_endpoint"></a> [endpoint](#input\_endpoint) | n/a | `string` | `"https://api.opsgenie.com/v1/json/cloudwatchevents?apiKey=c2913e4b-375f-41d5-ad1f-c1da5600f938"` | no |
+| <a name="input_account"></a> [account](#input\_account) | n/a | `string` | `""` | no |
+| <a name="input_endpoint"></a> [endpoint](#input\_endpoint) | n/a | `string` | `""` | no |
+| <a name="input_name"></a> [name](#input\_name) | n/a | `string` | `"EventToSNS"` | no |
+| <a name="input_protocol"></a> [protocol](#input\_protocol) | n/a | `string` | `""` | no |
+
 
 ## Outputs
 
