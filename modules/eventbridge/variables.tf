@@ -1,19 +1,19 @@
 variable "account" {
-  type = string
+  type    = string
   default = ""
 }
 
 variable "name" {
-  type = string
+  type    = string
   default = "EventToSNS"
 }
 
 variable "protocol" {
-  type = string
+  type    = string
   default = ""
 }
 
 variable "endpoint" {
-  type = string
+  type    = string
   default = ""
 }

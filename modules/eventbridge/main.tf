@@ -1,5 +1,5 @@
-resource "aws_cloudwatch_event_rule" "eventtosns" {
-  name = "eventtosns"
+resource "aws_cloudwatch_event_rule" "event-to-sns" {
+  name = var.name
   event_pattern = jsonencode(
     {
       account = [
@@ -8,10 +8,10 @@ resource "aws_cloudwatch_event_rule" "eventtosns" {
     }
   )
 }
-resource "aws_cloudwatch_event_target" "eventtosns" {
-  arn  = aws_sns_topic.eventtosns.arn
-  rule = aws_cloudwatch_event_rule.eventtosns.id
-input_transformer {
+resource "aws_cloudwatch_event_target" "event-to-sns" {
+  arn  = aws_sns_topic.event-to-sns.arn
+  rule = aws_cloudwatch_event_rule.event-to-sns.id
+  input_transformer {
     input_paths = {
       Source      = "$.source",
       detail-type = "$.detail-type",
@@ -23,18 +23,18 @@ input_transformer {
   }
 }
 
-resource "aws_sns_topic" "eventtosns" {
+resource "aws_sns_topic" "event-to-sns" {
   name = var.name
 }
 
 resource "aws_sns_topic_subscription" "snstoservicedesk" {
-  topic_arn = aws_sns_topic.eventtosns.arn
+  topic_arn = aws_sns_topic.event-to-sns.arn
   protocol  = var.protocol
   endpoint  = var.endpoint
 }
 
-resource "aws_sns_topic_policy" "eventtosns" {
-  arn = aws_sns_topic.eventtosns.arn
+resource "aws_sns_topic_policy" "event-to-sns" {
+  arn = aws_sns_topic.event-to-sns.arn
 
   policy = data.aws_iam_policy_document.sns_topic_policy.json
 }
@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "sns_topic_policy" {
     }
 
     resources = [
-      aws_sns_topic.eventtosns.arn,
+      aws_sns_topic.event-to-sns.arn,
     ]
 
     sid = "__default_statement_ID"
