@@ -1,23 +1,56 @@
-variable "notification" {
-  default = {
-    "comparison_operator"        = "GREATER_THAN"
-    "threshold"                  = "200"
-    "threshold_type"             = "PERCENTAGE"
-    "notification_type"          = "ACTUAL"
-  }
+variable "comparison_operator" {
+  type = string
+  default = "GREATER_THAN"
 }
 
-variable "metric_alarm_billing" {
-  default = {
-    "alarm_name"          = "Billing-alarm"
-    "comparison_operator-billing" = "GreaterThanOrEqualToThreshold"
-    "evaluation_periods"  = "1"
-    "metric_name"         = "EstimatedCharges"
-    "namespace"           = "Billing"
-    "period"              = "28800"
-    "statistic"           = "Maximum"
-    "threshold"           = "200"
-  }
+variable "threshold" {
+  type = string
+  default = "200"
+}
+
+variable "threshold_type" {
+  type = string
+  default = "PERCENTAGE"
+}
+
+variable "notification_type" {
+  type = string
+  default = "ACTUAL"
+}
+
+variable "statistic" {
+  type = string
+  default = "Maximum"
+}
+
+variable "period" {
+  type = string
+  default = "28800"
+}
+
+variable "namespace" {
+  type = string
+  default = "Billing"
+}
+
+variable "alarm_name" {
+  type = string
+  default = "Billing-alarm"
+}
+
+variable "comparison_operator_billing" {
+  type = string
+  default = "GreaterThanOrEqualToThreshold"
+}
+
+variable "evaluation_periods" {
+  type = string
+  default = "1"
+}
+
+variable "metric_name" {
+  type = string
+  default = "EstimatedCharges"
 }
 
 variable "delivery_policy" {
@@ -28,16 +61,39 @@ variable "delivery_policy" {
   description = "The access logs format to sync into cloudwatch log group"
 }
 
-variable "budget_settings" {
-  default = {
-    "name"         = "Account-Monthly-Budget"
-    "budget_type"  = "COST"
-    "limit_amount" = "200"
-    "limit_unit"   = "USD"
-    "time_unit"    = "MONTHLY"
-    "time_period_end"   = "2087-06-15_00:00"
-    "time_period_start" = "2022-01-01_00:00"
-  }
+variable "name" {
+  type = string
+  default = "Account-Monthly-Budget"
+}
+
+variable "budget_type" {
+  type = string
+  default = "COST"
+}
+
+variable "limit_amount" {
+  type = string
+  default = "200"
+}
+
+variable "limit_unit" {
+  type = string
+  default = "USD"
+}
+
+variable "time_unit" {
+  type = string
+  default = "MONTHLY"
+}
+
+variable "time_period_end" {
+  type = string
+  default = "2087-06-15_00:00"
+}
+
+variable "time_period_start" {
+  type = string
+  default = "2022-01-01_00:00"
 }
 
 variable "sns_subscription" {
