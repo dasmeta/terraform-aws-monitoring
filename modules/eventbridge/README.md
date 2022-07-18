@@ -7,7 +7,7 @@ Our module is stream AWS Support events into our task management system.
 ```terraform
 module "monitoring_billing" {
   source  = "dasmeta/monitoring/aws//modules/eventbridge"
-  version = "0.0.1"
+  version = "1.0.0"
 
   account   = "000000000"             #your account ID
   name      = "EventToSNS"            #the name of SNS topic
