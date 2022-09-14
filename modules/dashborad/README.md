@@ -4,9 +4,9 @@
 
 ```
 module "dashboard" {
-  source = "dasmeta/monitoring/aws//modules/dashborad"
+  source = "dasmeta/modules/aws//modules/dashborad"
 
-  yaml_file_path = "./dashboards.yaml"
+  yaml_file_path = yamldecode(file("./dashboards.yaml"))
 }
 
 <!-- BEGIN_TF_DOCS -->
