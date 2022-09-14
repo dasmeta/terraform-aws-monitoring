@@ -4,7 +4,7 @@
 
 ```
 module "dashboard" {
-  source = "dasmeta/modules/aws//modules/dashborad"
+  source = "dasmeta/monitoring/aws//modules/dashborad"
 
   yaml_file_path = "./dashboards.yaml"
 }
