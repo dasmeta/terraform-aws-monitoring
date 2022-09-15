@@ -2,12 +2,17 @@
 data "aws_region" "current" {}
 
 locals {
+  y    = 1
+  y_y  = 3
+  x    = 0
+  x_x  = 8
+  x_xx = 16
   widget_data_metric = [for k, item in var.widget : {
     "type" : "metric",
-    "x" : 0,
-    "y" : 0,
-    "width" : 12,
-    "height" : 6,
+    "x" : k % 3 == 0 ? local.x_xx : k % 2 == 0 ? local.x_x : local.x,
+    "y" : k % 3 == 0 ? local.y * k * 2 : local.y,
+    "width" : 8,
+    "height" : 5,
     "properties" : {
       "metrics" : [
         split("/", item.source)
@@ -22,9 +27,9 @@ locals {
   widget_data_text = [for k, item in var.widget : {
     "type" : "text",
     "x" : 0,
-    "y" : 7,
-    "width" : 3,
-    "height" : 3,
+    "y" : 0,
+    "width" : 24,
+    "height" : 1,
     "properties" : {
       "markdown" : item.markdown
     }
