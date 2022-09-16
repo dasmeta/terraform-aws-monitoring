@@ -2,7 +2,7 @@
 
 ```
 module "sns_to_servicenow" {
-  source     = "../"
+  source     = "dasmeta/monitoring/aws//modules/sns_to_servicenow"
   name       = "sns"
   topic_name = "sns_to_servicenow"
   lambda_envs = {
@@ -33,8 +33,8 @@ module "sns_to_servicenow" {
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_sns_to_servicenow"></a> [sns\_to\_servicenow](#module\_sns\_to\_servicenow) | ./sns_to_servicenow | n/a |
-| <a name="module_subscriptions"></a> [subscriptions](#module\_subscriptions) | dasmeta/sns/aws//modules//subscription | n/a |
-| <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.2.2 |
+| <a name="module_subscriptions"></a> [subscriptions](#module\_subscriptions) | dasmeta/sns/aws//modules//subscription | 1.2.3 |
+| <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.2.3 |
 
 ## Resources
 
@@ -52,5 +52,7 @@ module "sns_to_servicenow" {
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | n/a |
 <!-- END_TF_DOCS -->

@@ -1,13 +1,13 @@
 module "topic" {
-  #   source  = "dasmeta/sns/aws//modules/topic"
-  #   version = "1.2.2"
-  source     = "/Users/juliaaghamyan/Desktop/dasmeta/terraform-aws-sns/modules/topic"
+  source  = "dasmeta/sns/aws//modules/topic"
+  version = "1.2.3"
+
   topic_name = var.topic_name
 }
 
 module "subscriptions" {
-  source = "dasmeta/sns/aws//modules//subscription"
-  #   version = "1.2.2"
+  source  = "dasmeta/sns/aws//modules//subscription"
+  version = "1.2.3"
 
   topic    = var.topic_name
   protocol = "lambda"
