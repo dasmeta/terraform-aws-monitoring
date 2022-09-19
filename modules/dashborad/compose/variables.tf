@@ -1,3 +1,0 @@
-variable "widget" {
-  type = any
-}
