@@ -6,10 +6,6 @@ output "traffic" {
   value = module.splite_config["Dashboard_name"].traffic
 }
 
-output "disk" {
-  value = module.splite_config["Dashboard_name"].disk
-}
-
 output "restarts" {
   value = module.splite_config["Dashboard_name"].restarts
 }

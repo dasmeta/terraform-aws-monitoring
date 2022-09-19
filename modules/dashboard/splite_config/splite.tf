@@ -1,57 +1,65 @@
 locals {
-  cpu = [for r, items in var.rows : [for k, item in items : {
+  cpu = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "type" : item.type,
     "container" = item.container
     "rows"      = r
     "key"       = k
+    "period"    = lookup(item, "period", 0)
+    "region"    = lookup(item, "region", "")
     } if item.type == "container/cpu"]
+    ]
   ]
 
-  memory = [for r, items in var.rows : [for k, item in items : {
+  memory = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "type" : item.type,
     "container" = item.container
     "rows"      = r
     "key"       = k
+    "period"    = lookup(item, "period", 0)
+    "region"    = lookup(item, "region", "")
     } if item.type == "container/memory"]
+    ]
   ]
 
-  restarts = [for r, items in var.rows : [for k, item in items : {
+  restarts = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "type" : item.type,
     "container" = item.container
     "rows"      = r
     "key"       = k
+    "period"    = lookup(item, "period", 0)
+    "region"    = lookup(item, "region", "")
     } if item.type == "container/restarts"]
+    ]
   ]
 
-  network = [for r, items in var.rows : [for k, item in items : {
+  network = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "type" : item.type,
     "container" = item.container
     "rows"      = r
     "key"       = k
+    "period"    = lookup(item, "period", 0)
+    "region"    = lookup(item, "region", "")
     } if item.type == "container/network"]
+    ]
   ]
 
-  disk = [for r, items in var.rows : [for k, item in items : {
+  traffic = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "type" : item.type,
     "container" = item.container
     "rows"      = r
     "key"       = k
-    } if item.type == "container/disk"]
-  ]
-
-  traffic = [for r, items in var.rows : [for k, item in items : {
-    "type" : item.type,
-    "container" = item.container
-    "rows"      = r
-    "key"       = k
+    "period"    = lookup(item, "period", 0)
+    "region"    = lookup(item, "region", "")
     } if item.type == "container/traffic"]
+    ]
   ]
 
-  text = [for r, items in var.rows : [for k, item in items : {
+  text = [for r, items in var.rows : [for k1, itemss in items : [for k, item in itemss : {
     "content" : item.content,
     "rows" = r
     "key"  = k
     } if item.type == "text"]
+    ]
   ]
 }
 

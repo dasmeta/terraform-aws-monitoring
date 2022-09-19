@@ -14,10 +14,6 @@ output "network" {
   value = flatten(local.network)
 }
 
-output "disk" {
-  value = flatten(local.disk)
-}
-
 output "traffic" {
   value = flatten(local.traffic)
 }

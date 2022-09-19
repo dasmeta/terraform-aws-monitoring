@@ -38,14 +38,6 @@ module "container_traffic_widget" {
   default  = each.value.defaults
 }
 
-module "container_disk_widget" {
-  source = "./widget/disk"
-
-  for_each = { for item in var.dashboards : item.name => item }
-  disk     = module.splite_config[each.key].disk
-  default  = each.value.defaults
-}
-
 module "text" {
   source = "./widget/text"
 

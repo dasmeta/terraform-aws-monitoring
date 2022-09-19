@@ -1,6 +1,6 @@
 data "aws_region" "current" {}
-// pod_cpu_reserved_capacity, 
-// pod_cpu_utilization
+
+// pod_cpu_utilization_over_pod_limit ?
 locals {
   widget_data_metric = [for item in var.cpu : {
     "type" : "metric",
@@ -13,9 +13,9 @@ locals {
         ["ContainerInsights", "pod_cpu_utilization", "PodName", item.container, "ClusterName", var.default["clustername"], "Namespace", var.default["namespace"]],
         ["ContainerInsights", "pod_cpu_reserved_capacity", "PodName", item.container, "ClusterName", var.default["clustername"], "Namespace", var.default["namespace"]]
       ],
-      "period" : var.default["period"],
-      "stat" : "Sum",
-      "region" : data.aws_region.current.name,
+      "period" : item.period == 0 ? var.default["period"] : item.period,
+      "stat" : "Average",
+      "region" : "${item.region == "" ? data.aws_region.current.name : item.region}",
       "title" : "${item.container} CPU"
     }
   }]

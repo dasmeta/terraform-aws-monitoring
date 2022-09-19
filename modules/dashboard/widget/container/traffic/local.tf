@@ -11,9 +11,9 @@ locals {
       "metrics" : [
         # split("/", item.source)
       ],
-      "period" : var.default["period"],
+      "period" : item.period == 0 ? var.default["period"] : item.period,
       "stat" : "Sum",
-      "region" : data.aws_region.current.name,
+      "region" : "${item.region == "" ? data.aws_region.current.name : item.region}",
       "title" : "${item.container} Traffic"
     }
   }]
