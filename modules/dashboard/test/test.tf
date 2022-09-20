@@ -56,13 +56,22 @@ locals {
       ]
     ]
   }
+  yaml_decode = yamldecode(file("./test.yaml"))
 }
 
 
 module "dashboard" {
   source = "../"
-  # dashboard = yamldecode(file("./test.yaml"))
-  dashboard = local.new_dashboards_structure
+
+  // Yaml values
+  rows     = local.yaml_decode["rows"]
+  defaults = local.yaml_decode["defaults"]
+  name     = local.yaml_decode["name"]
+
+  // Local values
+  # rows     = local.new_dashboards_structure["rows"]
+  # defaults = local.new_dashboards_structure["defaults"]
+  # name     = local.new_dashboards_structure["name"]
 }
 
 # output "yaml" {
