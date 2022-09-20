@@ -10,51 +10,43 @@ locals {
         height : 5
       }
       rows : [
-        {
-          "row0" = [
-            {
-              type : "text",
-              content : "Nginx"
-            }
-          ]
-        },
-        {
-          "row1" = [
-            {
-              type : "container/cpu",
-              period : 300,
-              container : "nginx",
-            },
-            {
-              type : "container/memory",
-              container : "nginx",
-            },
-            {
-              type : "container/restarts",
-              container : "nginx",
-            }
-          ]
-        },
-        {
-          "row3" = [
-            {
-              type : "text",
-              content : "Row title2"
-            }
-          ]
-        },
-        {
-          "row4" = [
-            {
-              type : "container/network",
-              container : "nginx",
-            },
-            {
-              type : "container/traffic",
-              container : "nginx"
-            }
-          ]
-        }
+        [
+          {
+            type : "text",
+            content : "Nginx"
+          }
+        ],
+        [
+          {
+            type : "container/cpu",
+            period : 300,
+            container : "nginx",
+          },
+          {
+            type : "container/memory",
+            container : "nginx",
+          },
+          {
+            type : "container/restarts",
+            container : "nginx",
+          }
+        ],
+        [
+          {
+            type : "text",
+            content : "Row title2"
+          }
+        ],
+        [
+          {
+            type : "container/network",
+            container : "nginx",
+          },
+          {
+            type : "container/traffic",
+            container : "nginx"
+          }
+        ]
       ]
     }
   ]
@@ -70,9 +62,9 @@ module "dashboards" {
 output "yaml" {
   value = yamldecode(file("/Users/juliaaghamyan/Desktop/dasmeta/terraform-aws-monitoring/modules/dashboard/test/test.yaml"))
 }
-output "traffic_2xx" {
-  value = module.dashboards.traffic_2xx
-}
+# output "traffic_2xx" {
+#   value = module.dashboards.traffic_2xx
+# }
 # output "memory" {
 #   value = module.dashboards.memory
 # }

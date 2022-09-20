@@ -2,7 +2,7 @@ locals {
   traffic_5xx = [for r, items in var.rows : [for k, item in items : {
     "type" : item.type,
     "loadbalancer" = item.loadbalancer
-    "name"         = item.name
+    "name"         = lookup(item, "name", "${item.loadbalancer} 5xx")
     "rows"         = r
     "key"          = k
     "period"       = lookup(item, "period", 0)
@@ -13,7 +13,7 @@ locals {
   traffic_4xx = [for r, items in var.rows : [for k, item in items : {
     "type" : item.type,
     "loadbalancer" = item.loadbalancer
-    "name"         = item.name
+    "name"         = lookup(item, "name", "${item.loadbalancer} 4xx")
     "rows"         = r
     "key"          = k
     "period"       = lookup(item, "period", 0)
@@ -24,7 +24,7 @@ locals {
   traffic_2xx = [for r, items in var.rows : [for k, item in items : {
     "type" : item.type,
     "loadbalancer" = item.loadbalancer
-    "name"         = item.name
+    "name"         = lookup(item, "name", "${item.loadbalancer} 2xx")
     "rows"         = r
     "key"          = k
     "period"       = lookup(item, "period", 0)
