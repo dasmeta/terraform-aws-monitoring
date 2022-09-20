@@ -1,3 +1,3 @@
-variable "dashboards" {
+variable "dashboard" {
   type = any
 }

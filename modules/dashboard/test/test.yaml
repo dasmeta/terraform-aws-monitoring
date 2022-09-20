@@ -1,13 +1,12 @@
-dashboard1:
-  name: "Dashboard_name"
-  defaults:
+name: "Dashboard_name"
+defaults:
     namespace: "whatever namespace"
     period : 300
     namespace : "default"
     clustername : "dasmeta-test-new3"
     width : 6
     height : 5
-  rows:
+rows:
     -
       - name: "Text"
         type : "text"
@@ -28,7 +27,7 @@ dashboard1:
     -
       - name: "ELB"
         type : "text"
-        content : "Row title2"
+        content : "ELB"
     -
       - name: "5xx"
         type : "traffic/5xx"
@@ -39,22 +38,3 @@ dashboard1:
       - name: "2xx"
         type : "traffic/2xx"
         loadbalancer : "app/fa5487/cd9b9f"
-# dashboard2:
-#     - name: "Container 405"
-#       source: "ContainerInsights/pod_memory_utilization"
-#       filters: 
-#       statistic: Sum
-#       period: 300
-#       type: metric
-#     - name: "Container 406"
-#       source: "ContainerInsights/pod_memory_utilization"
-#       filters: 
-#       statistic: Sum
-#       period: 300
-#       type: metric
-#     - name: "Container 407"
-#       source: "ContainerInsights/pod_memory_utilization"
-#       filters: 
-#       statistic: Sum
-#       period: 300
-#       type: metric
