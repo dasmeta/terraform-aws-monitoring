@@ -8,7 +8,7 @@ locals {
     "width" : 24,
     "height" : 1,
     "properties" : {
-      "markdown" : item.content
+      "markdown" : "# ${item.content}"
     }
   }]
 }

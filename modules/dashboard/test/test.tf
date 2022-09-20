@@ -62,7 +62,44 @@ locals {
 
 
 module "dashboards" {
-  source = "../"
-  # dashboards = yamldecode(file("./test.yaml"))
-  dashboards = local.new_dashboards_structure
+  source     = "../"
+  dashboards = yamldecode(file("./test.yaml"))
+  # dashboards = local.new_dashboards_structure
+}
+
+output "yaml" {
+  value = yamldecode(file("/Users/juliaaghamyan/Desktop/dasmeta/terraform-aws-monitoring/modules/dashboard/test/test.yaml"))
+}
+output "traffic_2xx" {
+  value = module.dashboards.traffic_2xx
+}
+# output "memory" {
+#   value = module.dashboards.memory
+# }
+# output "network" {
+#   value = module.dashboards.network
+# }
+# output "restarts" {
+#   value = module.dashboards.restarts
+# }
+# output "disk" {
+#   value = module.dashboards.disk
+# }
+# output "traffic" {
+#   value = module.dashboards.traffic
+# }
+# output "widget" {
+#   value = module.dashboards.widget
+# }
+
+# output "widget_memory" {
+#   value = module.dashboards.widget_memory
+# }
+
+# output "widget_network" {
+#   value = module.dashboards.widget_network
+# }
+
+output "merged_config" {
+  value = module.dashboards.merged_config
 }

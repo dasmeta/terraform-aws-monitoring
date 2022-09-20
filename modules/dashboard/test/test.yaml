@@ -5,14 +5,14 @@ dashboard1:
     period : 300
     namespace : "default"
     clustername : "dasmeta-test-new3"
-    width : 8
+    width : 6
     height : 5
   rows:
-    - row0:
+    -
       - name: "Text"
         type : "text"
         content : "Nginx"
-    - row1:
+    -
       - name: "Cpu"
         type : "container/cpu"
         container : "nginx"
@@ -22,17 +22,23 @@ dashboard1:
       - name: "Restarts"
         type : "container/restarts"
         container : "nginx"
-    - row2:
-      - name: "Container 408"
-        type : "text"
-        content : "Row title2"
-    - row3:
-      - name: "Container 409"
+      - name: "Network"
         type : "container/network"
         container : "nginx"
-      - name: "Container 410"
-        type : "container/traffic"
-        container : "nginx"
+    -
+      - name: "ELB"
+        type : "text"
+        content : "Row title2"
+    -
+      - name: "5xx"
+        type : "traffic/5xx"
+        loadbalancer : "app/fa5487/cd9b9f"
+      - name: "4xx"
+        type : "traffic/4xx"
+        loadbalancer : "app/fa5487/cd9b9f"
+      - name: "2xx"
+        type : "traffic/2xx"
+        loadbalancer : "app/fa5487/cd9b9f"
 # dashboard2:
 #     - name: "Container 405"
 #       source: "ContainerInsights/pod_memory_utilization"

@@ -10,12 +10,12 @@ locals {
     "properties" : {
       "metrics" : [
         ["ContainerInsights", "pod_memory_utilization", "PodName", item.container, "ClusterName", var.default["clustername"], "Namespace", var.default["namespace"]],
-        ["ContainerInsights", "pod_memory_reserved_capacity", "PodName", item.container, "ClusterName", var.default["clustername"], "Namespace", var.default["namespace"]]
+        ["ContainerInsights", "pod_memory_reserved_capacity", "PodName", item.container, "ClusterName", var.default["clustername"], "Namespace", var.default["namespace"], { "color" : "#d62728" }]
       ],
       "period" : item.period == 0 ? var.default["period"] : item.period,
       "stat" : "Average",
       "region" : "${item.region == "" ? data.aws_region.current.name : item.region}",
-      "title" : "${item.container} Memory"
+      "title" : "${item.name}"
     }
   }]
 }
