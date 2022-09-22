@@ -12,7 +12,7 @@ locals {
       [
         {
           type : "text",
-          content : "Nginx"
+          name : "Nginx"
         }
       ],
       [
@@ -53,6 +53,18 @@ locals {
           type : "traffic/2xx"
           loadbalancer : "app/fa5487/cd9b9f"
         }
+      ],
+      [
+        {
+          type : "application"
+          metric_name : "go_memstats_mallocs_total"
+          app : "rpc-app"
+          container : "rpc-app-cont"
+        },
+        {
+          type : "custom"
+          source : "AWS/EC2//EBSWriteOps//ImageId//ami-0f2b7c6874eb8414f"
+        }
       ]
     ]
   }
@@ -78,6 +90,6 @@ module "dashboard" {
 #   value = yamldecode(file("/Users/juliaaghamyan/Desktop/dasmeta/terraform-aws-monitoring/modules/dashboard/test/test.yaml"))
 # }
 
-output "merged_config" {
-  value = module.dashboard.merged_config
-}
+# output "merged_config" {
+#   value = module.dashboard.merged_config
+# }

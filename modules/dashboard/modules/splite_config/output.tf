@@ -26,6 +26,14 @@ output "traffic_2xx" {
   value = flatten(local.traffic_2xx)
 }
 
+output "application_metric" {
+  value = flatten(local.application_metric)
+}
+
+output "custom_metric" {
+  value = flatten(local.custom_metric)
+}
+
 output "text" {
   value = flatten(local.text)
 }

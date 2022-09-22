@@ -49,6 +49,22 @@ module "container_traffic_2xx_widget" {
   default     = var.defaults
 }
 
+// Application
+
+module "application_metric" {
+  source      = "./modules/widget/application"
+  application = module.splite_config.application_metric
+  default     = var.defaults
+}
+
+// Custom
+
+module "custom_metric" {
+  source        = "./modules/widget/custom"
+  custom_metric = module.splite_config.custom_metric
+  default       = var.defaults
+}
+
 // Text
 module "text" {
   source = "./modules/widget/text"

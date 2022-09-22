@@ -8,9 +8,8 @@ defaults:
     height : 5
 rows:
     -
-      - name: "Text"
+      - name: "Nginx"
         type : "text"
-        content : "Nginx"
     -
       - name: "Cpu"
         type : "container/cpu"
@@ -38,3 +37,13 @@ rows:
       - name: "2xx"
         type : "traffic/2xx"
         loadbalancer : "app/fa5487/cd9b9f"
+    -
+      - name: "Application Metric rpc-app"
+        type: "application"
+        metric_name : "go_memstats_mallocs_total"
+        app : "rpc-app"
+        container : "rpc-app-cont"
+
+      - name: "Custom Metric for EC2"
+        type: "custom"
+        source:  "AWS/EC2//EBSWriteOps//ImageId//ami-0f2b7c6874eb8414f"

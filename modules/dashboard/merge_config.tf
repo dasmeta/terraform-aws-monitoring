@@ -12,6 +12,12 @@ locals {
     module.container_traffic_4xx_widget.widget,
     module.container_traffic_2xx_widget.widget,
 
+    // Application
+    module.application_metric.widget,
+
+    //Custom
+    module.custom_metric.widget,
+
     // Widget/Text
     module.text.widget
   )
