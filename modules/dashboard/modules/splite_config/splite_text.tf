@@ -3,7 +3,6 @@ locals {
     "content" : lookup(item, "name", "Text Widget"),
     "rows" = r
     "key"  = k
-
     } if item.type == "text"]
   ]
 }

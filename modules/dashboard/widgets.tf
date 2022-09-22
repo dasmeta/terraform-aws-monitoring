@@ -49,6 +49,7 @@ module "container_traffic_2xx_widget" {
   default     = var.defaults
 }
 
+
 // Application
 
 module "application_metric" {
