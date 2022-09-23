@@ -56,6 +56,9 @@ output "all_widget" {
     // Aplication
     flatten(local.application_metric),
 
+    // Log_Base
+    flatten(local.log_base),
+
     // Custom
     flatten(local.custom_metric)
   ]

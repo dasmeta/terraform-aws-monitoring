@@ -12,7 +12,7 @@ rows:
     -
       - type : "container/cpu"
         container : "nginx"
-        clustername: "dasmeta-test-new2"
+        clustername: "dasmeta-test-new3"
         namespace: "default"
         width: 6
         height: 5
@@ -36,7 +36,12 @@ rows:
     -
       - type: "application"
         metric_name : "go_memstats_mallocs_total"
+        app : "rpc-app"
         container : "rpc-app-cont"
 
       - type: "custom"
         source:  "AWS/EC2//EBSWriteOps//ImageId//ami-0f2b7c6874eb8414f"
+    
+      - type: "log_base"
+        custom_namespaces: "LogInside"
+        metric_name: "CloudTrail"
