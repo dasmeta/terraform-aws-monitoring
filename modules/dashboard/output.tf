@@ -22,10 +22,10 @@
 #   value = module.container_memory_widget.widget
 # }
 
-# output "traffic_2xx" {
-#   value = module.splite_config.traffic_2xx
-# }
+output "traffic_2xx" {
+  value = local.merged_config
+}
 
 output "merged_config" {
-  value = local.merged_config
+  value = module.splite_config.all_widget
 }

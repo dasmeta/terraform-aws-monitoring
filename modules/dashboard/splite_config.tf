@@ -1,4 +1,5 @@
 module "splite_config" {
-  source = "./modules/splite_config"
-  rows   = var.rows
+  source   = "./modules/splite_config"
+  rows     = var.rows
+  defaults = var.defaults
 }

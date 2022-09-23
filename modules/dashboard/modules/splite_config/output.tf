@@ -38,3 +38,25 @@ output "custom_metric" {
 output "text" {
   value = flatten(local.text)
 }
+
+output "all_widget" {
+  value = [
+    // Container
+    flatten(local.cpu),
+    flatten(local.memory),
+    flatten(local.restarts),
+    flatten(local.network),
+
+
+    // ALB
+    flatten(local.traffic_5xx),
+    flatten(local.traffic_4xx),
+    flatten(local.traffic_2xx),
+
+    // Aplication
+    flatten(local.application_metric),
+
+    // Custom
+    flatten(local.custom_metric)
+  ]
+}
