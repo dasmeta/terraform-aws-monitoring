@@ -1,36 +1,18 @@
-variable "dashboard_name" {
-  type    = string
-  default = "Dashboard_name"
-}
+module "dashboard" {
+  //  source = "dasmeta/monitoring/aws//modules/dashboard"
+  source = "../../"
 
-variable "default_period" {
-  type    = number
-  default = 300
-}
+  name = "Dashboard_name"
 
-variable "default_namespace" {
-  type    = string
-  default = "default"
-}
+  defaults = {
+    period : 300
+    namespace : "default"
+    clustername : "dasmeta-test-new3"
+    width : 6
+    height : 5
+  }
 
-variable "default_clustername" {
-  type    = string
-  default = "dasmeta-test-new3"
-}
-
-variable "default_width" {
-  type    = number
-  default = 6
-}
-
-variable "default_height" {
-  type    = number
-  default = 5
-}
-
-variable "rows" {
-  type = any
-  default = [
+  rows = [
     [
       // ROW1
       {

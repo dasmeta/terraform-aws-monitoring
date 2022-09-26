@@ -9,7 +9,7 @@ $ terraform apply
 ```
 
 
-## Create Cloudwatch dashboard with yaml file.
+## Create Cloudwatch dashboard.
 
 For CloudWatch we can have multy type widgets.
 
@@ -67,7 +67,7 @@ When we want create widgets , we can use some defined types.
         height: 5
         period: 300
         statistic: "Sum"
-        region:
+        region: ""
       }
 ```
 
@@ -95,7 +95,7 @@ When we want create widgets , we can use some defined types.
         height: 5
         period: 300
         statistic: ""
-        region:
+        region: ""
       }
 ```
 
@@ -123,7 +123,7 @@ When we want create widgets , we can use some defined types.
         height: 5
         period: 300
         statistic: ""
-        region:
+        region: ""
       }
 ```
 
@@ -148,6 +148,6 @@ When we want create widgets , we can use some defined types.
         height: 5
         period: 300
         statistic: ""
-        region:
+        region: ""
       }
 ```

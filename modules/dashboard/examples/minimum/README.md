@@ -9,7 +9,7 @@ $ terraform apply
 ```
 
 
-## Create Cloudwatch dashboard with local variables.
+## Create Cloudwatch dashboard.
 
 For CloudWatch we can have multy type widgets.
 
