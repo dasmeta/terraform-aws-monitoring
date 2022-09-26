@@ -77,4 +77,3 @@ locals {
     } if item.type == "container/network"]
   ]
 }
-
