@@ -56,27 +56,17 @@ locals {
       ]
     ]
   }
-  yaml_decode = yamldecode(file("./test.yaml"))
+  yaml_decode = yamldecode(file("${path.module}/test.yaml"))
 }
-
 
 module "dashboard" {
-  source = "../"
+  source = "../../"
 
   // Yaml values
-  rows     = local.yaml_decode["rows"]
-  defaults = local.yaml_decode["defaults"]
   name     = local.yaml_decode["name"]
-
-  // Local values
-  # rows     = local.new_dashboards_structure["rows"]
-  # defaults = local.new_dashboards_structure["defaults"]
-  # name     = local.new_dashboards_structure["name"]
+  defaults = local.yaml_decode["defaults"]
+  rows     = local.yaml_decode["rows"]
 }
-
-# output "yaml" {
-#   value = yamldecode(file("/Users/juliaaghamyan/Desktop/dasmeta/terraform-aws-monitoring/modules/dashboard/test/test.yaml"))
-# }
 
 output "merged_config" {
   value = module.dashboard.merged_config
