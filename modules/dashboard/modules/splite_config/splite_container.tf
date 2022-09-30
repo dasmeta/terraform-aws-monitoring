@@ -10,7 +10,6 @@ locals {
     } if item.type == "container/cpu"]
   ]
 
-
   memory = [for r, items in var.rows : [for k, item in items : {
     "type" : item.type,
     "container" = item.container
@@ -44,4 +43,3 @@ locals {
     } if item.type == "container/network"]
   ]
 }
-
