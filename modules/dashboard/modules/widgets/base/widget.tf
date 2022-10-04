@@ -1,10 +1,10 @@
 locals {
   data = {
     "type" : "metric",
-    "x" : var.x,
-    "y" : var.y,
-    "width" : var.width,
-    "height" : var.height,
+    "x" : var.coordinates.x,
+    "y" : var.coordinates.y,
+    "width" : var.coordinates.width,
+    "height" : var.coordinates.height,
     "properties" : {
       "title" : var.name,
       "region" : var.region == "" ? data.aws_region.current.name : var.region,

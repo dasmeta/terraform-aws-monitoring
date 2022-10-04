@@ -1,3 +1,0 @@
-variable "rows" {
-  type = any
-}
