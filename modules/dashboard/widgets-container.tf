@@ -13,42 +13,25 @@ module "container_cpu_widget" {
   period = local.widget_config["container/cpu"][count.index].period
 
   # coordinates
-  # row : row_number,
-  # column : column_number,
-  # row_count : length(var.rows),
-  # column_count : length(row)
-  coordinates = {
-    height = local.widget_config["container/cpu"][count.index].height
-    width  = local.widget_config["container/cpu"][count.index].width
-    x      = local.widget_config["container/cpu"][count.index].column
-    y      = local.widget_config["container/cpu"][count.index].row
-  }
-
-  #         {
-  #           type : "container/cpu",
-  #           period : 300,
-  #           container : "nginx",
-  #         },
-  #         {
-  #           type : "container/memory",
-  #           container : "nginx",
-  #         },
-  #         {
-  #           type : "container/restarts",
-  #           container : "nginx",
-  #         },
-  #         {
-  #           type : "container/network",
-  #           container : "nginx",
-  #         }
+  coordinates = local.widget_config["container/cpu"][count.index].coordinates
 }
 
-# module "container_memory_widget" {
-#   source = "./modules/widgets/container/memory"
+module "container_memory_widget" {
+  source = "./modules/widgets/container/memory"
 
-#   memory = local.widget_config["container/memory"]
-#   # default = var.defaults
-# }
+  count = length(local.widget_config["container/cpu"])
+
+  # container
+  container = local.widget_config["container/cpu"][count.index].container
+  cluster   = local.widget_config["container/cpu"][count.index].cluster
+  namespace = local.widget_config["container/cpu"][count.index].namespace
+
+  # stats
+  period = local.widget_config["container/cpu"][count.index].period
+
+  # coordinates
+  coordinates = local.widget_config["container/cpu"][count.index].coordinates
+}
 
 # module "container_network_widget" {
 #   source = "./modules/widgets/container/network"

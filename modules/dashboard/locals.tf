@@ -30,40 +30,44 @@ locals {
         local.widget_default_values,
         column,
         {
-          row : row_number,
-          column : column_number,
-          row_count : length(var.rows),
-          column_count : length(row)
+          row          = row_number,
+          column       = column_number,
+          row_count    = length(var.rows),
+          column_count = length(row)
         }
       )
     ]
   ]
 
-  # coordinates : {
-  #   x : 24 / column_count * column_number,
-  #   y : row_number,
-  #   width : column.width,
-  #   height : column.height,
-  # },
-
   widget_config = merge(
     local.widget_defaults,
     // groups rows by widget type
     { for key, item in flatten(local.widget_config_with_raw_column_data_and_defaults) :
-    item.type => merge(local.widget_default_values, item)... }
+      item.type => merge(
+        item,
+        # calculate coordinates based on defaults and row/column details
+        {
+          coordinates = {
+            x      = item.column * item.width
+            y      = item.row
+            width  = item.width
+            height = item.height
+          }
+        }
+    )... }
   )
 
   widget_result = concat(
     // Widget/Container
     module.container_cpu_widget.*.data,
-    # module.container_memory_widget.widget,
-    # module.container_network_widget.widget,
-    # module.container_restarts_widget.widget,
+    module.container_memory_widget.*.data,
+    # module.container_network_widget.*.data,
+    # module.container_restarts_widget.*.data,
 
     # // Widget/Traffic
-    # module.container_traffic_5xx_widget.widget,
-    # module.container_traffic_4xx_widget.widget,
-    # module.container_traffic_2xx_widget.widget,
+    # module.container_traffic_5xx_widget.data,
+    # module.container_traffic_4xx_widget.data,
+    # module.container_traffic_2xx_widget.data,
 
     // Widget/Text
     module.text_title.*.data

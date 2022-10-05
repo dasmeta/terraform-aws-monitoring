@@ -1,11 +1,25 @@
 variable "container" {
+  type = string
+}
+
+variable "cluster" {
+  type = string
+}
+
+variable "namespace" {
   type    = string
-  default = "Average"
+  default = "default"
+}
+
+# region
+variable "region" {
+  type    = string
+  default = ""
 }
 
 # position
 variable "coordinates" {
-  type = map({
+  type = object({
     x : number
     y : number
     width : number
@@ -22,10 +36,4 @@ variable "stat" {
 variable "period" {
   type    = number
   default = 300
-}
-
-# region
-variable "region" {
-  type    = string
-  default = ""
 }
