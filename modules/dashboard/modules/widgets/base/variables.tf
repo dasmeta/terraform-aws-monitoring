@@ -17,6 +17,12 @@ variable "metrics" {
   description = "Metrics to be displayed on the widget."
 }
 
+variable "defaults" {
+  type        = any
+  default     = {}
+  description = "Default values that will be passed to all metrics."
+}
+
 variable "stat" {
   type    = string
   default = "Average"

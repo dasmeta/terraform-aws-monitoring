@@ -6,9 +6,7 @@ module "base" {
   name = "Container Memory / ${var.container}"
 
   metrics = [
-    ["ContainerInsights", "pod_memory_utilization", "PodName", var.container,
-    "ClusterName", var.cluster, "Namespace", var.namespace],
-    ["ContainerInsights", "pod_memory_reserved_capacity", "PodName", var.container,
-    "ClusterName", var.cluster, "Namespace", var.namespace, { "color" : "#d62728" }]
+    { "ContainerInsights" : "pod_memory_utilization", },
+    { "ContainerInsights" : "pod_memory_reserved_capacity", "color" : "#d62728" }
   ]
 }

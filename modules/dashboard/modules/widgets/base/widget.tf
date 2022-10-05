@@ -1,4 +1,21 @@
 locals {
+  style_attributes = ["color"]
+
+  region = var.region != "" ? var.region : data.aws_region.current[0].name
+
+  # merge metrics with defaults
+  metrics_with_defaults = [for metric in var.metrics : merge(var.defaults, metric)]
+
+  # convert to list as cloudwatch expects
+  metrics_raw = flatten(
+    [for row in local.metrics_with_defaults :
+      [for key, item in row : key != "Style" ? [key, item] : ["Style", item]]
+    ]
+  )
+
+  # filter out Style keys as those are not needed by CloudWatch provider
+  metrics = [for item in local.metrics_raw : item if item != "Style"]
+
   data = {
     "type" : "metric",
     "x" : var.coordinates.x,
@@ -7,8 +24,8 @@ locals {
     "height" : var.coordinates.height,
     "properties" : {
       "title" : var.name,
-      "region" : var.region == "" ? data.aws_region.current.name : var.region,
-      "metrics" : var.metrics,
+      "region" : local.region,
+      "metrics" : local.metrics,
       "period" : var.period,
       "stat" : var.stat
     }
