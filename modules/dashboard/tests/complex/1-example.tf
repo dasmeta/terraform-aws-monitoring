@@ -13,32 +13,34 @@ module "basic-dashboard-with-text" {
       {
         type : "container/cpu",
         period : 300,
-        container : "nginx",
+        container : "App 1",
         cluster : "test-cluster"
       },
       {
         type : "container/memory",
         period : 300,
-        container : "nginx",
+        container : "App 1",
         cluster : "test-cluster"
       },
-      # {
-      #   type : "container/memory",
-      #   container : "nginx",
-      # },
-      # {
-      #   type : "container/restarts",
-      #   container : "nginx",
-      # },
-      # {
-      #   type : "container/network",
-      #   container : "nginx",
-      # }
     ],
     [
       {
         type : "text/title"
         text : "Row 2 / col 1"
+      }
+    ],
+    [
+      {
+        type : "container/cpu",
+        period : 300,
+        container : "App 2",
+        cluster : "test-cluster"
+      },
+      {
+        type : "container/memory",
+        period : 300,
+        container : "App 2",
+        cluster : "test-cluster"
       }
     ]
   ]

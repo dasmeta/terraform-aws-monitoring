@@ -14,6 +14,6 @@ module "base" {
 
   metrics = [
     { "ContainerInsights" : "pod_cpu_utilization", },
-    { "ContainerInsights" : "pod_cpu_reserved_capacity", "color" : "#d62728" }
+    { "ContainerInsights" : "pod_cpu_reserved_capacity", "Style" : { "color" : "#d62728" } }
   ]
 }

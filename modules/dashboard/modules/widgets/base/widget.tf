@@ -7,14 +7,12 @@ locals {
   metrics_with_defaults = [for metric in var.metrics : merge(var.defaults, metric)]
 
   # convert to list as cloudwatch expects
-  metrics_raw = flatten(
-    [for row in local.metrics_with_defaults :
-      [for key, item in row : key != "Style" ? [key, item] : ["Style", item]]
-    ]
-  )
+  metrics_raw = [for row in local.metrics_with_defaults :
+    flatten([for key, item in row : key != "Style" ? [key, item] : ["Style", item]])
+  ]
 
   # filter out Style keys as those are not needed by CloudWatch provider
-  metrics = [for item in local.metrics_raw : item if item != "Style"]
+  metrics = [for row in local.metrics_raw : [for item in row : item if item != "Style"]]
 
   data = {
     "type" : "metric",
