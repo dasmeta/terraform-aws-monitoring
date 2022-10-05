@@ -19,18 +19,18 @@ module "container_cpu_widget" {
 module "container_memory_widget" {
   source = "./modules/widgets/container/memory"
 
-  count = length(local.widget_config["container/cpu"])
+  count = length(local.widget_config["container/memory"])
 
   # container
-  container = local.widget_config["container/cpu"][count.index].container
-  cluster   = local.widget_config["container/cpu"][count.index].cluster
-  namespace = local.widget_config["container/cpu"][count.index].namespace
+  container = local.widget_config["container/memory"][count.index].container
+  cluster   = local.widget_config["container/memory"][count.index].cluster
+  namespace = local.widget_config["container/memory"][count.index].namespace
 
   # stats
-  period = local.widget_config["container/cpu"][count.index].period
+  period = local.widget_config["container/memory"][count.index].period
 
   # coordinates
-  coordinates = local.widget_config["container/cpu"][count.index].coordinates
+  coordinates = local.widget_config["container/memory"][count.index].coordinates
 }
 
 # module "container_network_widget" {

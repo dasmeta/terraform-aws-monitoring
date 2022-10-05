@@ -1,12 +1,12 @@
 # this is going to create dashboard with container widgets
-module "basic-dashboard-with-text" {
+module "dashboard-with-container-metrics" {
   source = "../../"
-  name   = "Basic-Dashboard-with-text"
+  name   = "dashboard-with-container-metrics"
   rows = [
     [
       {
         type : "text/title"
-        text : "Row 1 / col 1"
+        text : "App 1 (block 1)"
       }
     ],
     [
@@ -26,7 +26,7 @@ module "basic-dashboard-with-text" {
     [
       {
         type : "text/title"
-        text : "Row 2 / col 1"
+        text : "App 2 (block 2)"
       }
     ],
     [
