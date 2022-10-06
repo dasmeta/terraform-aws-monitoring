@@ -15,6 +15,7 @@ locals {
   widget_defaults = {
     "container/cpu" : []
     "container/memory" : []
+    "container/network" : []
     "container/restarts" : []
     "traffic/5xx" : []
     "traffic/4xx" : []
