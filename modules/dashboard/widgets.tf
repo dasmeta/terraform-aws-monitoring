@@ -45,8 +45,8 @@ locals {
 
     // Widget/Traffic
     module.container_balancer_2xx_widget.*.data,
-    # module.container_balancer_4xx_widget.*.data,
-    # module.container_balancer_5xx_widget.*.data,
+    module.container_balancer_4xx_widget.*.data,
+    module.container_balancer_5xx_widget.*.data,
 
     // Widget/Text
     module.text_title.*.data
