@@ -33,16 +33,36 @@ module "container_memory_widget" {
   coordinates = local.widget_config["container/memory"][count.index].coordinates
 }
 
-# module "container_network_widget" {
-#   source = "./modules/widgets/container/network"
+module "container_network_widget" {
+  source = "./modules/widgets/container/network"
 
-#   network = local.widget_config["container/network"]
-#   # default = var.defaults
-# }
+  count = length(local.widget_config["container/network"])
 
-# module "container_restarts_widget" {
-#   source = "./modules/widgets/container/restart"
+  # container
+  container = local.widget_config["container/network"][count.index].container
+  cluster   = local.widget_config["container/network"][count.index].cluster
+  namespace = local.widget_config["container/network"][count.index].namespace
 
-#   restart = local.widget_config["container/restarts"]
-#   # default = var.defaults
-# }
+  # stats
+  period = local.widget_config["container/network"][count.index].period
+
+  # coordinates
+  coordinates = local.widget_config["container/network"][count.index].coordinates
+}
+
+module "container_restarts_widget" {
+  source = "./modules/widgets/container/restarts"
+
+  count = length(local.widget_config["container/restarts"])
+
+  # container
+  container = local.widget_config["container/restarts"][count.index].container
+  cluster   = local.widget_config["container/restarts"][count.index].cluster
+  namespace = local.widget_config["container/restarts"][count.index].namespace
+
+  # stats
+  period = local.widget_config["container/restarts"][count.index].period
+
+  # coordinates
+  coordinates = local.widget_config["container/restarts"][count.index].coordinates
+}

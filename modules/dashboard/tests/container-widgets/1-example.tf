@@ -1,27 +1,32 @@
-# module "dashboard" {
-#   source = "../.."
-
-#   name = "dashboard-to-test-container-widgets"
-#   # defaults = local.yaml_decode["defaults"]
-#   rows = [
-#     [
-#       {
-#         type : "container/cpu",
-#         period : 300,
-#         container : "nginx",
-#       },
-#       {
-#         type : "container/memory",
-#         container : "nginx",
-#       },
-#       {
-#         type : "container/restarts",
-#         container : "nginx",
-#       },
-#       {
-#         type : "container/network",
-#         container : "nginx",
-#       }
-#     ]
-#   ]
-# }
+module "dashboard-with-container-metrics" {
+  source = "../../"
+  name   = "dashboard-with-container-metrics"
+  rows = [
+    [
+      {
+        type : "container/cpu",
+        period : 300,
+        container : "App 1",
+        cluster : "test-cluster"
+      },
+      {
+        type : "container/memory",
+        period : 300,
+        container : "App 1",
+        cluster : "test-cluster"
+      },
+      {
+        type : "container/network",
+        period : 300,
+        container : "App 1",
+        cluster : "test-cluster"
+      },
+      {
+        type : "container/restarts",
+        period : 300,
+        container : "App 1",
+        cluster : "test-cluster"
+      },
+    ]
+  ]
+}

@@ -61,8 +61,8 @@ locals {
     // Widget/Container
     module.container_cpu_widget.*.data,
     module.container_memory_widget.*.data,
-    # module.container_network_widget.*.data,
-    # module.container_restarts_widget.*.data,
+    module.container_network_widget.*.data,
+    module.container_restarts_widget.*.data,
 
     # // Widget/Traffic
     # module.container_traffic_5xx_widget.data,

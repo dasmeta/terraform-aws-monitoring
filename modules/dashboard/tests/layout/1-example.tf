@@ -1,7 +1,8 @@
 # this is going to create dashboard with container widgets
-module "dashboard-with-container-metrics" {
+module "dashboard-to-test-layout" {
   source = "../../"
-  name   = "dashboard-with-container-metrics"
+
+  name = "dashboard-to-test-layout"
   rows = [
     [
       {
