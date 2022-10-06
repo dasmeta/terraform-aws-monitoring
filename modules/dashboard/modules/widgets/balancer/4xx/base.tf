@@ -6,7 +6,7 @@ module "base" {
   name = "4XX (${var.balancer})"
 
   defaults = {
-    "LoadBalancer" : var.balancer
+    "LoadBalancer" : local.balancer
   }
 
   metrics = [
