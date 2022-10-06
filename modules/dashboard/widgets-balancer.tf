@@ -1,21 +1,45 @@
 # // balancer
-# module "container_balancer_5xx_widget" {
-#   source = "./modules/widgets/balancer/5xx"
+module "container_balancer_2xx_widget" {
+  source = "./modules/widgets/balancer/2xx"
 
-#   balancer_5xx = local.widget_config["balancer/5xx"]
-#   # default     = var.defaults
-# }
+  count = length(local.balancer_2xx)
+
+  # coordinates
+  coordinates = local.balancer_2xx[count.index].coordinates
+
+  # stats
+  period = local.balancer_2xx[count.index].period
+
+  # container
+  balancer = local.balancer_2xx[count.index].balancer
+}
 
 # module "container_balancer_4xx_widget" {
 #   source = "./modules/widgets/balancer/4xx"
 
-#   balancer_4xx = local.widget_config["balancer/4xx"]
-#   # default     = var.defaults
+#   count = length(local.balancer_4xx)
+
+#   # coordinates
+#   coordinates = local.balancer_4xx[count.index].coordinates
+
+#   # stats
+#   period = local.balancer_4xx[count.index].period
+
+#   # container
+#   balancer = local.balancer_4xx[count.index].balancer
 # }
 
-# module "container_balancer_2xx_widget" {
-#   source = "./modules/widgets/balancer/2xx"
+# module "container_balancer_5xx_widget" {
+#   source = "./modules/widgets/balancer/5xx"
 
-#   balancer_2xx = local.widget_config["balancer/2xx"]
-#   # default     = var.defaults
+#   count = length(local.balancer_5xx)
+
+#   # coordinates
+#   coordinates = local.balancer_5xx[count.index].coordinates
+
+#   # stats
+#   period = local.balancer_5xx[count.index].period
+
+#   # container
+#   balancer = local.balancer_5xx[count.index].balancer
 # }
