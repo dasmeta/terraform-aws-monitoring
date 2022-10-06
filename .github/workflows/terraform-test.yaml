@@ -1,0 +1,33 @@
+name: Terraform Test
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ secrets.AWS_REGION}}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.2.1
+
+      - name: Run Terraform Test
+        run: |
+          pwd
+          echo $PWD
+          cd modules/dashboard
+          terraform test
+
