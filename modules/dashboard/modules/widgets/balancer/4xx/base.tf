@@ -5,6 +5,8 @@ module "base" {
 
   name = "4XX (${var.balancer})"
 
+  stat = "Sum"
+
   defaults = {
     "LoadBalancer" : local.balancer
   }

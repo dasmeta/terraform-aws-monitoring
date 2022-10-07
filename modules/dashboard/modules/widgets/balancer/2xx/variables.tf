@@ -2,12 +2,6 @@ variable "balancer" {
   type = string
 }
 
-# region
-variable "region" {
-  type    = string
-  default = ""
-}
-
 # position
 variable "coordinates" {
   type = object({
@@ -19,11 +13,6 @@ variable "coordinates" {
 }
 
 # stats
-variable "stat" {
-  type    = string
-  default = "Average"
-}
-
 variable "period" {
   type    = number
   default = 300
