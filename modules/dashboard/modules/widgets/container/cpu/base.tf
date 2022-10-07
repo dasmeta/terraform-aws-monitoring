@@ -11,6 +11,7 @@ module "base" {
     "PodName" : var.container
   }
 
+  period = var.period
 
   metrics = [
     { "ContainerInsights" : "pod_cpu_utilization", },

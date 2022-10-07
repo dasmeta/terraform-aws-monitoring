@@ -11,12 +11,6 @@ variable "namespace" {
   default = "default"
 }
 
-# region
-variable "region" {
-  type    = string
-  default = ""
-}
-
 # position
 variable "coordinates" {
   type = object({
