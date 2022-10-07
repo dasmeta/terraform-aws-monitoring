@@ -5,7 +5,9 @@ module "base" {
 
   name = "5XX (${var.balancer})"
 
-  stat = "Sum"
+  # stats
+  stat   = "Sum"
+  period = var.period
 
   defaults = {
     "LoadBalancer" : local.balancer
