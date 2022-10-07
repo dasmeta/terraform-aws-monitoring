@@ -31,4 +31,3 @@ jobs:
           echo $PWD
           cd modules/dashboard
           terraform test
-

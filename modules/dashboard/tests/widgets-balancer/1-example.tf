@@ -1,19 +1,13 @@
-# data "aws_vpcs" "vpcs" {}
-
-# data "aws_subnet_ids" "subnets" {
-#   vpc_id = data.aws_vpcs.vpcs.ids[0]
+# module "vpc" {
+#   source = "dasmeta/modules/aws//modules/vpc/examples/minimal-vpc"
 # }
 
 # module "alb" {
 #   source  = "terraform-aws-modules/alb/aws"
-#   version = "~> 6.0"
-
-#   name = "my-alb"
-
-#   load_balancer_type = "application"
-
-#   vpc_id  = data.aws_vpcs.vpcs.ids[0]
-#   subnets = data.aws_subnet_ids.subnets.ids
+#   version = "8.1.0"
+#   depends_on = [
+#     module.vpc
+#   ]
 # }
 
 module "dashboard-with-balancer-metrics" {
