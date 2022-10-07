@@ -22,11 +22,6 @@ variable "coordinates" {
 }
 
 # stats
-variable "stat" {
-  type    = string
-  default = "Average"
-}
-
 variable "period" {
   type    = number
   default = 300
