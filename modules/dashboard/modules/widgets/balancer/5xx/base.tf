@@ -10,12 +10,15 @@ module "base" {
   period = var.period
 
   defaults = {
-    "LoadBalancer" : local.balancer
+    MetricNamespace   = "AWS/ApplicationELB"
+    LoadBalancer      = local.balancer
+    accountId         = var.account_id
+    anomaly_detection = var.anomaly_detection
   }
 
   metrics = [
-    # { "AWS/ApplicationELB" : "RequestCount" },
-    { "AWS/ApplicationELB" : "HTTPCode_Target_5XX_Count", "Style" : { "color" : "#d62728" } },
-    { "AWS/ApplicationELB" : "HTTPCode_ELB_5XX_Count", "Style" : { "color" : "#ff9896" } },
+    # { MetricName = "RequestCount" },
+    { MetricName = "HTTPCode_Target_5XX_Count", "color" = "#d62728" },
+    { MetricName = "HTTPCode_ELB_5XX_Count", "color" = "#ff9896" },
   ]
 }

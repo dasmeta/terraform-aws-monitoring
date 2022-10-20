@@ -6,14 +6,17 @@ module "base" {
   name = "Container Restarts / ${var.container}"
 
   defaults = {
-    "ClusterName" : var.cluster,
-    "Namespace" : var.namespace
-    "PodName" : var.container
+    MetricNamespace   = "ContainerInsights"
+    ClusterName       = var.cluster
+    Namespace         = var.namespace
+    PodName           = var.container
+    accountId         = var.account_id
+    anomaly_detection = var.anomaly_detection
   }
 
   period = var.period
 
   metrics = [
-    { "ContainerInsights" : "pod_number_of_container_restarts", "Style" : { "color" : "#d62728" } }
+    { MetricName = "pod_number_of_container_restarts", color = "#d62728" }
   ]
 }

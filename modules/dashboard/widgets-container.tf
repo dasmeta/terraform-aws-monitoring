@@ -11,9 +11,11 @@ module "container_cpu_widget" {
   period = local.container_cpu[count.index].period
 
   # container
-  container = local.container_cpu[count.index].container
-  cluster   = local.container_cpu[count.index].cluster
-  namespace = local.container_cpu[count.index].namespace
+  container         = local.container_cpu[count.index].container
+  cluster           = local.container_cpu[count.index].cluster
+  namespace         = local.container_cpu[count.index].namespace
+  account_id        = try(local.container_cpu[count.index].accountId, null)
+  anomaly_detection = try(local.container_cpu[count.index].anomaly_detection, false)
 }
 
 module "container_memory_widget" {
@@ -28,9 +30,11 @@ module "container_memory_widget" {
   period = local.container_memory[count.index].period
 
   # container
-  container = local.container_memory[count.index].container
-  cluster   = local.container_memory[count.index].cluster
-  namespace = local.container_memory[count.index].namespace
+  container         = local.container_memory[count.index].container
+  cluster           = local.container_memory[count.index].cluster
+  namespace         = local.container_memory[count.index].namespace
+  account_id        = try(local.container_memory[count.index].accountId, null)
+  anomaly_detection = try(local.container_memory[count.index].anomaly_detection, false)
 }
 
 module "container_network_widget" {
@@ -45,9 +49,11 @@ module "container_network_widget" {
   period = local.container_network[count.index].period
 
   # container
-  container = local.container_network[count.index].container
-  cluster   = local.container_network[count.index].cluster
-  namespace = local.container_network[count.index].namespace
+  container         = local.container_network[count.index].container
+  cluster           = local.container_network[count.index].cluster
+  namespace         = local.container_network[count.index].namespace
+  account_id        = try(local.container_network[count.index].accountId, null)
+  anomaly_detection = try(local.container_network[count.index].anomaly_detection, false)
 }
 
 module "container_restarts_widget" {
@@ -62,7 +68,9 @@ module "container_restarts_widget" {
   period = local.container_restarts[count.index].period
 
   # container
-  container = local.container_restarts[count.index].container
-  cluster   = local.container_restarts[count.index].cluster
-  namespace = local.container_restarts[count.index].namespace
+  container         = local.container_restarts[count.index].container
+  cluster           = local.container_restarts[count.index].cluster
+  namespace         = local.container_restarts[count.index].namespace
+  account_id        = try(local.container_restarts[count.index].accountId, null)
+  anomaly_detection = try(local.container_restarts[count.index].anomaly_detection, false)
 }

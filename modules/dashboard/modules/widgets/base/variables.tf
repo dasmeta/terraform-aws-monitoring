@@ -37,3 +37,9 @@ variable "region" {
   type    = string
   default = ""
 }
+
+variable "anomaly_detection" {
+  type        = bool
+  default     = false
+  description = "Allow to enable anomaly detection on widget metrics"
+}

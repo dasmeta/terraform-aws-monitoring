@@ -12,6 +12,9 @@ module "container_balancer_2xx_widget" {
 
   # container
   balancer = local.balancer_2xx[count.index].balancer
+
+  account_id        = try(local.balancer_2xx[count.index].accountId, null)
+  anomaly_detection = try(local.balancer_2xx[count.index].anomaly_detection, false)
 }
 
 module "container_balancer_4xx_widget" {
@@ -27,6 +30,9 @@ module "container_balancer_4xx_widget" {
 
   # container
   balancer = local.balancer_4xx[count.index].balancer
+
+  account_id        = try(local.balancer_4xx[count.index].accountId, null)
+  anomaly_detection = try(local.balancer_4xx[count.index].anomaly_detection, false)
 }
 
 module "container_balancer_5xx_widget" {
@@ -42,4 +48,7 @@ module "container_balancer_5xx_widget" {
 
   # container
   balancer = local.balancer_5xx[count.index].balancer
+
+  account_id        = try(local.balancer_5xx[count.index].accountId, null)
+  anomaly_detection = try(local.balancer_5xx[count.index].anomaly_detection, false)
 }

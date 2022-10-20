@@ -6,15 +6,18 @@ module "base" {
   name = "Container Memory / ${var.container}"
 
   defaults = {
-    "ClusterName" : var.cluster,
-    "Namespace" : var.namespace
-    "PodName" : var.container
+    MetricNamespace   = "ContainerInsights"
+    ClusterName       = var.cluster
+    Namespace         = var.namespace
+    PodName           = var.container
+    accountId         = var.account_id
+    anomaly_detection = var.anomaly_detection
   }
 
   period = var.period
 
   metrics = [
-    { "ContainerInsights" : "pod_memory_utilization", },
-    { "ContainerInsights" : "pod_memory_reserved_capacity", "Style" : { "color" : "#d62728" } }
+    { MetricName = "pod_memory_utilization", },
+    { MetricName = "pod_memory_reserved_capacity", color : "#d62728" }
   ]
 }

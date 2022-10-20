@@ -5,15 +5,16 @@ variable "name" {
 }
 
 variable "defaults" {
-  type = object(
-    {
-      # period      = number
-      # namespace   = string
-      # clustername = string
-      # width       = number
-      # height      = number
-    }
-  )
+  type = any
+  ## valid values
+  # object({
+  #     period    = number
+  #     namespace = string
+  #     cluster   = string
+  #     width     = number
+  #     height    = number
+  #   }
+  # )
 
   default = {}
 
@@ -21,7 +22,7 @@ variable "defaults" {
 }
 
 variable "rows" {
-  type = list(list(any))
+  type = any
 
   description = "List of widgets to be inserted into the dashboard. See ./modules/widgets folder to see list of available widgets."
 }
