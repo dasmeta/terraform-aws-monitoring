@@ -1,4 +1,4 @@
-name: Terraform Test
+name: Checkov
 on:
   pull_request:
   push:
@@ -16,10 +16,8 @@ jobs:
           - sns_to_lambda
     permissions: write-all
     steps:
-    - uses: dasmeta/reusable-actions-workflows/terraform-test@main
+    - uses: dasmeta/reusable-actions-workflows/checkov@main
       with:
-        aws-region: ${{ secrets.AWS_REGION}}
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        path: modules/${{ matrix.path }}
+        fetch-depth: 0
+        directory: modules/${{ matrix.path }}
       continue-on-error: true
