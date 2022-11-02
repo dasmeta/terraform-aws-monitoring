@@ -97,6 +97,7 @@ variable "time_period_start" {
 }
 
 variable "sns_subscription" {
+  type = any
   default = {
     "sns_subscription_email_address_list"    = []
     "sns_subscription_phone_number_list"     = []
