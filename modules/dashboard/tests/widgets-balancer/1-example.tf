@@ -19,18 +19,36 @@ module "dashboard-with-balancer-metrics" {
   }
 
   rows = [
+
+    # If you only have one ALB in your account, you only need to specify the type of request
     # [
     #   {
     #     type : "balancer/2xx",
-    #     balancer : "my-alb"
     #   },
     #   {
     #     type : "balancer/4xx",
-    #     balancer : "my-alb"
     #   },
     #   {
     #     type : "balancer/5xx",
-    #     balancer : "my-alb"
+    #   }
+    # ]
+
+    # If you have multiple sa or want to display the metrics of another account, specify the ARN
+    # [
+    #   {
+    #     type : "balancer/2xx",
+    #     accountId: "287872424462"
+    #     balancer_arn: "arn:aws:elasticloadbalancing:eu-central-1:287872424462:loadbalancer/app/alb-ingress/8e511b0b30612cdd"
+    #   },
+    #   {
+    #     type : "balancer/4xx",
+    #     accountId: "287872424462"
+    #     balancer_arn: "arn:aws:elasticloadbalancing:eu-central-1:287872424462:loadbalancer/app/alb-ingress/8e511b0b30612cdd"
+    #   },
+    #   {
+    #     type : "balancer/5xx",
+    #     accountId: "287872424462"
+    #     balancer_arn: "arn:aws:elasticloadbalancing:eu-central-1:287872424462:loadbalancer/app/alb-ingress/8e511b0b30612cdd"
     #   }
     # ]
   ]

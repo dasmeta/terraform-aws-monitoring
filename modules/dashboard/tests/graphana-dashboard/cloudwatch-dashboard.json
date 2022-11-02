@@ -1,0 +1,87 @@
+[
+    {
+        "height": 3,
+        "properties": {
+            "alarms": [
+                "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-a",
+                "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-b",
+                "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-c"
+            ],
+            "region": "eu-central-1",
+            "title": "Alarms status Widget"
+        },
+        "type": "alarm",
+        "width": 24,
+        "x": 0,
+        "y": 0
+    },
+    {
+        "height": 6,
+        "properties": {
+            "annotations": {
+                "alarms": [
+                    "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-a"
+                ]
+            },
+            "region": "eu-central-1",
+            "stacked": false,
+            "title": "684806417680-test-alert-a",
+            "type": "chart",
+            "yAxis": {
+                "left": {
+                    "min": 0
+                }
+            }
+        },
+        "type": "metric",
+        "width": 8,
+        "x": 0,
+        "y": 1
+    },
+    {
+        "height": 6,
+        "properties": {
+            "annotations": {
+                "alarms": [
+                    "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-b"
+                ]
+            },
+            "region": "eu-central-1",
+            "stacked": false,
+            "title": "684806417680-test-alert-b",
+            "type": "chart",
+            "yAxis": {
+                "left": {
+                    "min": 0
+                }
+            }
+        },
+        "type": "metric",
+        "width": 8,
+        "x": 8,
+        "y": 1
+    },
+    {
+        "height": 6,
+        "properties": {
+            "annotations": {
+                "alarms": [
+                    "arn:aws:cloudwatch:eu-central-1:684806417680:alarm:684806417680-test-alert-c"
+                ]
+            },
+            "region": "eu-central-1",
+            "stacked": false,
+            "title": "684806417680-test-alert-c",
+            "type": "chart",
+            "yAxis": {
+                "left": {
+                    "min": 0
+                }
+            }
+        },
+        "type": "metric",
+        "width": 8,
+        "x": 16,
+        "y": 1
+    }
+]

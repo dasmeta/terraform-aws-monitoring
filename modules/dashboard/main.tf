@@ -1,3 +1,7 @@
+data "aws_caller_identity" "project" {
+  provider = aws
+}
+
 /**
  * # Example Setup
  * ```tf

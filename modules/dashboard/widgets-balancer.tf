@@ -10,8 +10,11 @@ module "container_balancer_2xx_widget" {
   # stats
   period = local.balancer_2xx[count.index].period
 
-  # container
-  balancer = local.balancer_2xx[count.index].balancer
+  # balancer
+  balancer_arn = try(local.balancer_2xx[count.index].balancer_arn, null)
+
+  account_id        = try(local.balancer_2xx[count.index].accountId, data.aws_caller_identity.project.account_id)
+  anomaly_detection = try(local.balancer_2xx[count.index].anomaly_detection, false)
 }
 
 module "container_balancer_4xx_widget" {
@@ -25,8 +28,12 @@ module "container_balancer_4xx_widget" {
   # stats
   period = local.balancer_4xx[count.index].period
 
-  # container
-  balancer = local.balancer_4xx[count.index].balancer
+  # balancer
+  balancer_arn = try(local.balancer_4xx[count.index].balancer_arn, null)
+
+  account_id = try(local.balancer_4xx[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_4xx[count.index].anomaly_detection, false)
 }
 
 module "container_balancer_5xx_widget" {
@@ -40,6 +47,10 @@ module "container_balancer_5xx_widget" {
   # stats
   period = local.balancer_5xx[count.index].period
 
-  # container
-  balancer = local.balancer_5xx[count.index].balancer
+  # balancer
+  balancer_arn = try(local.balancer_5xx[count.index].balancer_arn, null)
+
+  account_id = try(local.balancer_5xx[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_5xx[count.index].anomaly_detection, false)
 }

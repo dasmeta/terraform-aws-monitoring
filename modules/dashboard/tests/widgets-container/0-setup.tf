@@ -11,4 +11,6 @@ terraform {
   }
 }
 
-provider "aws" {}
+provider "aws" {
+  alias = "logging"
+}

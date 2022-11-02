@@ -3,19 +3,22 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Requests (${var.balancer})"
+  name = "Requests (${local.balancer_name})"
 
   # stats
   stat   = "Sum"
   period = var.period
 
   defaults = {
-    "LoadBalancer" : local.balancer
+    MetricNamespace   = "AWS/ApplicationELB"
+    LoadBalancer      = local.balancer
+    accountId         = var.account_id
+    anomaly_detection = var.anomaly_detection
   }
 
   metrics = [
-    { "AWS/ApplicationELB" : "RequestCount" },
-    { "AWS/ApplicationELB" : "HTTPCode_Target_2XX_Count", "Style" : { "color" : "#2ca02c" } },
-    { "AWS/ApplicationELB" : "HTTPCode_ELB_2XX_Count", "Style" : { "color" : "#98df8a" } }
+    { MetricName : "RequestCount" },
+    { MetricName : "HTTPCode_Target_2XX_Count", "color" = "#2ca02c" },
+    { MetricName : "HTTPCode_ELB_2XX_Count", "color" = "#98df8a" }
   ]
 }
