@@ -57,34 +57,34 @@ locals {
   # combine results
   widget_result = concat(
     // Widget/Container
-    module.container_cpu_widget.*.data,
-    module.container_memory_widget.*.data,
-    module.container_network_widget.*.data,
-    module.container_restarts_widget.*.data,
+    module.container_cpu_widget[*].data,
+    module.container_memory_widget[*].data,
+    module.container_network_widget[*].data,
+    module.container_restarts_widget[*].data,
 
     // Widget/Traffic
-    module.container_balancer_2xx_widget.*.data,
-    module.container_balancer_4xx_widget.*.data,
-    module.container_balancer_5xx_widget.*.data,
+    module.container_balancer_2xx_widget[*].data,
+    module.container_balancer_4xx_widget[*].data,
+    module.container_balancer_5xx_widget[*].data,
 
     // Widget/Text
-    module.text_title.*.data,
+    module.text_title[*].data,
 
     # log based metrics
-    module.widget_log_based.*.data,
+    module.widget_log_based[*].data,
 
     # custom metrics
-    module.widget_custom.*.data,
+    module.widget_custom[*].data,
 
     # application/prometheus metrics
-    module.widget_application.*.data,
+    module.widget_application[*].data,
 
     # logs insights metrics/logs
-    module.widget_logs_insight_logs.*.data,
-    module.widget_logs_insight_metric.*.data,
+    module.widget_logs_insight_logs[*].data,
+    module.widget_logs_insight_metric[*].data,
 
     # alarm status/metrics
-    module.widget_alarm_status.*.data,
-    module.widget_alarm_metric.*.data
+    module.widget_alarm_status[*].data,
+    module.widget_alarm_metric[*].data
   )
 }
