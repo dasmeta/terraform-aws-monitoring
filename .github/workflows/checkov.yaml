@@ -1,4 +1,4 @@
-name: Checkov
+name:  Checkov
 on:
   pull_request:
   push:
@@ -9,8 +9,11 @@ jobs:
     strategy:
       matrix:
         path:
-            - fold1
-            - fold2
+          - aws-security-hub-opsgenie
+          - billing
+          - dashboard
+          - eventbridge
+          - sns_to_lambda
     steps:
     - uses: dasmeta/reusable-actions-workflows/checkov@main
       with:
