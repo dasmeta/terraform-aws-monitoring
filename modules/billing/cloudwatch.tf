@@ -1,8 +1,8 @@
 locals {
   actions = concat(
-    aws_sns_topic.alerts_notify_email.*.arn,
-    aws_sns_topic.alerts_notify_sms.*.arn,
-    aws_sns_topic.alerts_notify_opsgenie.*.arn
+    aws_sns_topic.alerts_notify_email[*].arn,
+    aws_sns_topic.alerts_notify_sms[*].arn,
+    aws_sns_topic.alerts_notify_opsgenie[*].arn
   )
 }
 

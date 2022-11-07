@@ -14,7 +14,6 @@ jobs:
           - dashboard
           - eventbridge
           - sns_to_lambda
-    permissions: write-all
     steps:
       - name: Setup Infracost
         uses: infracost/actions/setup@v2

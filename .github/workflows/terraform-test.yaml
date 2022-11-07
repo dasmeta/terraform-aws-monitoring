@@ -9,9 +9,8 @@ jobs:
     strategy:
       matrix:
         path:
-         - fold1
+          - fold1
           - fold2
-         permissions: write-all
     steps:
     - uses: dasmeta/reusable-actions-workflows/terraform-test@main
       with:
