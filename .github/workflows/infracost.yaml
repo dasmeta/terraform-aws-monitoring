@@ -9,17 +9,14 @@ jobs:
     strategy:
       matrix:
         path:
-          - aws-security-hub-opsgenie
-          - billing
-          - dashboard
-          - eventbridge
-          - sns_to_lambda
-    permissions: write-all
+          - fold1
+          - fold2
+         permissions: write-all
     steps:
       - name: Setup Infracost
         uses: infracost/actions/setup@v2
         with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
+           api-key: ${{secret.API_KEY}}
 
       - name: Checkout base branch
         uses: actions/checkout@v3
