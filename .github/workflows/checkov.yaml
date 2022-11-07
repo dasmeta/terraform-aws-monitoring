@@ -9,12 +9,9 @@ jobs:
     strategy:
       matrix:
         path:
-          - aws-security-hub-opsgenie
-          - billing
-          - dashboard
-          - eventbridge
-          - sns_to_lambda
-    permissions: write-all
+            - fold1
+            - fold2
+          permissions: write-all
     steps:
     - uses: dasmeta/reusable-actions-workflows/checkov@main
       with:
