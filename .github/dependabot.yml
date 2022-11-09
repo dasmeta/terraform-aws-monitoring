@@ -1,0 +1,12 @@
+version: 2
+
+updates:
+  - package-ecosystem: "terraform"
+    directory:
+      - "modules/aws-security-hub-opsgenie"
+      - "modules/billing"
+      - "modules/dashboard"
+      - "modules/eventbridge"
+      - "modules/sns_to_lambda"
+    schedule:
+      interval: "daily"
