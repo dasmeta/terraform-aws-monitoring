@@ -1,4 +1,4 @@
-name:  TFSEC
+name: TFSEC
 on:
   pull_request:
   push:
@@ -6,6 +6,13 @@ on:
 jobs:
   terraform-tfsec:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      discussions: write
+      pull-requests: write
+      id-token: write
+      security-events: write
     steps:
     - uses: dasmeta/reusable-actions-workflows/tfsec@main
       with:
