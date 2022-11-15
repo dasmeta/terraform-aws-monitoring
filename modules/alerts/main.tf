@@ -32,7 +32,7 @@ module "cloudwatch_metric-alarm" {
 
   for_each = { for alert in local.alert : "${alert.name}-${alert.source}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -74,7 +74,7 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
   for_each = { for alert in local.alert_w_anomalydetec : "${alert.name}-${alert.source}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -117,7 +117,7 @@ module "cloudwatch_log-based-metric-alarm" {
 
   for_each = { for alert in local.log_based_alert : "${alert.source}-${alert.name}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -160,7 +160,7 @@ module "external_health_check-alarms" {
 
   for_each = { for alert in local.health_check_alerts : "${alert.source}-${alert.name}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold           = each.value.threshold
