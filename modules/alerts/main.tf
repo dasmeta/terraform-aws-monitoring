@@ -22,7 +22,7 @@ locals {
   log_based_alert      = [for alert in var.alerts : alert if alert.log_based_metric == true]
 
   alarm_actions = [
-    "arn:aws:sns:${data.aws_region.logging.name}:${data.aws_caller_identity.logging.account_id}:${var.sns_topic}"
+    "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
   ]
 }
 
@@ -60,7 +60,7 @@ module "cloudwatch_metric-alarm" {
   insufficient_data_actions = local.alarm_actions
 
   providers = {
-    aws = aws.logging
+    aws = aws
   }
 }
 
@@ -149,7 +149,7 @@ module "cloudwatch_log-based-metric-alarm" {
   insufficient_data_actions = local.alarm_actions
 
   providers = {
-    aws = aws.logging
+    aws = aws
   }
 }
 

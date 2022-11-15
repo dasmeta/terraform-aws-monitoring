@@ -17,7 +17,6 @@ module "this" {
   ]
 
   providers = {
-    aws         = aws
-    aws.logging = aws
+    aws = aws
   }
 }
