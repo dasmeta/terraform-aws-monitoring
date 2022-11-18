@@ -10,13 +10,13 @@ variable "alerts" {
     name               = string
     source             = string
     filters            = map(any)
-    statistic          = string
-    equation           = string
-    threshold          = number
-    period             = number
-    treat_missing_data = string
-    log_based_metric   = bool
-    anomaly_detection  = bool
+    statistic          = optional(string, "sum")
+    equation           = optional(string, "gte")
+    threshold          = optional(number, 1)
+    period             = optional(number, 300)
+    treat_missing_data = optional(string, null)
+    log_based_metric   = optional(bool, false)
+    anomaly_detection  = optional(bool, false)
     account_id         = optional(string, null)
   }))
 
