@@ -58,10 +58,6 @@ module "cloudwatch_metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }
 
 
@@ -105,10 +101,6 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }
 
 module "cloudwatch_log-based-metric-alarm" {
@@ -147,10 +139,6 @@ module "cloudwatch_log-based-metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }
 
 
@@ -173,8 +161,4 @@ module "external_health_check-alarms" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }

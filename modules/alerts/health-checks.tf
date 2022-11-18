@@ -38,6 +38,4 @@ resource "aws_route53_health_check" "health_checks" {
   regions                 = each.value.regions
   cloudwatch_alarm_region = each.value.region
   tags                    = merge({ Name = each.key }, each.value.tags)
-
-  provider = aws
 }

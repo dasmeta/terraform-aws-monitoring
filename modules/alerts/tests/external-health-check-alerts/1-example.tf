@@ -15,8 +15,4 @@ module "this" {
       port = 80
     }
   ]
-
-  providers = {
-    aws = aws
-  }
 }

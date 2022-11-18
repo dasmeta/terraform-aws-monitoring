@@ -29,10 +29,6 @@ module "alerts" {
       period: 300
     }
   ]
-
-  providers = {
-    aws         = aws
-  }
 }
 ```
 
