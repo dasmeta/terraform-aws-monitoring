@@ -3,7 +3,7 @@ Module use examples.
 # Watch for
 ```
 module "alerts" {
-  source = "git::ssh://git@git.proalpha.com/cce_mod/monitoring.git//modules/alerts?ref=v0.4.0"
+  source = "dasmeta/monitoring/aws//modules/alerts"
 
   alerts = [
     {
@@ -29,11 +29,6 @@ module "alerts" {
       period: 300
     }
   ]
-
-  providers = {
-    aws         = aws
-    aws.logging = aws.logging
-  }
 }
 ```
 

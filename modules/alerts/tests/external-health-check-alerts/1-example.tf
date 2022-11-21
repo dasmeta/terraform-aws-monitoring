@@ -15,9 +15,4 @@ module "this" {
       port = 80
     }
   ]
-
-  providers = {
-    aws         = aws
-    aws.logging = aws
-  }
 }

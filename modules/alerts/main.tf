@@ -22,7 +22,7 @@ locals {
   log_based_alert      = [for alert in var.alerts : alert if alert.log_based_metric == true]
 
   alarm_actions = [
-    "arn:aws:sns:${data.aws_region.logging.name}:${data.aws_caller_identity.logging.account_id}:${var.sns_topic}"
+    "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
   ]
 }
 
@@ -32,7 +32,7 @@ module "cloudwatch_metric-alarm" {
 
   for_each = { for alert in local.alert : "${alert.name}-${alert.source}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -58,10 +58,6 @@ module "cloudwatch_metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws.logging
-  }
 }
 
 
@@ -74,7 +70,7 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
   for_each = { for alert in local.alert_w_anomalydetec : "${alert.name}-${alert.source}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -105,10 +101,6 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }
 
 module "cloudwatch_log-based-metric-alarm" {
@@ -117,7 +109,7 @@ module "cloudwatch_log-based-metric-alarm" {
 
   for_each = { for alert in local.log_based_alert : "${alert.source}-${alert.name}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -147,10 +139,6 @@ module "cloudwatch_log-based-metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws.logging
-  }
 }
 
 
@@ -160,7 +148,7 @@ module "external_health_check-alarms" {
 
   for_each = { for alert in local.health_check_alerts : "${alert.source}-${alert.name}" => alert }
 
-  alarm_name          = format("%s-%s", data.aws_caller_identity.project.account_id, replace(lower(each.value.name), " ", "-"))
+  alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold           = each.value.threshold
@@ -173,8 +161,4 @@ module "external_health_check-alarms" {
 
   alarm_actions             = local.alarm_actions
   insufficient_data_actions = local.alarm_actions
-
-  providers = {
-    aws = aws
-  }
 }
