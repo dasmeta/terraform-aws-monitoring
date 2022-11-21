@@ -1,7 +1,3 @@
-data "aws_caller_identity" "project" {
-  provider = aws
-}
+data "aws_caller_identity" "project" {}
 
-data "aws_region" "project" {
-  provider = aws
-}
+data "aws_region" "project" {}
