@@ -7,10 +7,10 @@ terraform {
       version = "~> 4.3"
     }
 
-    grafana = {
-      source  = "grafana/grafana"
-      version = ">= 1.13.3"
-    }
+    # grafana = {
+    #   source  = "grafana/grafana"
+    #   version = ">= 1.13.3"
+    # }
 
     random = {
       source  = "hashicorp/random"
