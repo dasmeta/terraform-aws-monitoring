@@ -74,6 +74,3 @@ module "notify_teams" {
   ]
 }
 
-output "id" {
-  value = module.notify_teams[0].id
-}

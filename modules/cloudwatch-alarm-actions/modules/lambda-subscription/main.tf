@@ -35,6 +35,3 @@ module "subscription" {
   endpoint = module.lambda.lambda_function_arn
 }
 
-output "id" {
-  value = "${var.sns_topic_name}-${var.uniq_id}-${var.type}"
-}
