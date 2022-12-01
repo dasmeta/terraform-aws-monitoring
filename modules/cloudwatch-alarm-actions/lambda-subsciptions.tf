@@ -1,3 +1,4 @@
+data "aws_region" "current" {}
 
 # slack notify subscription
 module "notify_slack" {
@@ -63,6 +64,7 @@ module "notify_teams" {
   type    = "teams"
   environment_variables = {
     WEBHOOK_URL = each.value
+    REGION      = data.aws_region.current.name
   }
 
   log_group_retention_days  = var.log_group_retention_days

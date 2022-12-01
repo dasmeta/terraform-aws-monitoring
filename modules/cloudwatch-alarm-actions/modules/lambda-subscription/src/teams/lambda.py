@@ -30,17 +30,16 @@ def guess_subject(event):
         logging.info("Message subject not included in SNS, using fallback message subject")
         return FALLBACK_SUBJECT
 
-def isResistent(region,subject):
-    if region in subject:
-        return True
-    else:
-        return False
+
         
 def handler(event, context):
     """send message via teams"""
 
     teams_webhook_url = os.environ['WEBHOOK_URL']
-
+    url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+    # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+    
+    
     logger.info("Event: " + str(event))
     message = str(event['Records'][0]['Sns']['Message'])
     subject = guess_subject(event)
@@ -48,7 +47,7 @@ def handler(event, context):
     logger.info("Message: " + str(subject))
     logger.info("Message: " + str(message))
     
-    
+    # Json handle and cut info
     json_body = json.loads(event["Records"][0]["Sns"]["Message"])
     trigger_body = json_body["Trigger"]
     metrics_body = trigger_body["Metrics"]
@@ -59,25 +58,12 @@ def handler(event, context):
     metric_namespace = metric["Namespace"]
     aws_account = json_body["AWSAccountId"]
     dimension_string = ""
-    dimension_name = metric["Dimensions"][0]["name"]
-    dimension_value = metric["Dimensions"][0]["value"]
     
     for dimension_object in metric["Dimensions"]:
         dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
     
-    url_frankfurt = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
-    
-    cloudwatch = boto3.client('cloudwatch', region_name='eu-central-1')
-    print(metric["Dimensions"])
-    print("dimension_name")
-    print(dimension_name)
-    print("dimension_value")
-    print(dimension_value)
-    print("MetricName")
-    print(metric_name)
-    print("Namespace")
-    print(metric["Namespace"])
-    
+    # Get Cloudwatch metric widget, encoded base64
+    cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
     MetricWidget = {
         "width": 600,
         "height": 395,
@@ -99,20 +85,19 @@ def handler(event, context):
         "period": 300,
         "view": "timeSeries"
     }
-
-    print("MetricWidget")
-    print(json.dumps(MetricWidget))
-
-
     response = cloudwatch.get_metric_widget_image(MetricWidget=json.dumps(MetricWidget))
-    print(response["MetricWidgetImage"])    
     encoded_data = base64.b64encode(response["MetricWidgetImage"]).decode('utf-8')
-    print("encoded_data")
-    print(encoded_data)
-    print("Image")
     image = 'data:image/png;base64, {}'.format(encoded_data)
-    print(image)
 
+    
+    # Check subject and add smile)
+    ok_check = "OK" in subject
+    if ok_check:
+        smile_subject = "✅ " + subject
+    else:
+        smile_subject = "❌ " + subject
+
+    # Teams create AdaptiveCard and send
     payload = {
        "type":"message",
        "attachments":[
@@ -122,7 +107,7 @@ def handler(event, context):
              "content":{
                 "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
                 "type":"AdaptiveCard",
-                "title": "❌" + " " + subject,
+                "title": subject,
                 "version":"1.2",
                 "msteams": {
                     "width": "Full"
@@ -130,7 +115,7 @@ def handler(event, context):
                 "body":[
                     {
                     "type": "TextBlock",
-                    "text": "❌" + " " + subject,
+                    "text": smile_subject,
                     "size": "Large",
                     "weight": "Bolder",
                     "style": "heading"
@@ -163,7 +148,7 @@ def handler(event, context):
                         {
                             "type": "Action.OpenUrl",
                             "title": "See more",
-                            "url": "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+                            "url": url
                         }
                     ]
                     }
