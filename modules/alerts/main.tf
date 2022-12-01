@@ -24,6 +24,9 @@ locals {
   alarm_actions = [
     "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
   ]
+  ok_actions = [
+    "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
+  ]
 }
 
 module "cloudwatch_metric-alarm" {
@@ -57,6 +60,7 @@ module "cloudwatch_metric-alarm" {
   )
 
   alarm_actions             = local.alarm_actions
+  ok_actions                = local.ok_actions
   insufficient_data_actions = local.alarm_actions
 }
 
