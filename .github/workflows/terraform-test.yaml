@@ -15,15 +15,11 @@ jobs:
     strategy:
       matrix:
         path:
-          - aws-load-balancer-controller
-          - cloudwatch-metrics
-          - eks
-          - external-secrets
-          - fluent-bit
-          - metrics-server
-          - sso-rbac
-          - vpc
-          - weave-scope
+          - aws-security-hub-opsgenie
+          - billing
+          - dashboard
+          - eventbridge
+          - sns_to_lambda
      
     steps:
     - uses: dasmeta/reusable-actions-workflows/terraform-test@main
