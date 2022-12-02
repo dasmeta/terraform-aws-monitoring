@@ -71,6 +71,12 @@ variable "servicenow_webhooks" {
   description = "List of servicenow webhook configs to send notification to"
 }
 
+variable "teams_webhooks" {
+  type = list(string)
+  default     = []
+  description = "Teams webhook configs to send notification to"
+}
+
 variable "log_group_retention_days" {
   type        = number
   default     = 7

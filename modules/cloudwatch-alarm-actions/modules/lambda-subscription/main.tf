@@ -9,7 +9,7 @@ module "lambda" {
   memory_size   = var.memory_size
   timeout       = var.timeout
   publish       = true
-  source_path   = "${path.module}/src"
+  source_path   = "${path.module}/src/${var.type}"
 
   # Create and use an IAM role which can log function output to CloudWatch,
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.
@@ -34,3 +34,4 @@ module "subscription" {
   protocol = "lambda"
   endpoint = module.lambda.lambda_function_arn
 }
+

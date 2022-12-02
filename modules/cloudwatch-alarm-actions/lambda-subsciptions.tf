@@ -1,3 +1,4 @@
+data "aws_region" "current" {}
 
 # slack notify subscription
 module "notify_slack" {
@@ -48,3 +49,30 @@ module "notify_servicenow" {
     module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
   ]
 }
+
+# teams notify subscription
+module "notify_teams" {
+  source = "./modules/lambda-subscription"
+
+  for_each = { for key, webhook in var.teams_webhooks : key => webhook }
+
+  # sns/subscription configs
+  sns_topic_name = module.topic.name
+
+  # lambda configs
+  uniq_id = each.key
+  type    = "teams"
+  environment_variables = {
+    WEBHOOK_URL = each.value
+    REGION      = data.aws_region.current.name
+  }
+
+  log_group_retention_days  = var.log_group_retention_days
+  dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
+  attach_dead_letter_policy = var.enable_dead_letter_queue
+
+  depends_on = [
+    module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
+  ]
+}
+
