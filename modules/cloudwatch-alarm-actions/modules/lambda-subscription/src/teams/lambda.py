@@ -50,25 +50,18 @@ def handler(event, context):
     # Json handle and cut info
     json_body = json.loads(event["Records"][0]["Sns"]["Message"])
     trigger_body = json_body["Trigger"]
-    metrics_body = trigger_body["Metrics"]
-    print ("> Alarm Metrics Body Value",metrics_body)
-    metric_stat = metrics_body[0]["MetricStat"]
-    metric = metric_stat["Metric"]
-    metric_name = metric["MetricName"]
-    metric_namespace = metric["Namespace"]
     aws_account = json_body["AWSAccountId"]
     dimension_string = ""
     
-    for dimension_object in metric["Dimensions"]:
-        dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
-    
-    # Get Cloudwatch metric widget, encoded base64
-    cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
-    MetricWidget = {
-        "width": 600,
-        "height": 395,
-        "metrics": [
-            [
+    if "Metrics" in trigger_body:
+        metrics_body = trigger_body["Metrics"]
+        print ("> Alarm Metrics Body Value",metrics_body)
+        metric_stat = metrics_body[0]["MetricStat"]
+        metric = metric_stat["Metric"]
+        metric_name = metric["MetricName"]
+        metric_namespace = metric["Namespace"]
+        
+        metrics_for_get_widget = [
                 metric["Namespace"],
                 metric_name,
                 metric["Dimensions"][1]["name"],
@@ -81,6 +74,31 @@ def handler(event, context):
                     "stat": "Average"
                 }
             ]
+            
+        for dimension_object in metric["Dimensions"]:
+            dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
+    else:
+        for dimension_object in trigger_body["Dimensions"]:
+            dimension_string += dimension_object["name"] + "/" + dimension_object["value"] + "/"
+        
+        metrics_for_get_widget = [
+                trigger_body["Dimensions"][0]["name"],
+                trigger_body["Dimensions"][0]["value"],
+                {
+                    "stat": "Average"
+                }
+        ]
+            
+        metric_name = trigger_body["MetricName"]
+        metric_namespace = trigger_body["Namespace"]
+    
+    # Get Cloudwatch metric widget, encoded base64
+    cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
+    MetricWidget = {
+        "width": 600,
+        "height": 395,
+        "metrics": [
+            metrics_for_get_widget
         ],
         "period": 300,
         "view": "timeSeries"
