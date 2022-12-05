@@ -164,5 +164,6 @@ module "external_health_check-alarms" {
   statistic           = local.statistics[each.value.statistic]
 
   alarm_actions             = local.alarm_actions
+  ok_actions                = local.ok_actions
   insufficient_data_actions = local.alarm_actions
 }
