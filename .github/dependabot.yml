@@ -1,11 +1,20 @@
 version: 2
+
+registries:
+terraform:
+  type: terraform-registry
+  url: https://registry.terraform.io/
+  token: ${{ secrets.GITHUB_TOKEN }}
+
 updates:
   - package-ecosystem: "terraform"
-    directory:
+    directory: 
       - "modules/aws-security-hub-opsgenie"
       - "modules/billing"
       - "modules/dashboard"
       - "modules/eventbridge"
       - "modules/sns_to_lambda"
+    registries:
+      - terraform
     schedule:
       interval: "daily"
