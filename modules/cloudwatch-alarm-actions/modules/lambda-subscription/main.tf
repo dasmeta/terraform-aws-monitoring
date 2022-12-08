@@ -1,6 +1,7 @@
 module "lambda" {
-  source  = "terraform-aws-modules/lambda/aws"
-  version = "3.2.0"
+  source = "terraform-aws-modules/lambda/aws"
+  # version = "3.2.0"
+  version = "4.7.1"
 
   create        = true
   function_name = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
