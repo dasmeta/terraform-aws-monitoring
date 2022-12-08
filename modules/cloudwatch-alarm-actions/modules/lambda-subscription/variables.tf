@@ -64,7 +64,7 @@ variable "attach_dead_letter_policy" {
 }
 
 variable "recreate_missing_package" {
-  type = bool
-  default = true
+  type        = bool
+  default     = true
   description = "Whether to recreate missing Lambda package if it is missing locally or not"
 }
