@@ -1,6 +1,6 @@
 module "lambda" {
-  source  = "terraform-aws-modules/lambda/aws"
-  version = "3.2.0"
+  source = "terraform-aws-modules/lambda/aws"
+  version = "4.7.1"
 
   create        = true
   function_name = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
@@ -15,6 +15,7 @@ module "lambda" {
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.
   attach_cloudwatch_logs_policy     = true
   cloudwatch_logs_retention_in_days = var.log_group_retention_days
+  recreate_missing_package          = var.recreate_missing_package
 
   # in case if this role already created use created one
   role_name   = var.role_name
