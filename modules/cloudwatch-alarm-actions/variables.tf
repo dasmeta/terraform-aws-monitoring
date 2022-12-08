@@ -88,3 +88,9 @@ variable "enable_dead_letter_queue" {
   default     = true
   description = "Whether to enable dead letter queue"
 }
+
+variable "recreate_missing_package" {
+  type = bool
+  default = true
+  description = "Whether to recreate missing Lambda package if it is missing locally or not"
+}
