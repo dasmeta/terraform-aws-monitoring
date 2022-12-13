@@ -31,28 +31,28 @@ def guess_subject(event):
         return FALLBACK_SUBJECT
 
 
-        
+
 def handler(event, context):
     """send message via teams"""
 
     teams_webhook_url = os.environ['WEBHOOK_URL']
     url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
-    
-    
+
+
     logger.info("Event: " + str(event))
     message = str(event['Records'][0]['Sns']['Message'])
     subject = guess_subject(event)
     logger.info("Event:" + str(event))
     logger.info("Message: " + str(subject))
     logger.info("Message: " + str(message))
-    
+
     # Json handle and cut info
     json_body = json.loads(event["Records"][0]["Sns"]["Message"])
     trigger_body = json_body["Trigger"]
     aws_account = json_body["AWSAccountId"]
     dimension_string = ""
-    
+
     if "Metrics" in trigger_body:
         metrics_body = trigger_body["Metrics"]
         print ("> Alarm Metrics Body Value",metrics_body)
@@ -82,13 +82,13 @@ def handler(event, context):
             "period": 300,
             "view": "timeSeries"
         }
-            
+
         for dimension_object in metric["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
     else:
         for dimension_object in trigger_body["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" + dimension_object["value"] + "/"
-        
+
         metric_name = trigger_body["MetricName"]
         metric_namespace = trigger_body["Namespace"]
         MetricWidget = {
@@ -109,14 +109,14 @@ def handler(event, context):
             "view": "timeSeries",
         }
 
-    
+
     # Get Cloudwatch metric widget, encoded base64
     cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
     response = cloudwatch.get_metric_widget_image(MetricWidget=json.dumps(MetricWidget))
     encoded_data = base64.b64encode(response["MetricWidgetImage"]).decode('utf-8')
     image = 'data:image/png;base64, {}'.format(encoded_data)
 
-    
+
     # Check subject and add smile)
     ok_check = "OK" in subject
     if ok_check:
@@ -180,7 +180,7 @@ def handler(event, context):
                     ]
                     }
                 ]
-                
+
              }
           }
        ]

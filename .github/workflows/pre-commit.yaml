@@ -14,7 +14,7 @@ jobs:
           - modules/dashboard
           - modules/eventbridge
           - modules/sns_to_lambda
-          - modules/alerts  
+          - modules/alerts
     permissions:
       actions: write
       contents: write

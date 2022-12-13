@@ -21,7 +21,7 @@ jobs:
           - modules/eventbridge
           - modules/sns_to_lambda
           - modules/alerts
-     
+
     steps:
     - uses: dasmeta/reusable-actions-workflows/terraform-test@main
       with:
