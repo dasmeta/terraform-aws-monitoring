@@ -6,6 +6,15 @@ on:
 jobs:
   terraform-validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path:
+          - modules/aws-security-hub-opsgenie
+          - modules/billing
+          - modules/dashboard
+          - modules/eventbridge
+          - modules/sns_to_lambda
+          - modules/alerts  
     permissions:
       actions: write
       contents: write
@@ -19,5 +28,5 @@ jobs:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        path: modules/${{ matrix.path }}
+        path: ${{ matrix.path }}
       continue-on-error: true
