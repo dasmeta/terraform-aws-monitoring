@@ -71,6 +71,12 @@ variable "servicenow_webhooks" {
   description = "List of servicenow webhook configs to send notification to"
 }
 
+variable "teams_webhooks" {
+  type        = list(string)
+  default     = []
+  description = "Teams webhook configs to send notification to"
+}
+
 variable "log_group_retention_days" {
   type        = number
   default     = 7
@@ -81,4 +87,10 @@ variable "enable_dead_letter_queue" {
   type        = bool
   default     = true
   description = "Whether to enable dead letter queue"
+}
+
+variable "recreate_missing_package" {
+  type        = bool
+  default     = true
+  description = "Whether to recreate missing Lambda package if it is missing locally or not"
 }
