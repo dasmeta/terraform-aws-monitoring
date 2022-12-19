@@ -51,3 +51,9 @@ variable "health_checks" {
 #   description = "Specifies the name of the Amazon SNS topic defined for notification of log file delivery"
 #   default     = null
 # }
+
+variable "enable_insufficient_data_actions" {
+  type = bool
+  default = true
+  description = "Enable insufficient data actions alert"
+}
