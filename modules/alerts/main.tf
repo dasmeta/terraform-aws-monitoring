@@ -61,7 +61,7 @@ module "cloudwatch_metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   ok_actions                = local.ok_actions
-  insufficient_data_actions = local.alarm_actions
+  insufficient_data_actions = var.enable_insufficient_data_actions ? local.alarm_actions : null
 }
 
 
