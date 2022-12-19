@@ -10,6 +10,7 @@ variable "alerts" {
     name               = string
     source             = string
     filters            = map(any)
+    evaluation_periods = optional(number, 1)
     statistic          = optional(string, "sum")
     equation           = optional(string, "gte")
     threshold          = optional(number, 1)
