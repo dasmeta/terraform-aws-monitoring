@@ -53,7 +53,7 @@ variable "health_checks" {
 # }
 
 variable "enable_insufficient_data_actions" {
-  type = bool
-  default = true
+  type        = bool
+  default     = true
   description = "Enable insufficient data actions alert"
 }
