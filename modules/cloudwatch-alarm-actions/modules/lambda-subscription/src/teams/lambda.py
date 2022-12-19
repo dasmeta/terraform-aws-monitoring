@@ -60,31 +60,51 @@ def handler(event, context):
         metric = metric_stat["Metric"]
         metric_name = metric["MetricName"]
         metric_namespace = metric["Namespace"]
-
-        MetricWidget = {
-            "width": 600,
-            "height": 395,
-            "metrics": [
-                [
-                    metric["Namespace"],
-                    metric_name,
-                    metric["Dimensions"][1]["name"],
-                    metric["Dimensions"][1]["value"],
-                    metric["Dimensions"][2]["name"],
-                    metric["Dimensions"][2]["value"],
-                    metric["Dimensions"][0]["name"],
-                    metric["Dimensions"][0]["value"],
-                    {
-                        "stat": "Average"
-                    }
-                ]
-            ],
-            "period": 300,
-            "view": "timeSeries"
-        }
-            
+        
         for dimension_object in metric["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
+        
+        if len(metric["Dimensions"]) == 1:
+            MetricWidget = {
+                "width": 600,
+                "height": 395,
+                "metrics": [
+                    [
+                        metric["Namespace"],
+                        metric_name,
+                        metric["Dimensions"][0]["name"],
+                        metric["Dimensions"][0]["value"],
+                        {
+                            "stat": "Average"
+                        }
+                    ]
+                ],
+                "period": 300,
+                "view": "timeSeries"
+            }
+        else:
+            MetricWidget = {
+                "width": 600,
+                "height": 395,
+                "metrics": [
+                    [
+                        metric["Namespace"],
+                        metric_name,
+                        metric["Dimensions"][1]["name"],
+                        metric["Dimensions"][1]["value"],
+                        metric["Dimensions"][2]["name"],
+                        metric["Dimensions"][2]["value"],
+                        metric["Dimensions"][0]["name"],
+                        metric["Dimensions"][0]["value"],
+                        {
+                            "stat": "Average"
+                        }
+                    ]
+                ],
+                "period": 300,
+                "view": "timeSeries"
+            }
+            
     else:
         for dimension_object in trigger_body["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" + dimension_object["value"] + "/"
