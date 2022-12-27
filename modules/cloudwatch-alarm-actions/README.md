@@ -20,7 +20,9 @@ module "monitoring_cloudwatch_alarm_actions" {
 
 ## Providers
 
-No providers.
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.16 |
 
 ## Modules
 
@@ -29,11 +31,14 @@ No providers.
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
+| <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
 | <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.0.0 |
 
 ## Resources
 
-No resources.
+| Name | Type |
+|------|------|
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
@@ -45,8 +50,10 @@ No resources.
 | <a name="input_enable_dead_letter_queue"></a> [enable\_dead\_letter\_queue](#input\_enable\_dead\_letter\_queue) | Whether to enable dead letter queue | `bool` | `true` | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
 | <a name="input_phone_numbers"></a> [phone\_numbers](#input\_phone\_numbers) | List of international formatted phone number to send notification to | `list(string)` | `[]` | no |
+| <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
 | <a name="input_servicenow_webhooks"></a> [servicenow\_webhooks](#input\_servicenow\_webhooks) | List of servicenow webhook configs to send notification to | <pre>list(object({<br>    domain = string<br>    path   = string<br>    user   = string<br>    pass   = string<br>  }))</pre> | `[]` | no |
 | <a name="input_slack_webhooks"></a> [slack\_webhooks](#input\_slack\_webhooks) | List of slack webhook configs to send notification to | <pre>list(object({<br>    hook_url = string<br>    channel  = string<br>    username = string<br>  }))</pre> | `[]` | no |
+| <a name="input_teams_webhooks"></a> [teams\_webhooks](#input\_teams\_webhooks) | Teams webhook configs to send notification to | `list(string)` | `[]` | no |
 | <a name="input_topic_name"></a> [topic\_name](#input\_topic\_name) | The SNS topic name | `string` | `"cloudwatch-alerts"` | no |
 | <a name="input_web_endpoints"></a> [web\_endpoints](#input\_web\_endpoints) | List of web webhooks endpoints (like opsgenie) to send notification to | `list(string)` | `[]` | no |
 

@@ -14,7 +14,7 @@ resource "aws_cloudwatch_dashboard" "dashboards" {
   EOF
 
 }
-# TODO: Resource and Provider comented, because all clients doesn't use grafana dashboard. 
+# TODO: Resource and Provider comented, because all clients doesn't use grafana dashboard.
 #       We should be create new module for grafana dashboard
 
 # resource "grafana_dashboard" "metrics" {

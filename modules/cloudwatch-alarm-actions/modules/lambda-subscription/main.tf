@@ -1,5 +1,5 @@
 module "lambda" {
-  source = "terraform-aws-modules/lambda/aws"
+  source  = "terraform-aws-modules/lambda/aws"
   version = "4.7.1"
 
   create        = true
@@ -35,4 +35,3 @@ module "subscription" {
   protocol = "lambda"
   endpoint = module.lambda.lambda_function_arn
 }
-
