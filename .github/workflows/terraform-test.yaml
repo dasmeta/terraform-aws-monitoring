@@ -15,13 +15,13 @@ jobs:
     strategy:
       matrix:
         path:
+          - modules/alerts
           - modules/aws-security-hub-opsgenie
           - modules/billing
+          - modules/cloudwatch-alarm-actions
           - modules/dashboard
           - modules/eventbridge
           - modules/sns_to_lambda
-          - modules/alerts
-
     steps:
     - uses: dasmeta/reusable-actions-workflows/terraform-test@main
       with:

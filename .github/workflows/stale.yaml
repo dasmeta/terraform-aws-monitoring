@@ -27,5 +27,3 @@ jobs:
           exempt-pr-labels: bug,wip,on-hold
           exempt-all-milestones: true
           days-before-close: -1
-          
-
