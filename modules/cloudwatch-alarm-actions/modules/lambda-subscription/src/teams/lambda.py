@@ -60,10 +60,10 @@ def handler(event, context):
         metric = metric_stat["Metric"]
         metric_name = metric["MetricName"]
         metric_namespace = metric["Namespace"]
-        
+
         for dimension_object in metric["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
-        
+
         if len(metric["Dimensions"]) == 1:
             MetricWidget = {
                 "width": 600,
@@ -104,7 +104,7 @@ def handler(event, context):
                 "period": 300,
                 "view": "timeSeries"
             }
-            
+
     else:
         for dimension_object in trigger_body["Dimensions"]:
             dimension_string += dimension_object["name"] + "/" + dimension_object["value"] + "/"

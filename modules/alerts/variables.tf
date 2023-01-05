@@ -4,7 +4,6 @@ variable "sns_topic" {
   description = "The name of aws sns topic use as target for alarm actions"
 }
 
-
 variable "alerts" {
   type = list(object({
     name               = string

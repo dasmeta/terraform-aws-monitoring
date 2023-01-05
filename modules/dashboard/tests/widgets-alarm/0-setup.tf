@@ -31,8 +31,6 @@ resource "aws_cloudwatch_log_group" "log_group_test_c" {
 # create test alerts on top of test log groups to use them on dashboard
 module "alerts" {
   source = "../../../alerts"
-  #  TODO: switch to remote repo as soon as the tag will be available
-  # source = "git::ssh://git@git.proalpha.com/cce_mod/monitoring.git//modules/alerts?ref=master"
 
   alerts = [
     {
