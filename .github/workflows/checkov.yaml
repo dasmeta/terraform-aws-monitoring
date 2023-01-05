@@ -29,4 +29,3 @@ jobs:
       with:
         fetch-depth: 0
         directory: ${{ matrix.path }}
-      continue-on-error: true
