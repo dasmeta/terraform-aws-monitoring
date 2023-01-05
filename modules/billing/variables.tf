@@ -18,42 +18,6 @@ variable "notification_type" {
   default = "ACTUAL"
 }
 
-// TODO: seems the aws_budgets_budget is able to notify about billing, do we really need the following manual alert?
-# variable "statistic" {
-#   type    = string
-#   default = "Maximum"
-# }
-
-# variable "period" {
-#   type    = string
-#   default = "28800"
-# }
-
-# variable "namespace" {
-#   type    = string
-#   default = "Billing"
-# }
-
-# variable "alarm_name" {
-#   type    = string
-#   default = "Billing-alarm"
-# }
-
-# variable "comparison_operator_billing" {
-#   type    = string
-#   default = "GreaterThanOrEqualToThreshold"
-# }
-
-# variable "evaluation_periods" {
-#   type    = string
-#   default = "1"
-# }
-
-# variable "metric_name" {
-#   type    = string
-#   default = "EstimatedCharges"
-# }
-
 variable "name" {
   type    = string
   default = "Account-Monthly-Budget"
