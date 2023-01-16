@@ -8,7 +8,6 @@ import base64
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-
 LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
 FALLBACK_SUBJECT = 'AWS Alerts'
 
