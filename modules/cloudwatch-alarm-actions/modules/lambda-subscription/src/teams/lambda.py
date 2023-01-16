@@ -8,10 +8,12 @@ import base64
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
 FALLBACK_SUBJECT = 'AWS Alerts'
+
+logger = logging.getLogger()
+logger.setLevel(getattr(logging, LOGLEVEL))
 
 
 def guess_subject(event):
@@ -27,25 +29,25 @@ def guess_subject(event):
         logger.info("Message subject from SNS")
         return subject_from_sns
     else:
-        logging.info("Message subject not included in SNS, using fallback message subject")
+        logging.info(
+            "Message subject not included in SNS, using fallback message subject")
         return FALLBACK_SUBJECT
-
 
 
 def handler(event, context):
     """send message via teams"""
 
     teams_webhook_url = os.environ['WEBHOOK_URL']
-    url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+    url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
+        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
 
-
-    logger.info("Event: " + str(event))
+    logger.debug("Event: " + str(event))
     message = str(event['Records'][0]['Sns']['Message'])
     subject = guess_subject(event)
-    logger.info("Event:" + str(event))
-    logger.info("Message: " + str(subject))
-    logger.info("Message: " + str(message))
+    logger.debug("Event:" + str(event))
+    logger.debug("Message: " + str(subject))
+    logger.debug("Message: " + str(message))
 
     # Json handle and cut info
     json_body = json.loads(event["Records"][0]["Sns"]["Message"])
@@ -55,14 +57,15 @@ def handler(event, context):
 
     if "Metrics" in trigger_body:
         metrics_body = trigger_body["Metrics"]
-        print ("> Alarm Metrics Body Value",metrics_body)
+        print("> Alarm Metrics Body Value", metrics_body)
         metric_stat = metrics_body[0]["MetricStat"]
         metric = metric_stat["Metric"]
         metric_name = metric["MetricName"]
         metric_namespace = metric["Namespace"]
 
         for dimension_object in metric["Dimensions"]:
-            dimension_string += dimension_object["name"] + "/" +  dimension_object["value"] + "/"
+            dimension_string += dimension_object["name"] + \
+                "/" + dimension_object["value"] + "/"
 
         if len(metric["Dimensions"]) == 1:
             MetricWidget = {
@@ -107,7 +110,8 @@ def handler(event, context):
 
     else:
         for dimension_object in trigger_body["Dimensions"]:
-            dimension_string += dimension_object["name"] + "/" + dimension_object["value"] + "/"
+            dimension_string += dimension_object["name"] + \
+                "/" + dimension_object["value"] + "/"
 
         metric_name = trigger_body["MetricName"]
         metric_namespace = trigger_body["Namespace"]
@@ -129,13 +133,13 @@ def handler(event, context):
             "view": "timeSeries",
         }
 
-
     # Get Cloudwatch metric widget, encoded base64
     cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
-    response = cloudwatch.get_metric_widget_image(MetricWidget=json.dumps(MetricWidget))
-    encoded_data = base64.b64encode(response["MetricWidgetImage"]).decode('utf-8')
+    response = cloudwatch.get_metric_widget_image(
+        MetricWidget=json.dumps(MetricWidget))
+    encoded_data = base64.b64encode(
+        response["MetricWidgetImage"]).decode('utf-8')
     image = 'data:image/png;base64, {}'.format(encoded_data)
-
 
     # Check subject and add smile)
     ok_check = "OK" in subject
@@ -146,64 +150,64 @@ def handler(event, context):
 
     # Teams create AdaptiveCard and send
     payload = {
-       "type":"message",
-       "attachments":[
-          {
-             "contentType":"application/vnd.microsoft.card.adaptive",
-             "contentUrl":"contentUrl",
-             "content":{
-                "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
-                "type":"AdaptiveCard",
-                "title": subject,
-                "version":"1.2",
-                "msteams": {
-                    "width": "Full"
-                },
-                "body":[
-                    {
-                    "type": "TextBlock",
-                    "text": smile_subject,
-                    "size": "Large",
-                    "weight": "Bolder",
-                    "style": "heading"
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": "contentUrl",
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "title": subject,
+                    "version": "1.2",
+                    "msteams": {
+                        "width": "Full"
                     },
-                    {
-                    "type": "Container",
-                    "items": [
+                    "body": [
                         {
-                        "type": "FactSet",
-                        "facts": [{
-                          "title": "AccountId",
-                          "value": aws_account
-                        }, {
-                          "title": "Dimensions",
-                          "value": dimension_string
-                        }, {
-                          "title": "Metic",
-                          "value": metric_namespace + "/" + metric_name
-                        }]
+                            "type": "TextBlock",
+                            "text": smile_subject,
+                            "size": "Large",
+                            "weight": "Bolder",
+                            "style": "heading"
+                        },
+                        {
+                            "type": "Container",
+                            "items": [
+                                {
+                                    "type": "FactSet",
+                                    "facts": [{
+                                        "title": "AccountId",
+                                        "value": aws_account
+                                    }, {
+                                        "title": "Dimensions",
+                                        "value": dimension_string
+                                    }, {
+                                        "title": "Metic",
+                                        "value": metric_namespace + "/" + metric_name
+                                    }]
+                                }
+                            ]
+                        },
+                        {
+                            "type": "Image",
+                            "url": image
+                        },
+                        {
+                            "type": "ActionSet",
+                            "actions": [
+                                {
+                                    "type": "Action.OpenUrl",
+                                    "title": "See more",
+                                    "url": url
+                                }
+                            ]
                         }
                     ]
-                    },
-                    {
-                    "type": "Image",
-                    "url": image
-                    },
-                    {
-                    "type": "ActionSet",
-                    "actions": [
-                        {
-                            "type": "Action.OpenUrl",
-                            "title": "See more",
-                            "url": url
-                        }
-                    ]
-                    }
-                ]
 
-             }
-          }
-       ]
+                }
+            }
+        ]
     }
 
     req = Request(
@@ -215,7 +219,7 @@ def handler(event, context):
         response = urlopen(req)
         response.read()
         logger.info("Message posted")
-        return { "status": "200 OK"}
+        return {"status": "200 OK"}
     except HTTPError as e:
         logger.error("Request failed: %d %s", e.code, e.reason)
     except URLError as e:
