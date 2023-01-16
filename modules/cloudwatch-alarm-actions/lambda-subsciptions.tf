@@ -67,6 +67,7 @@ module "notify_teams" {
   environment_variables = {
     WEBHOOK_URL = each.value
     REGION      = data.aws_region.current.name
+    LOG_LEVEL   = var.log_level
   }
 
   recreate_missing_package  = var.recreate_missing_package

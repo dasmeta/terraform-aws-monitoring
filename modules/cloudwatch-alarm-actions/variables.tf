@@ -94,3 +94,9 @@ variable "recreate_missing_package" {
   default     = true
   description = "Whether to recreate missing Lambda package if it is missing locally or not"
 }
+
+variable "log_level" {
+  type        = string
+  default     = "INFO"
+  description = "log level for python code"
+}
