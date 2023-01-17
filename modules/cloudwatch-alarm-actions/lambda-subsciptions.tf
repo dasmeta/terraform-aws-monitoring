@@ -67,6 +67,7 @@ module "notify_teams" {
   environment_variables = {
     WEBHOOK_URL = each.value
     REGION      = data.aws_region.current.name
+    LOG_LEVEL   = var.log_level
   }
 
   recreate_missing_package  = var.recreate_missing_package
@@ -78,7 +79,6 @@ module "notify_teams" {
     module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
   ]
 }
-
 
 module "notify_cmdb" {
   source = "./modules/lambda-subscription"

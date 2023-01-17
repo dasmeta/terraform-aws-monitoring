@@ -37,7 +37,7 @@ module "cloudwatch_metric-alarm" {
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
   comparison_operator = local.comparison_operators[each.value.equation]
-  evaluation_periods  = 1
+  evaluation_periods  = each.value.evaluation_periods
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
   threshold           = each.value.anomaly_detection ? null : each.value.threshold
   treat_missing_data  = each.value.treat_missing_data != null ? each.value.treat_missing_data : "missing"
@@ -61,7 +61,7 @@ module "cloudwatch_metric-alarm" {
 
   alarm_actions             = local.alarm_actions
   ok_actions                = local.ok_actions
-  insufficient_data_actions = local.alarm_actions
+  insufficient_data_actions = var.enable_insufficient_data_actions ? local.alarm_actions : null
 }
 
 

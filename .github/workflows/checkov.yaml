@@ -16,15 +16,16 @@ jobs:
     strategy:
       matrix:
         path:
+          - ./
+          - modules/alerts
           - modules/aws-security-hub-opsgenie
           - modules/billing
+          - modules/cloudwatch-alarm-actions
           - modules/dashboard
           - modules/eventbridge
           - modules/sns_to_lambda
-     
     steps:
-    - uses: dasmeta/reusable-actions-workflows/checkov@main
+    - uses: dasmeta/reusable-actions-workflows/checkov@4.1.1
       with:
         fetch-depth: 0
         directory: ${{ matrix.path }}
-      continue-on-error: true

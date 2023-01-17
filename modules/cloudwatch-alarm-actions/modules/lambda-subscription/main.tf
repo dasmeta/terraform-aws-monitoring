@@ -43,7 +43,7 @@ module "subscription-s3-sns-destination" {
   count  = var.sns_subscription ? 0 : 1
 
   lambda_function_arn = module.lambda.lambda_function_arn
-  s3_bucket       = var.s3_bucket
+  s3_bucket           = var.s3_bucket
   sns_topic_arn       = var.sns_topic_arn
   role_name           = var.role_name
 

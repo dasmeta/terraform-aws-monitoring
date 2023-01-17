@@ -4,12 +4,12 @@ variable "sns_topic" {
   description = "The name of aws sns topic use as target for alarm actions"
 }
 
-
 variable "alerts" {
   type = list(object({
     name               = string
     source             = string
     filters            = map(any)
+    evaluation_periods = optional(number, 1)
     statistic          = optional(string, "sum")
     equation           = optional(string, "gte")
     threshold          = optional(number, 1)
@@ -51,3 +51,9 @@ variable "health_checks" {
 #   description = "Specifies the name of the Amazon SNS topic defined for notification of log file delivery"
 #   default     = null
 # }
+
+variable "enable_insufficient_data_actions" {
+  type        = bool
+  default     = true
+  description = "Enable insufficient data actions alert"
+}

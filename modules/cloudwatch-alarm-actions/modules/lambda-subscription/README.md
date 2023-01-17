@@ -13,7 +13,7 @@ No providers.
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_lambda"></a> [lambda](#module\_lambda) | terraform-aws-modules/lambda/aws | 3.2.0 |
+| <a name="module_lambda"></a> [lambda](#module\_lambda) | terraform-aws-modules/lambda/aws | 4.7.1 |
 | <a name="module_subscription"></a> [subscription](#module\_subscription) | dasmeta/sns/aws//modules//subscription | 1.2.3 |
 
 ## Resources
@@ -30,6 +30,7 @@ No resources.
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables to pass to function | `map(any)` | `{}` | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The retention days for cloudwatch log group | `number` | `7` | no |
 | <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Memory size for Lambda function | `number` | `null` | no |
+| <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
 | <a name="input_role_name"></a> [role\_name](#input\_role\_name) | In case if we have already created role for function we can pass it | `string` | `null` | no |
 | <a name="input_sns_topic_name"></a> [sns\_topic\_name](#input\_sns\_topic\_name) | The sns topic name to attach/create subscription | `string` | n/a | yes |
 | <a name="input_timeout"></a> [timeout](#input\_timeout) | Timeout for Lambda function | `number` | `null` | no |

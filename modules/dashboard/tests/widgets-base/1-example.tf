@@ -14,13 +14,21 @@ module "base" {
   }
 
   defaults = {
-    "ClusterName" : "whatever",
-    "Namespace" : "default"
-    "PodName" : "test-container"
+    ClusterName = "whatever",
+    Namespace   = "default"
+    PodName     = "test-container"
   }
 
   metrics = [
-    { "ContainerInsights" : "pod_cpu_utilization", },
-    { "ContainerInsights" : "pod_cpu_reserved_capacity", "Style" : { "color" : "#d62728" } }
+
+    {
+      MetricNamespace = "ContainerInsights"
+      MetricName      = "pod_cpu_utilization"
+    },
+    {
+      MetricNamespace = "ContainerInsights"
+      MetricName      = "pod_cpu_reserved_capacity"
+      color           = "#d62728"
+    }
   ]
 }
