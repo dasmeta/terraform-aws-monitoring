@@ -3,6 +3,12 @@ variable "sns_topic_name" {
   description = "The sns topic name to attach/create subscription"
 }
 
+variable "sns_topic_arn" {
+  type        = string
+  description = "The sns topic arn to attach/create subscription"
+  default     = null
+}
+
 variable "type" {
   description = "Predefined lambda type"
   type        = string
@@ -45,6 +51,12 @@ variable "environment_variables" {
   default     = {}
 }
 
+variable "sns_subscription" {
+  type        = bool
+  default     = true
+  description = "Enable SNS subsription"
+}
+
 variable "log_group_retention_days" {
   type        = number
   description = "The retention days for cloudwatch log group"
@@ -67,4 +79,16 @@ variable "recreate_missing_package" {
   type        = bool
   default     = true
   description = "Whether to recreate missing Lambda package if it is missing locally or not"
+}
+
+variable "runtime" {
+  type        = string
+  default     = "python3.7"
+  description = "Runtime"
+}
+
+variable "s3_bucket" {
+  type        = string
+  default     = null
+  description = "S3 bucket for s3 subscription"
 }

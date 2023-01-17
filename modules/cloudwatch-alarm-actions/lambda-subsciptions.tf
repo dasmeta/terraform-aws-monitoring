@@ -17,7 +17,7 @@ module "notify_slack" {
   slack_channel     = each.value.channel
   slack_username    = each.value.username
 
-  recreate_missing_package = var.recreate_missing_package
+  recreate_missing_package               = var.recreate_missing_package
   cloudwatch_log_group_retention_in_days = var.log_group_retention_days
   lambda_dead_letter_target_arn          = try(module.dead_letter_queue[0].queue_arn, null)
   lambda_attach_dead_letter_policy       = var.enable_dead_letter_queue
@@ -41,8 +41,8 @@ module "notify_servicenow" {
     SERVICENOW_USER   = each.value.user
     SERVICENOW_PASS   = each.value.pass
   }
-  
-  recreate_missing_package = var.recreate_missing_package
+
+  recreate_missing_package  = var.recreate_missing_package
   log_group_retention_days  = var.log_group_retention_days
   dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
   attach_dead_letter_policy = var.enable_dead_letter_queue
@@ -69,7 +69,7 @@ module "notify_teams" {
     REGION      = data.aws_region.current.name
   }
 
-  recreate_missing_package = var.recreate_missing_package
+  recreate_missing_package  = var.recreate_missing_package
   log_group_retention_days  = var.log_group_retention_days
   dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
   attach_dead_letter_policy = var.enable_dead_letter_queue
@@ -79,3 +79,30 @@ module "notify_teams" {
   ]
 }
 
+
+module "notify_cmdb" {
+  source = "./modules/lambda-subscription"
+
+  for_each = { for key, webhook in var.cmdb_webhooks : key => webhook }
+
+  # sns/subscription configs
+  sns_topic_arn    = module.topic.arn
+  sns_topic_name   = module.topic.name
+  sns_subscription = false
+
+  # lambda configs
+  uniq_id   = each.key
+  type      = "cmdb"
+  runtime   = "nodejs14.x"
+  role_name = each.value.role_name
+  s3_bucket = each.value.s3_bucket
+
+  recreate_missing_package  = var.recreate_missing_package
+  log_group_retention_days  = var.log_group_retention_days
+  dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
+  attach_dead_letter_policy = var.enable_dead_letter_queue
+
+  depends_on = [
+    module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
+  ]
+}

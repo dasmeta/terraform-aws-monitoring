@@ -71,6 +71,16 @@ variable "servicenow_webhooks" {
   description = "List of servicenow webhook configs to send notification to"
 }
 
+variable "cmdb_webhooks" {
+  type = list(object({
+    role_name = string
+    s3_bucket = string
+  }))
+  default     = []
+  description = "List of CMDB webhook configs to send notification to"
+}
+
+
 variable "teams_webhooks" {
   type        = list(string)
   default     = []
