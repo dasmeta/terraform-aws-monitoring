@@ -2,7 +2,6 @@ import logging
 import json
 import os
 import boto3
-import datetime
 import base64
 
 from urllib.request import Request, urlopen

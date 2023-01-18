@@ -1,8 +1,12 @@
 locals {
   lambda_function_file_path   = "${path.module}/src/${var.type}/lambda.py"
   lambda_function_hash        = filesha256(local.lambda_function_file_path)
-  lambda_function_output_path = "builds/lambda-${local.lambda_function_hash}.zip"
+  lambda_function_output_path = "builds/lambda-${data.aws_region.current.name}-${local.lambda_function_hash}.zip"
 }
+
+## needed to distinguish region defined by provide.
+## later region is used in archive name (local.lambda_function_output_path) to avoid overriding archive itself
+data "aws_region" "current" {}
 
 data "archive_file" "lambda_code_zip" {
   type        = "zip"
@@ -14,15 +18,16 @@ module "lambda" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "4.7.1"
 
-  function_name           = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
-  handler                 = "lambda.handler"
-  runtime                 = "python3.7"
-  memory_size             = var.memory_size
-  timeout                 = var.timeout
-#  publish                 = true
-  create_package          = false
-  ignore_source_code_hash = true
-  local_existing_package  = local.lambda_function_output_path
+  create        = true
+  function_name = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
+  handler       = "lambda.handler"
+  runtime       = "python3.7"
+  memory_size   = var.memory_size
+  timeout       = var.timeout
+
+  create_package                 = false
+  ignore_source_code_hash        = true
+  local_existing_package         = local.lambda_function_output_path
 
   # Create and use an IAM role which can log function output to CloudWatch,
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.
