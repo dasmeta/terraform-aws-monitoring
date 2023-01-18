@@ -1,3 +1,9 @@
+data "archive_file" "lambda_code_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/src/${var.type}"
+  output_path = "${path.module}/src/${var.type}.zip"
+}
+
 module "lambda" {
   source  = "terraform-aws-modules/lambda/aws"
   version = "4.7.1"
@@ -9,7 +15,8 @@ module "lambda" {
   memory_size   = var.memory_size
   timeout       = var.timeout
   publish       = true
-  source_path   = "${path.module}/src/${var.type}"
+#  source_path   = "${path.module}/src/${var.type}"
+  local_existing_package = data.archive_file.lambda_code_zip.output_path
 
   # Create and use an IAM role which can log function output to CloudWatch,
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.
