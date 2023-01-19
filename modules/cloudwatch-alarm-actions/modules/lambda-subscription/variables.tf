@@ -68,9 +68,3 @@ variable "recreate_missing_package" {
   default     = true
   description = "Whether to recreate missing Lambda package if it is missing locally or not"
 }
-
-variable "package_backet_name" {
-  type        = string
-  default     = ""
-  description = ""
-}
