@@ -64,6 +64,7 @@ module "notify_teams" {
   # lambda configs
   uniq_id = each.key
   type    = "teams"
+  timeout = 10
   environment_variables = {
     WEBHOOK_URL = each.value
     REGION      = data.aws_region.current.name
