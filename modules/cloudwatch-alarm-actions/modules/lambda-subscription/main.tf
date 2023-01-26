@@ -55,8 +55,6 @@ module "alerts" {
         FunctionName = "${local.lambda_name}"
       }
       period = 60
-      # statistic = "sum"
-      # threshold = 70
     }
   ]
 }

@@ -13,6 +13,7 @@ No providers.
 
 | Name | Source | Version |
 |------|--------|---------|
+| <a name="module_alerts"></a> [alerts](#module\_alerts) | dasmeta/monitoring/aws//modules/alerts | 1.3.4 |
 | <a name="module_lambda"></a> [lambda](#module\_lambda) | terraform-aws-modules/lambda/aws | 4.7.1 |
 | <a name="module_subscription"></a> [subscription](#module\_subscription) | dasmeta/sns/aws//modules//subscription | 1.2.3 |
 
@@ -28,6 +29,7 @@ No resources.
 | <a name="input_create_role"></a> [create\_role](#input\_create\_role) | Whether to create lambda role or not | `bool` | `true` | no |
 | <a name="input_dead_letter_queue_arn"></a> [dead\_letter\_queue\_arn](#input\_dead\_letter\_queue\_arn) | The SQS queue arn for using as dead letter | `string` | `null` | no |
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables to pass to function | `map(any)` | `{}` | no |
+| <a name="input_fallback_sns_topic_name"></a> [fallback\_sns\_topic\_name](#input\_fallback\_sns\_topic\_name) | The fallback sns topic name to attach/create subscription | `string` | n/a | yes |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The retention days for cloudwatch log group | `number` | `7` | no |
 | <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Memory size for Lambda function | `number` | `null` | no |
 | <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
