@@ -16,4 +16,19 @@ locals {
       dead_letter_queue_arn = try(module.dead_letter_queue[0].queue_arn, null)
     }]
   )
+
+  fallback_subscriptions = concat( # email
+    [for endpoint in var.fallback_email_addresses : {
+      endpoint = endpoint,
+      protocol = "email",
+    }],
+    [for endpoint in var.fallback_phone_numbers : { # sms
+      endpoint = endpoint,
+      protocol = "sms",
+    }],
+    [for endpoint in var.fallback_web_endpoints : { # https webhook endpoints
+      endpoint = endpoint,
+      protocol = "https",
+    }]
+  )
 }

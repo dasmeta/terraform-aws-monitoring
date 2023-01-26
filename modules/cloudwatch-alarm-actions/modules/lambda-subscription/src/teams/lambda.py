@@ -221,5 +221,7 @@ def handler(event, context):
         return {"status": "200 OK"}
     except HTTPError as e:
         logger.error("Request failed: %d %s", e.code, e.reason)
+        return e
     except URLError as e:
         logger.error("Server connection failed: %s", e.reason)
+        return e

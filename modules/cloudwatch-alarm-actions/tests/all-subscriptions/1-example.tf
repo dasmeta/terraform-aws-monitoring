@@ -16,4 +16,8 @@ module "this" {
     user   = "test-servicenow-user"
     pass   = "test-servicenow-pass"
   }]
+
+  fallback_email_addresses = ["test@dasmeta.com"]
+  fallback_phone_numbers   = ["+000000000"]
+  fallback_web_endpoints   = ["https://example.com/"]
 }

@@ -3,6 +3,11 @@ variable "sns_topic_name" {
   description = "The sns topic name to attach/create subscription"
 }
 
+variable "fallback_sns_topic_name" {
+  type        = string
+  description = "The fallback sns topic name to attach/create subscription"
+}
+
 variable "type" {
   description = "Predefined lambda type"
   type        = string
