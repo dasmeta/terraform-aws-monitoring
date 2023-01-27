@@ -25,9 +25,9 @@ module "lambda" {
   memory_size   = var.memory_size
   timeout       = var.timeout
 
-  create_package                 = false
-  ignore_source_code_hash        = true
-  local_existing_package         = local.lambda_function_output_path
+  create_package          = false
+  ignore_source_code_hash = true
+  local_existing_package  = local.lambda_function_output_path
 
   # Create and use an IAM role which can log function output to CloudWatch,
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.

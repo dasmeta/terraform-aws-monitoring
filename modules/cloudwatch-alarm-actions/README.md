@@ -49,6 +49,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="input_email_addresses"></a> [email\_addresses](#input\_email\_addresses) | List of email addresses to send notification to | `list(string)` | `[]` | no |
 | <a name="input_enable_dead_letter_queue"></a> [enable\_dead\_letter\_queue](#input\_enable\_dead\_letter\_queue) | Whether to enable dead letter queue | `bool` | `true` | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
+| <a name="input_log_level"></a> [log\_level](#input\_log\_level) | log level for python code | `string` | `"INFO"` | no |
 | <a name="input_phone_numbers"></a> [phone\_numbers](#input\_phone\_numbers) | List of international formatted phone number to send notification to | `list(string)` | `[]` | no |
 | <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
 | <a name="input_servicenow_webhooks"></a> [servicenow\_webhooks](#input\_servicenow\_webhooks) | List of servicenow webhook configs to send notification to | <pre>list(object({<br>    domain = string<br>    path   = string<br>    user   = string<br>    pass   = string<br>  }))</pre> | `[]` | no |
