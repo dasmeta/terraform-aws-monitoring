@@ -2,17 +2,18 @@ import logging
 import json
 import os
 import boto3
-import datetime
 import base64
 
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
+LOGLEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
 FALLBACK_SUBJECT = 'AWS Alerts'
 
 logger = logging.getLogger()
 logger.setLevel(getattr(logging, LOGLEVEL))
+
+logger.info("log level: {}".format(LOGLEVEL))
 
 
 def guess_subject(event):
@@ -41,7 +42,7 @@ def handler(event, context):
         os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
 
-    logger.debug("Event: " + str(event))
+    logger.debug("Event: {}".format(event))
     message = str(event['Records'][0]['Sns']['Message'])
     subject = guess_subject(event)
     logger.debug("Event:" + str(event))
@@ -50,6 +51,7 @@ def handler(event, context):
 
     # Json handle and cut info
     json_body = json.loads(event["Records"][0]["Sns"]["Message"])
+    # json_body = event["Records"][0]["Sns"]["Message"] #TODO: can be removed. This was used to debug lambda on fly
     trigger_body = json_body["Trigger"]
     aws_account = json_body["AWSAccountId"]
     dimension_string = ""
@@ -57,7 +59,16 @@ def handler(event, context):
     if "Metrics" in trigger_body:
         metrics_body = trigger_body["Metrics"]
         print("> Alarm Metrics Body Value", metrics_body)
-        metric_stat = metrics_body[0]["MetricStat"]
+
+        # processing one single metric
+        # TODO: we need to manage multiple metrics processing
+        for metrics_this in metrics_body:
+            try:
+                metric_stat = metrics_this["MetricStat"]
+
+            except KeyError:
+                logger.debug("MetricStat is missing in this metric block")
+
         metric = metric_stat["Metric"]
         metric_name = metric["MetricName"]
         metric_namespace = metric["Namespace"]
@@ -209,9 +220,15 @@ def handler(event, context):
         ]
     }
 
+    headers = {'Content-Type': 'application/json'}
+    method = 'POST'
+
+    logger.debug("payload: >> {}".format(payload))
+
     req = Request(
         teams_webhook_url,
-        json.dumps(payload).encode('utf-8')
+        json.dumps(payload).encode('utf-8'),
+        headers, method=method
     )
 
     try:
@@ -220,6 +237,7 @@ def handler(event, context):
         logger.info("Message posted")
         return {"status": "200 OK"}
     except HTTPError as e:
+        logger.debug(e)
         logger.error("Request failed: %d %s", e.code, e.reason)
         return e
     except URLError as e:
