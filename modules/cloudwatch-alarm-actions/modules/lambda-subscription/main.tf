@@ -1,4 +1,5 @@
 locals {
+  lambda_name = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
   lambda_function_file_path   = "${path.module}/src/${var.type}/lambda.py"
   lambda_function_hash        = filesha256(local.lambda_function_file_path)
   lambda_function_output_path = "builds/lambda-${data.aws_region.current.name}-${local.lambda_function_hash}.zip"
@@ -19,7 +20,7 @@ module "lambda" {
   version = "4.7.1"
 
   create        = true
-  function_name = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
+  function_name = local.lambda_name
   handler       = "lambda.handler"
   runtime       = "python3.7"
   memory_size   = var.memory_size
@@ -52,4 +53,23 @@ module "subscription" {
   topic    = var.sns_topic_name
   protocol = "lambda"
   endpoint = module.lambda.lambda_function_arn
+}
+
+module "alerts" {
+  source  = "dasmeta/monitoring/aws//modules/alerts"
+  version = "1.3.4"
+
+  sns_topic = var.fallback_sns_topic_name
+
+  alerts = [
+    //Lambda Errors
+    {
+      name   = "${local.lambda_name} Lambda Failed"
+      source = "AWS/Lambda/Errors"
+      filters = {
+        FunctionName = "${local.lambda_name}"
+      }
+      period = 60
+    }
+  ]
 }

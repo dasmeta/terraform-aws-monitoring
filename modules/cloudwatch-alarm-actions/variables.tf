@@ -38,16 +38,34 @@ variable "email_addresses" {
   description = "List of email addresses to send notification to"
 }
 
+variable "fallback_email_addresses" {
+  type        = list(string)
+  default     = []
+  description = "List of fallback email addresses to send notification when lambda failed"
+}
+
 variable "phone_numbers" {
   type        = list(string)
   default     = []
   description = "List of international formatted phone number to send notification to"
 }
 
+variable "fallback_phone_numbers" {
+  type        = list(string)
+  default     = []
+  description = "List of international formatted phone number to send notification when lambda failed"
+}
+
 variable "web_endpoints" {
   type        = list(string)
   default     = []
   description = "List of web webhooks endpoints (like opsgenie) to send notification to"
+}
+
+variable "fallback_web_endpoints" {
+  type        = list(string)
+  default     = []
+  description = "List of web webhooks endpoints (like opsgenie) to send notification when lambda failed"
 }
 
 variable "slack_webhooks" {

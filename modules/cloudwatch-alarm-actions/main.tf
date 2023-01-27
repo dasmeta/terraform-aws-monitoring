@@ -20,3 +20,14 @@ module "dead_letter_queue" {
   name            = "${var.topic_name}-dead-letter"
   create_iam_user = false
 }
+
+module "fallback-topic" {
+  source  = "dasmeta/sns/aws//modules/topic"
+  version = "1.0.0"
+
+  name            = "fallback-${var.topic_name}"
+  delivery_policy = var.delivery_policy
+
+  # email/sms/endpoint(https) subscriptions
+  subscriptions = local.fallback_subscriptions
+}

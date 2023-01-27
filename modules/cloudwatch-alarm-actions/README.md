@@ -29,6 +29,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
+| <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.0.0 |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
@@ -48,6 +49,9 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="input_delivery_policy"></a> [delivery\_policy](#input\_delivery\_policy) | The SNS topic delivery policy | `any` | <pre>{<br>  "http": {<br>    "defaultHealthyRetryPolicy": {<br>      "backoffFunction": "linear",<br>      "maxDelayTarget": 20,<br>      "minDelayTarget": 20,<br>      "numMaxDelayRetries": 0,<br>      "numMinDelayRetries": 0,<br>      "numNoDelayRetries": 0,<br>      "numRetries": 3<br>    },<br>    "defaultThrottlePolicy": {<br>      "maxReceivesPerSecond": 1<br>    },<br>    "disableSubscriptionOverrides": false<br>  }<br>}</pre> | no |
 | <a name="input_email_addresses"></a> [email\_addresses](#input\_email\_addresses) | List of email addresses to send notification to | `list(string)` | `[]` | no |
 | <a name="input_enable_dead_letter_queue"></a> [enable\_dead\_letter\_queue](#input\_enable\_dead\_letter\_queue) | Whether to enable dead letter queue | `bool` | `true` | no |
+| <a name="input_fallback_email_addresses"></a> [fallback\_email\_addresses](#input\_fallback\_email\_addresses) | List of fallback email addresses to send notification when lambda failed | `list(string)` | `[]` | no |
+| <a name="input_fallback_phone_numbers"></a> [fallback\_phone\_numbers](#input\_fallback\_phone\_numbers) | List of international formatted phone number to send notification when lambda failed | `list(string)` | `[]` | no |
+| <a name="input_fallback_web_endpoints"></a> [fallback\_web\_endpoints](#input\_fallback\_web\_endpoints) | List of web webhooks endpoints (like opsgenie) to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
 | <a name="input_log_level"></a> [log\_level](#input\_log\_level) | log level for python code | `string` | `"INFO"` | no |
 | <a name="input_phone_numbers"></a> [phone\_numbers](#input\_phone\_numbers) | List of international formatted phone number to send notification to | `list(string)` | `[]` | no |

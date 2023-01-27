@@ -30,7 +30,9 @@ module "notify_servicenow" {
   for_each = { for webhook in var.servicenow_webhooks : "${webhook.domain}-${webhook.path}" => webhook }
 
   # sns/subscription configs
-  sns_topic_name = module.topic.names
+  sns_topic_name          = module.topic.name
+  fallback_sns_topic_name = module.fallback-topic.name
+
   # lambda configs
   uniq_id = "${each.value.domain}-${each.value.path}}"
   type    = "servicenow"
@@ -58,7 +60,8 @@ module "notify_teams" {
   for_each = { for key, webhook in var.teams_webhooks : key => webhook }
 
   # sns/subscription configs
-  sns_topic_name = module.topic.name
+  sns_topic_name          = module.topic.name
+  fallback_sns_topic_name = module.fallback-topic.name
 
   # lambda configs
   uniq_id = each.key
