@@ -57,3 +57,15 @@ variable "enable_insufficient_data_actions" {
   default     = true
   description = "Enable insufficient data actions alert"
 }
+
+variable "enable_ok_actions" {
+  type        = bool
+  default     = true
+  description = "Enable ok actions alert"
+}
+
+variable "enable_alarm_actions" {
+  type        = bool
+  default     = true
+  description = "Enable alarm actions alert"
+}
