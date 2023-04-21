@@ -59,7 +59,7 @@ export class AppService {
           DataType: "String",
           StringValue: "this is test attribute"
         }
-      } 
+      }
     })
 
     // // Create publish parameters
@@ -80,14 +80,14 @@ export class AppService {
     //     function(err) {
     //     console.error(err, err.stack);
     //     });
-    
+
     try {
       const data = await client.send(command);
       console.info("SNS publish success", {data})
     } catch (error) {
       console.error("SNS publish failed", {error})
     }
-    
+
   }
 
   async writeMessageToRDS(message: string) {

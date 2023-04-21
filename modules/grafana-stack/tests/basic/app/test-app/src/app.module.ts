@@ -23,7 +23,7 @@ import { HttpModule } from "@nestjs/axios";
       //     migrationsDir: "src/migrations"
       // },
       // migrationsRun: true,
-      entityPrefix: '',  
+      entityPrefix: '',
     }),
     MessagesModule,
     HttpModule

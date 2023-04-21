@@ -4,7 +4,7 @@ module "loki_bucket" {
   version = "3.8.2"
 
   bucket                  = local.loki_bucket
-  ignore_public_acls      = false # TODO: check if this hardcoded permissions need to be passed as variable or changed 
+  ignore_public_acls      = false # TODO: check if this hardcoded permissions need to be passed as variable or changed
   restrict_public_buckets = false
   block_public_acls       = false
   block_public_policy     = false

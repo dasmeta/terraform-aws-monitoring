@@ -1,6 +1,6 @@
 # includes grafana stack tools
 loki-stack:
-  fullnameOverride: loki-stack 
+  fullnameOverride: loki-stack
   # Loki for storing logs
   loki:
     fullnameOverride: loki
@@ -36,7 +36,7 @@ loki-stack:
   grafana:
     enabled: true
     adminPassword: "" #  should be set in module values template
-    # TODO: passing pre-configured tempo data source to grafana failed, need more investigation. for now tempo data source being created from grafana ui 
+    # TODO: passing pre-configured tempo data source to grafana failed, need more investigation. for now tempo data source being created from grafana ui
     # datasources:
     #   - name: Tempo
     #     url: http://tempo:3100

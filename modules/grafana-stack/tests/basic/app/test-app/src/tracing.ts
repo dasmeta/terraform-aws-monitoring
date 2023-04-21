@@ -48,9 +48,9 @@ async function nodeSDKBuilder() {
         traceExporter: _traceExporter,
     });
     sdk.configureTracerProvider(_tracerConfig, _spanProcessor);
-    
+
     // this enables the API to record telemetry
-    await sdk.start(); 
+    await sdk.start();
     // gracefully shut down the SDK on process exit
     process.on('SIGTERM', () => {
     sdk.shutdown()

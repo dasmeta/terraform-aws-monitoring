@@ -9,7 +9,7 @@ export class MessagesService {
     @InjectRepository(MessageEntity)
     private repository: Repository<MessageEntity>,
   ) { }
-  
+
   findOne(id: number): Promise<MessageEntity> {
     return this.repository.findOneBy({ id });
   }

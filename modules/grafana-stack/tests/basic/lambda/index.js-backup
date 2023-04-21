@@ -30,16 +30,16 @@ exports.handler = async (event, context) => {
   //   headers: {}
   // });
 
-  const httpPromise = new Promise((resolve, reject) => { 
+  const httpPromise = new Promise((resolve, reject) => {
     https.get(endpoint, (response) => {
       response.on('data', (data) => {
         resolve(data)
       });
-  
+
       response.on('error', (err) => {
         reject(`Encountered error while making HTTPS request: ${err}`);
       });
-  
+
       response.on('end', () => {
         console.log(`Successfully reached ${endpoint}.`);
       });
