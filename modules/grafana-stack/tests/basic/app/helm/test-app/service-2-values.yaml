@@ -1,0 +1,54 @@
+
+ingress:
+  hosts:
+    - host: test-app.sb-ak.proalpha.dev
+      paths:
+        - path: /ss/
+          pathType: ImplementationSpecific
+
+env:
+  - name: AWS_DEFAULT_REGION
+    value: "eu-central-1"
+  - name: AWS_ACCESS_KEY_ID
+    value: "xxxxxxxxxxxxxxxx"
+  - name: AWS_SECRET_ACCESS_KEY
+    value: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" # set right value before run
+
+  - name: MYSQL_HOST
+    value: "test-tracing-aurora.cluster-c85gsbb1643o.eu-central-1.rds.amazonaws.com"
+  - name: MYSQL_USERNAME
+    value: "admin"
+  - name: MYSQL_PASSWORD
+    value: "Fi74ZbaIPi4ZCKSCfn4s"
+  - name: MYSQL_DATABASE
+    value: "test_db"
+
+  - name: TOPIC_ARN
+    value: "arn:aws:sns:eu-central-1:xxxxxxxxxxx:test-tracing"
+
+  - name: OTEL_RPC_ENDPOINT
+    value: "http://adot.adot:4317/v1/traces"
+
+  - name: RANDOM_ERROR_ENABLED
+    value: "false"
+
+  - name: PUBLISH_TO_SNS_ENABLED
+    value: "true"
+
+  - name: INSERT_ITO_RDS_ENABLED
+    value: "true"
+
+  - name: SERVICE_NAME
+    value: "test-js-service-2"
+
+  - name: CALL_TO_SERVICE_ENABLED
+    value: "false"
+
+  - name: CALL_TO_SERVICE_URL
+    value: "https://cht.sh/"
+
+  - name: GLOBAL_ROUTE_PREFIX
+    value: "ss"
+
+  - name: NODE_OPTIONS
+    value: "--require ./dist/tracing"

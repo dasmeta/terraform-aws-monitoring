@@ -1,0 +1,122 @@
+# Default values for test-app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: xxxxxxxxxxx.dkr.ecr.eu-central-1.amazonaws.com/test-app
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "0.1.8"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    kubernetes.io/ingress.class: traefik
+  hosts:
+    - host: test-app.sb-ak.proalpha.dev
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+env:
+  - name: AWS_DEFAULT_REGION
+    value: "eu-central-1"
+  - name: AWS_ACCESS_KEY_ID
+    value: "xxxxxxxxxxxxxxxx"
+  - name: AWS_SECRET_ACCESS_KEY
+    value: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+  - name: MYSQL_HOST
+    value: "test-tracing-rds-instance-1.c85gsbb1643o.eu-central-1.rds.amazonaws.com"
+  - name: MYSQL_USERNAME
+    value: "admin"
+  - name: MYSQL_PASSWORD
+    value: "Fi74ZbaIPi4ZCKSCfn4s"
+  - name: MYSQL_DATABASE
+    value: "test_db"
+
+  - name: TOPIC_ARN
+    value: "arn:aws:sns:eu-central-1:xxxxxxxxxxx:test-tracing"
+
+  - name: OTEL_RPC_ENDPOINT
+    value: "http://adot.adot:4317/v1/traces"
+
+  - name: RANDOM_ERROR_ENABLED
+    value: "false"
+
+  - name: PUBLISH_TO_SNS_ENABLED
+    value: "true"
+
+  - name: INSERT_ITO_RDS_ENABLED
+    value: "true"
+
+  - name: SERVICE_NAME
+    value: "test-js-service-1"
+
+  - name: CALL_TO_SERVICE_ENABLED
+    value: "true"
+
+  - name: CALL_TO_SERVICE_URL
+    value: "http://test-js-service-2"

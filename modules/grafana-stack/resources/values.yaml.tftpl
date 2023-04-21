@@ -1,0 +1,38 @@
+# TODO: we use loki stack tools, but it seems the components are quite old, find better way to use grafana stack tools with latest stabile versions
+loki-stack:
+  # Loki for storing logs
+  loki:
+    serviceAccount:
+      create: false
+      name: ${service_account_name}
+    config:
+      storage_config:
+        aws:
+          s3: s3://${region}/${loki_bucket}
+          bucketnames: ${loki_bucket}
+          region: ${region}
+
+  # grafana for dashboard ui
+  grafana:
+    adminPassword: ${adminPassword}
+    grafana.ini:
+      server:
+        domain: ${host}
+    ingress:
+      hosts:
+        - "${host}"
+
+# grafana tempo chart configs
+tempo:
+  serviceAccount:
+    create: false
+    name: ${service_account_name}
+  tempo:
+    storage:
+      trace:
+        s3:
+          bucket: ${tempo_bucket}
+          endpoint: s3.dualstack.${region}.amazonaws.com
+          region: ${region}
+    metricsGenerator:
+      remoteWriteUrl: ${prometheusRemoteWriteUrl}

@@ -1,0 +1,78 @@
+services:
+  test-js-service-1:
+    build: ./test-app
+    ports:
+      - 3000:3000
+    environment:
+      AWS_DEFAULT_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: xxxxxxxxxxxxxxxx
+      AWS_SECRET_ACCESS_KEY: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX # set right value before run
+      MYSQL_HOST: db
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: test_db
+      TOPIC_ARN: arn:aws:sns:eu-central-1:xxxxxxxxxxx:test-tracing
+      OTEL_RPC_ENDPOINT: http://otel:4317/v1/traces
+      RANDOM_ERROR_ENABLED: false
+      PUBLISH_TO_SNS_ENABLED: false
+      INSERT_ITO_RDS_ENABLED: false
+      SERVICE_NAME: "test-js-service-1"
+      CALL_TO_SERVICE_ENABLED: true
+      CALL_TO_SERVICE_URL: "http://test-js-service-2:3000/ss"
+  test-js-service-2:
+    build: ./test-app
+    ports:
+      - 3002:3000
+    environment:
+      AWS_DEFAULT_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: xxxxxxxxxxxxxxxx
+      AWS_SECRET_ACCESS_KEY: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX # set right value before run
+      MYSQL_HOST: db
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: test_db
+      TOPIC_ARN: arn:aws:sns:eu-central-1:xxxxxxxxxxx:test-tracing
+      OTEL_RPC_ENDPOINT: http://otel:4317/v1/traces
+      RANDOM_ERROR_ENABLED: false
+      PUBLISH_TO_SNS_ENABLED: false
+      INSERT_ITO_RDS_ENABLED: false
+      SERVICE_NAME: "test-js-service-2"
+      CALL_TO_SERVICE_ENABLED: false
+      GLOBAL_ROUTE_PREFIX: ss
+      #CALL_TO_SERVICE_URL: "http://test-js-service-2"
+  test-js-service-3:
+    build: ./test-app
+    ports:
+      - 3003:3000
+    environment:
+      AWS_DEFAULT_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: xxxxxxxxxxxxxxxx
+      AWS_SECRET_ACCESS_KEY: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX # set right value before run
+      MYSQL_HOST: db
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: test_db
+      TOPIC_ARN: arn:aws:sns:eu-central-1:xxxxxxxxxxx:test-tracing
+      OTEL_RPC_ENDPOINT: http://otel:4317/v1/traces
+      RANDOM_ERROR_ENABLED: false
+      PUBLISH_TO_SNS_ENABLED: true
+      INSERT_ITO_RDS_ENABLED: false
+      SERVICE_NAME: "test-js-service-3"
+      CALL_TO_SERVICE_ENABLED: false
+      GLOBAL_ROUTE_PREFIX: sss
+      #CALL_TO_SERVICE_URL: "http://test-js-service-2"
+      NODE_OPTIONS: "--require ./dist/tracing"
+
+  db:
+    image: mysql:5.7.41
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+
+  # https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/
+  otel:
+    image: otel/opentelemetry-collector:0.27.0
+    command: "--config /etc/otel-config.yaml"
+    volumes:
+      - ./otel-config.yaml:/etc/otel-config.yaml

@@ -1,0 +1,108 @@
+# includes grafana stack tools
+loki-stack:
+  fullnameOverride: loki-stack 
+  # Loki for storing logs
+  loki:
+    fullnameOverride: loki
+    # env: # TODO: here we have aws secret/accesses for using while interacting to s3 storage, have instead used service-account/iam-role setup
+    #   - name: AWS_ACCESS_KEY_ID
+    #     value: "" #  should be set in module values template
+    #   - name: AWS_SECRET_ACCESS_KEY
+    #     value: "" #  should be set in module values template
+    config:
+      schema_config:
+        configs:
+          - from: 2021-05-12
+            store: boltdb-shipper
+            object_store: s3
+            schema: v11
+            index:
+              prefix: loki_index_
+              period: 24h
+      storage_config:
+        aws:
+          s3: "" #  should be set in module values template
+          s3forcepathstyle: true
+          bucketnames: "" #  should be set in module values template
+          region: "" #  should be set in module values template
+          insecure: false
+          sse_encryption: false
+
+        boltdb_shipper:
+          shared_store: s3
+          cache_ttl: 24h
+
+  # grafana for dashboard ui
+  grafana:
+    enabled: true
+    adminPassword: "" #  should be set in module values template
+    # TODO: passing pre-configured tempo data source to grafana failed, need more investigation. for now tempo data source being created from grafana ui 
+    # datasources:
+    #   - name: Tempo
+    #     url: http://tempo:3100
+    #     access: proxy
+    #     user: tempo
+    fullnameOverride: grafana
+    sidecar:
+      datasources:
+        enabled: true
+    image:
+      tag: "9.3.8"
+    grafana.ini:
+      feature_toggles:
+        enable: tempoSearch tempoBackendSearch
+      server:
+        domain: "" #  should be set in module values template
+        root_url: "%(protocol)s://%(domain)s/"
+        serve_from_sub_path: true
+    ingress:
+      enabled: true
+      hosts:
+        - "" #  should be set in module values template
+      path: "/"
+      annotations:
+        kubernetes.io/ingress.class: traefik
+      persistence:
+        enabled: true
+
+  # promtail agent for shipping logs to loki, enabled by default in loki-stack. TODO: seems adot also can do this job of shipping logs to loki, need to check/try/test things
+  promtail:
+    fullnameOverride: promtail
+
+  # prometheus stack tools for storing(seems not only) metrics. TODO: here we have quite 5 components by default enabled, there is need to check and cleanup/fine-configure each of them
+  prometheus:
+    enabled: true
+    fullnameOverride: prometheus
+    server:
+      extraFlags:
+        - web.enable-lifecycle
+        - enable-feature=remote-write-receiver # this flag is required for allowing direct push of metrics into prometheus
+    kube-state-metrics:
+      fullnameOverride: prometheus-kube-state-metrics
+    alertmanager:
+      fullnameOverride: prometheus-alert-manager
+    nodeExporter:
+      fullnameOverride: prometheus-node-exporter
+    pushgateway:
+      fullnameOverride: prometheus-push-gateway
+
+tempo:
+  fullnameOverride: tempo
+  tempo:
+    retention: "100h"
+    searchEnabled: true
+    storage:
+      trace:
+        backend: s3
+        wal:
+          path: /tmp/tempo/wal
+        s3:
+          bucket: "" #  should be set in module values template
+          endpoint: "" #  should be set in module values template
+          region: "" #  should be set in module values template
+          # access_key: "" #  should be set in module values template
+          # secret_key: "" #  should be set in module values template
+          insecure: true
+    metricsGenerator:
+      enabled: true
+      remoteWriteUrl: "" #  should be set in module values template
