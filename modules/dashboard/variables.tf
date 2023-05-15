@@ -38,3 +38,9 @@ variable "data_source_uid" {
   default     = null
   description = "The grafana dashboard widget item data source id, required for only grafana dashboards"
 }
+
+variable "account_id_as_name_prefix" {
+  type        = bool
+  default     = false
+  description = "Whether to use aws account id as dashboard name prefix"
+}

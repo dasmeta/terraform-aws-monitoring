@@ -9,21 +9,19 @@
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 4.33 |
 | <a name="provider_test"></a> [test](#provider\_test) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_this"></a> [this](#module\_this) | ../../ | n/a |
+| <a name="module_dashboard-with-custom-metrics"></a> [dashboard-with-custom-metrics](#module\_dashboard-with-custom-metrics) | ../../ | n/a |
 
 ## Resources
 
 | Name | Type |
 |------|------|
-| [aws_sns_topic.tets_topic_for_alarm_actions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
-| test_assertions.dummy | resource |
+| test_assertions.api_url | resource |
 
 ## Inputs
 
@@ -38,13 +36,13 @@ No outputs.
 
 | Name | Version |
 |------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 4.33 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 4.39.0 |
 | <a name="provider_test"></a> [test](#provider\_test) | n/a |
 
 ## Modules
@@ -57,8 +55,7 @@ No outputs.
 
 | Name | Type |
 |------|------|
-| [aws_sns_topic.tets_topic_for_alarm_actions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
-| test_assertions.dummy | resource |
+| test_assertions.api_url | resource |
 
 ## Inputs
 

@@ -6,6 +6,7 @@ module "base_cloudwatch" {
   name              = var.name
   coordinates       = var.coordinates
   metrics           = var.metrics
+  expressions       = var.expressions
   defaults          = var.defaults
   stat              = var.stat
   period            = var.period
@@ -19,6 +20,7 @@ module "base_cloudwatch" {
   annotations       = var.annotations
   alarms            = var.alarms
   properties_type   = var.properties_type
+  yAxis             = var.yAxis
 }
 
 module "base_grafana" {

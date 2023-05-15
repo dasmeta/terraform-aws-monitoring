@@ -29,6 +29,20 @@ variable "metrics" {
   description = "Metrics to be displayed on the widget."
 }
 
+variable "expressions" {
+  type = list(object({
+    expression = string
+    label      = optional(string, null)
+    accountId  = optional(string, null)
+    visible    = optional(bool, null)
+    color      = optional(string, null)
+    yAxis      = optional(string, null)
+    region     = optional(string, null)
+  }))
+  default     = []
+  description = "Custom metric expressions over metrics, note that metrics have auto generated m1,m2,..., m{n} ids"
+}
+
 variable "defaults" {
   type        = any
   default     = {}
@@ -102,4 +116,10 @@ variable "properties_type" {
   type        = string
   default     = null
   description = "The properties->type option for alarm widgets"
+}
+
+variable "yAxis" {
+  type        = any
+  default     = { left = { min = 0 } }
+  description = "Widget Item common yAxis option (applied only metric type widgets)."
 }
