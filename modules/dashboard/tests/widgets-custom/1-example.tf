@@ -12,6 +12,7 @@ module "dashboard-with-custom-metrics" {
             MetricNamespace = "ContainerInsights"
             MetricName      = "node_memory_utilization"
             ClusterName     = "sandbox"
+            visible         = false
             # anomaly_detection = true
           },
           {
@@ -19,7 +20,17 @@ module "dashboard-with-custom-metrics" {
             MetricName      = "pod_network_rx_bytes"
             ClusterName     = "sandbox"
             Service         = "ingress-controller-traefik"
-          }
+          },
+        ]
+        expressions : [
+          {
+            expression = "m1 + m2"
+            label      = "m1 + m2"
+            visible    = false
+          },
+          {
+            expression = "m1 - m2"
+          },
         ]
       }
     ]

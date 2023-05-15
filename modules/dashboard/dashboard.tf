@@ -1,8 +1,3 @@
-locals {
-  dashboard_title = "${data.aws_caller_identity.project.account_id}-${var.name}"
-}
-
-
 resource "aws_cloudwatch_dashboard" "dashboards" {
   count = var.platform == "cloudwatch" ? 1 : 0
 
@@ -14,7 +9,7 @@ resource "aws_cloudwatch_dashboard" "dashboards" {
   EOF
 
 }
-# TODO: Resource and Provider comented, because all clients doesn't use grafana dashboard.
+# TODO: Resource and Provider commented, because all clients doesn't use grafana dashboard.
 #       We should be create new module for grafana dashboard
 
 # resource "grafana_dashboard" "metrics" {

@@ -7,11 +7,13 @@ module "base" {
 
   period = var.period
   stat   = var.stat
+  yAxis  = var.yAxis
 
   defaults = {
     accountId         = var.account_id
     anomaly_detection = var.anomaly_detection
   }
 
-  metrics = var.metrics
+  metrics     = var.metrics
+  expressions = var.expressions
 }
