@@ -40,18 +40,18 @@ locals {
 
   // common properties
   properties = {
-    title       = var.name
-    region      = var.region
-    query       = local.query_with_sources
-    view        = var.view
-    stacked     = var.stacked
-    alarms      = var.alarms
-    type        = var.properties_type
-    annotations = var.annotations
-    metrics     = var.type != "metric" || var.metrics == null ? null : concat(local.metrics, local.anomaly_detection_metrics, local.expression_metrics)
-    period      = var.type != "metric" ? null : var.period
-    stat        = var.type != "metric" ? null : var.stat
-    yAxis       = var.type != "metric" ? null : var.yAxis
+    title                    = var.name
+    region                   = var.region
+    query                    = local.query_with_sources
+    view                     = var.view
+    stacked                  = var.stacked
+    alarms                   = var.alarms
+    type                     = var.properties_type
+    annotations              = var.annotations
+    metrics                  = var.type != "metric" || var.metrics == null ? null : concat(local.metrics, local.anomaly_detection_metrics, local.expression_metrics)
+    period                   = var.type != "metric" ? null : var.period
+    stat                     = var.type != "metric" ? null : var.stat
+    yAxis                    = var.type != "metric" ? null : var.yAxis
     setPeriodToTimeRange     = var.setPeriodToTimeRange
     singleValueFullPrecision = var.singleValueFullPrecision
     sparkline                = var.sparkline
