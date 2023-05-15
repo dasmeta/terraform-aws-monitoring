@@ -52,6 +52,12 @@ locals {
     period      = var.type != "metric" ? null : var.period
     stat        = var.type != "metric" ? null : var.stat
     yAxis       = var.type != "metric" ? null : var.yAxis
+    setPeriodToTimeRange     = var.setPeriodToTimeRange
+    singleValueFullPrecision = var.singleValueFullPrecision
+    sparkline                = var.sparkline
+    start                    = var.start
+    trend                    = var.trend
+    end                      = var.end
   }
 
   data = {

@@ -21,6 +21,12 @@ module "base_cloudwatch" {
   alarms            = var.alarms
   properties_type   = var.properties_type
   yAxis             = var.yAxis
+  setPeriodToTimeRange     = var.setPeriodToTimeRange
+  singleValueFullPrecision = var.singleValueFullPrecision
+  sparkline                = var.sparkline
+  start                    = var.start
+  trend                    = var.trend
+  end                      = var.end
 }
 
 module "base_grafana" {
