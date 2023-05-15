@@ -1,3 +1,7 @@
+## this module allows to send aws security-hib notifications to opsgenie
+
+# TODO: improve this module(we had several notification channels support including opsgenie) and if possible have it integrated into terraform-aws-account module
+
 ## Requirements
 
 | Name | Version |
@@ -44,14 +48,13 @@ No outputs.
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 3.0 |
-| <a name="requirement_opsgenie"></a> [opsgenie](#requirement\_opsgenie) | ~> 3.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 3.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 3.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 3.0 |
 
 ## Modules
 
