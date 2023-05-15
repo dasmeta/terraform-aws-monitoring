@@ -45,6 +45,7 @@ locals {
       width             = 6
       height            = 6
       anomaly_detection = false
+      expressions       = []
       yAxis             = { left = { min = 0 } }
     },
     var.defaults

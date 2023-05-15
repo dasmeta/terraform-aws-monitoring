@@ -111,3 +111,39 @@ variable "properties_type" {
   default     = null
   description = "The properties->type option for alarm widgets"
 }
+
+variable "setPeriodToTimeRange" {
+  type        = bool
+  default     = null
+  description = "setPeriodToTimeRange of widget"
+}
+
+variable "singleValueFullPrecision" {
+  type        = bool
+  default     = null
+  description = "singleValueFullPrecision of widget"
+}
+
+variable "sparkline" {
+  type        = bool
+  default     = null
+  description = "sparkline of widget"
+}
+
+variable "trend" {
+  type        = bool
+  default     = null
+  description = "trend of widget"
+}
+
+variable "start" {
+  type        = string
+  default     = null
+  description = "start of widget"
+}
+
+variable "end" {
+  type        = string
+  default     = null
+  description = "end of widget"
+}
