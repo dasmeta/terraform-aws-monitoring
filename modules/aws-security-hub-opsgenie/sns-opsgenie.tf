@@ -1,5 +1,5 @@
 resource "aws_sns_topic" "sns-sec" {
-  name            = var.sns-topic-name
+  name            = var.sns_topic_name
   delivery_policy = <<EOF
 {
   "http": {
@@ -24,5 +24,5 @@ EOF
 resource "aws_sns_topic_subscription" "sns-sec-sub" {
   topic_arn = aws_sns_topic.sns-sec.arn
   protocol  = var.protocol
-  endpoint  = var.opsgenie-webhook
+  endpoint  = var.opsgenie_webhook
 }

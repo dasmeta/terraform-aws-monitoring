@@ -74,11 +74,13 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_link-mode"></a> [link-mode](#input\_link-mode) | n/a | `string` | `"ALL_REGIONS"` | no |
-| <a name="input_opsgenie-webhook"></a> [opsgenie-webhook](#input\_opsgenie-webhook) | Webhook for sending notification to opsgenie | `string` | n/a | yes |
+| <a name="input_enable_security_hub"></a> [enable\_security\_hub](#input\_enable\_security\_hub) | Whether to enable/activate security hub and its finding aggregator for aws account, this is useful in case the security hub is already enabled (for example when we test, or account have it enable by default) | `bool` | `true` | no |
+| <a name="input_enable_security_hub_finding_aggregator"></a> [enable\_security\_hub\_finding\_aggregator](#input\_enable\_security\_hub\_finding\_aggregator) | Whether to enable/create security hub and its finding aggregator for aws account, this is useful in case there is already created security hub finding aggregator | `bool` | `true` | no |
+| <a name="input_link_mode"></a> [link\_mode](#input\_link\_mode) | n/a | `string` | `"ALL_REGIONS"` | no |
+| <a name="input_opsgenie_webhook"></a> [opsgenie\_webhook](#input\_opsgenie\_webhook) | Webhook for sending notification to opsgenie | `string` | n/a | yes |
 | <a name="input_protocol"></a> [protocol](#input\_protocol) | n/a | `string` | `"https"` | no |
-| <a name="input_securityhub-name"></a> [securityhub-name](#input\_securityhub-name) | n/a | `string` | `"Send-to-SNS"` | no |
-| <a name="input_sns-topic-name"></a> [sns-topic-name](#input\_sns-topic-name) | Topic name | `string` | `"Send-to-Opsgenie"` | no |
+| <a name="input_securityhub_action_target_name"></a> [securityhub\_action\_target\_name](#input\_securityhub\_action\_target\_name) | n/a | `string` | `"Send-to-SNS"` | no |
+| <a name="input_sns_topic_name"></a> [sns\_topic\_name](#input\_sns\_topic\_name) | Topic name | `string` | `"Send-to-Opsgenie"` | no |
 
 ## Outputs
 
