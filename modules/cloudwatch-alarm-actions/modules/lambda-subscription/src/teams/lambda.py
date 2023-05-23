@@ -58,7 +58,7 @@ def handler(event, context):
 
     if "Metrics" in trigger_body:
         metrics_body = trigger_body["Metrics"]
-        print("> Alarm Metrics Body Value", metrics_body)
+        logger.debug("> Alarm Metrics Body Value", metrics_body)
 
         # processing one single metric
         # TODO: we need to manage multiple metrics processing
@@ -87,6 +87,24 @@ def handler(event, context):
                         metric_name,
                         metric["Dimensions"][0]["name"],
                         metric["Dimensions"][0]["value"],
+                        {
+                            "stat": "Average"
+                        }
+                    ]
+                ],
+                "period": 300,
+                "view": "timeSeries"
+            }
+        elif not len(metric["Dimensions"]):
+            MetricWidget = {
+                "width": 300,
+                "height": 200,
+                "metrics": [
+                    [
+                        metric["Namespace"],
+                        metric_name,
+                        metric["MetricName"],
+                        metric["Namespace"],
                         {
                             "stat": "Average"
                         }
