@@ -73,3 +73,14 @@ variable "recreate_missing_package" {
   default     = true
   description = "Whether to recreate missing Lambda package if it is missing locally or not"
 }
+
+variable "lambda_failed_alert" {
+  type = any
+  default = {
+    period    = 60
+    threshold = 1
+    equation  = "gte"
+    statistic = "sum"
+  }
+  description = "Alert for lambda failed "
+}

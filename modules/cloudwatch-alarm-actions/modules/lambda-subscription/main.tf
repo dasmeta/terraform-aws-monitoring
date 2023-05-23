@@ -69,7 +69,10 @@ module "alerts" {
       filters = {
         FunctionName = "${local.lambda_name}"
       }
-      period = 60
+      period    = var.lambda_failed_alert.period
+      threshold = var.lambda_failed_alert.threshold
+      equation  = var.lambda_failed_alert.equation
+      statistic = var.lambda_failed_alert.statistic
     }
   ]
 }
