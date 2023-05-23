@@ -21,8 +21,6 @@ module "notify_slack" {
   cloudwatch_log_group_retention_in_days = var.log_group_retention_days
   lambda_dead_letter_target_arn          = try(module.dead_letter_queue[0].queue_arn, null)
   lambda_attach_dead_letter_policy       = var.enable_dead_letter_queue
-
-  lambda_failed_alert = var.lambda_failed_alert
 }
 
 # servicenow notify subscription
@@ -49,6 +47,8 @@ module "notify_servicenow" {
   log_group_retention_days  = var.log_group_retention_days
   dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
   attach_dead_letter_policy = var.enable_dead_letter_queue
+
+  lambda_failed_alert = var.lambda_failed_alert
 
   depends_on = [
     module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
