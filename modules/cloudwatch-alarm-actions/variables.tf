@@ -118,3 +118,14 @@ variable "log_level" {
   default     = "INFO"
   description = "log level for python code"
 }
+
+variable "lambda_failed_alert" {
+  type = any
+  default = {
+    period    = 60
+    threshold = 1
+    equation  = "gte"
+    statistic = "sum"
+  }
+  description = "Alert for lambda failed "
+}

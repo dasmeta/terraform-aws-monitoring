@@ -48,6 +48,8 @@ module "notify_servicenow" {
   dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
   attach_dead_letter_policy = var.enable_dead_letter_queue
 
+  lambda_failed_alert = var.lambda_failed_alert
+
   depends_on = [
     module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
   ]
