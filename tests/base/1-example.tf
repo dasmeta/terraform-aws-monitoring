@@ -64,5 +64,8 @@ module "this" {
       }
     ],
   ]
-
+  providers = {
+    aws          = aws
+    aws.virginia = aws.virginia
+  }
 }
