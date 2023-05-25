@@ -33,7 +33,7 @@ module "this" {
   alerts = [
     // Restarts
     {
-      name   = "Corify frontend has too many restarts (eks-dev)"
+      name   = "Frontend has too many restarts (eks-dev)"
       source = "ContainerInsights/pod_number_of_container_restarts"
       filters = {
         PodName     = "test-application",
