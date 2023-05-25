@@ -39,15 +39,15 @@ No providers.
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_alerts"></a> [alerts](#module\_alerts) | dasmeta/monitoring/aws//modules/alerts | 1.3.4 |
-| <a name="module_alerts_application_channel"></a> [alerts\_application\_channel](#module\_alerts\_application\_channel) | dasmeta/monitoring/aws//modules/alerts | 1.3.4 |
+| <a name="module_alerts"></a> [alerts](#module\_alerts) | ./modules/alerts/ | n/a |
+| <a name="module_alerts_application_channel"></a> [alerts\_application\_channel](#module\_alerts\_application\_channel) | ./modules/alerts/ | n/a |
 | <a name="module_aws_cloudwatch_log_metric_filter"></a> [aws\_cloudwatch\_log\_metric\_filter](#module\_aws\_cloudwatch\_log\_metric\_filter) | dasmeta/modules/aws//modules/cloudwatch-log-metric | 1.7.0 |
-| <a name="module_eks_monitoring_dashboard"></a> [eks\_monitoring\_dashboard](#module\_eks\_monitoring\_dashboard) | dasmeta/monitoring/aws//modules/dashboard | 1.5.1 |
-| <a name="module_health-check"></a> [health-check](#module\_health-check) | dasmeta/monitoring/aws//modules/alerts | 1.3.8 |
-| <a name="module_monitoring_dashboard"></a> [monitoring\_dashboard](#module\_monitoring\_dashboard) | dasmeta/monitoring/aws//modules/dashboard | 1.5.1 |
-| <a name="module_sns-to-teams"></a> [sns-to-teams](#module\_sns-to-teams) | dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions | 1.5.3 |
-| <a name="module_sns-to-teams-application-channel"></a> [sns-to-teams-application-channel](#module\_sns-to-teams-application-channel) | dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions | 1.5.3 |
-| <a name="module_sns-to-teams-virginia"></a> [sns-to-teams-virginia](#module\_sns-to-teams-virginia) | dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions | 1.5.3 |
+| <a name="module_eks_monitoring_dashboard"></a> [eks\_monitoring\_dashboard](#module\_eks\_monitoring\_dashboard) | ./modules/dashboard/ | n/a |
+| <a name="module_health-check"></a> [health-check](#module\_health-check) | ./modules/alerts/ | n/a |
+| <a name="module_monitoring_dashboard"></a> [monitoring\_dashboard](#module\_monitoring\_dashboard) | ./modules/dashboard/ | n/a |
+| <a name="module_sns-to-teams"></a> [sns-to-teams](#module\_sns-to-teams) | ./modules/cloudwatch-alarm-actions/ | n/a |
+| <a name="module_sns-to-teams-application-channel"></a> [sns-to-teams-application-channel](#module\_sns-to-teams-application-channel) | ./modules/cloudwatch-alarm-actions/ | n/a |
+| <a name="module_sns-to-teams-virginia"></a> [sns-to-teams-virginia](#module\_sns-to-teams-virginia) | ./modules/cloudwatch-alarm-actions/ | n/a |
 
 ## Resources
 

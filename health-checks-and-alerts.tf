@@ -1,8 +1,6 @@
 module "health-check" {
-  source  = "dasmeta/monitoring/aws//modules/alerts"
-  version = "1.3.8"
-
-  count = length(var.health_checks) > 0 ? 1 : 0
+  source = "./modules/alerts/"
+  count  = length(var.health_checks) > 0 ? 1 : 0
 
   sns_topic = local.sns_topic_name_virginia
 
@@ -15,8 +13,7 @@ module "health-check" {
 
 
 module "alerts" {
-  source  = "dasmeta/monitoring/aws//modules/alerts"
-  version = "1.3.4"
+  source = "./modules/alerts/"
 
   count = var.create_alerts ? 1 : 0
 
@@ -26,8 +23,7 @@ module "alerts" {
 
 
 module "alerts_application_channel" {
-  source  = "dasmeta/monitoring/aws//modules/alerts"
-  version = "1.3.4"
+  source = "./modules/alerts/"
 
   count = var.create_application_channel ? 1 : 0
 

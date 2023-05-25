@@ -1,6 +1,5 @@
 module "monitoring_dashboard" {
-  source  = "dasmeta/monitoring/aws//modules/dashboard"
-  version = "1.5.1"
+  source = "./modules/dashboard/"
 
   count = length(var.application_monitroing_dashboard) > 0 ? 1 : 0
 

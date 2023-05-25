@@ -7,8 +7,7 @@ locals {
 module "sns-to-teams-application-channel" {
   count = var.create_application_channel ? 1 : 0
 
-  source  = "dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions"
-  version = "1.5.3"
+  source = "./modules/cloudwatch-alarm-actions/"
 
   topic_name = local.sns_topic_application_channel
 
@@ -22,8 +21,7 @@ module "sns-to-teams-application-channel" {
 module "sns-to-teams" {
   count = var.create_alerts ? 1 : 0
 
-  source  = "dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions"
-  version = "1.5.3"
+  source = "./modules/cloudwatch-alarm-actions/"
 
   topic_name = local.sns_topic_name
 
@@ -37,8 +35,7 @@ module "sns-to-teams" {
 module "sns-to-teams-virginia" {
   count = length(var.health_checks) > 0 ? 1 : 0
 
-  source  = "dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions"
-  version = "1.5.3"
+  source = "./modules/cloudwatch-alarm-actions/"
 
   topic_name = local.sns_topic_name_virginia
 
