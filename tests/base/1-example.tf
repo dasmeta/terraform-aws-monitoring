@@ -1,8 +1,6 @@
 module "this" {
-  source = "../../"
-  name   = "dev"
-  # cluster_name = "eks-dev"
-  # namespace  = "test-app"
+  source                          = "../../"
+  name                            = "dev"
   sns_topic_name                  = "alarm-dev"
   webhook_url                     = ""
   application_channel_webhook_url = ""
@@ -61,7 +59,7 @@ module "this" {
         width         = 24
         height        = 8
         type          = "sla-slo-sli",
-        balancer_name = "alb-internal-dev"
+        balancer_name = "alb-dev"
         region        = "eu-central-1"
       }
     ],
