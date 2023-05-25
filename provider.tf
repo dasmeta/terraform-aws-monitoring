@@ -15,10 +15,4 @@ terraform {
       version = "~>4.50"
     }
   }
-  cloud {
-    organization = "corify"
-    workspaces {
-      tags = ["component:monitoring"]
-    }
-  }
 }
