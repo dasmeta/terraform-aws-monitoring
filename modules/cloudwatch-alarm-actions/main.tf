@@ -1,7 +1,6 @@
 module "topic" {
   source  = "dasmeta/sns/aws//modules/topic"
-  version = "1.0.0"
-  # source = "../../../terraform-aws-sns/modules/topic"
+  version = "1.1.1"
 
   name            = var.topic_name
   create          = var.create_topic
@@ -23,7 +22,7 @@ module "dead_letter_queue" {
 
 module "fallback-topic" {
   source  = "dasmeta/sns/aws//modules/topic"
-  version = "1.0.0"
+  version = "1.1.1"
 
   name            = "fallback-${var.topic_name}"
   delivery_policy = var.delivery_policy
