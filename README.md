@@ -76,5 +76,9 @@ No resources.
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | n/a |
+| <a name="output_sns_topic_arn_application_channel"></a> [sns\_topic\_arn\_application\_channel](#output\_sns\_topic\_arn\_application\_channel) | n/a |
+| <a name="output_sns_topic_arn_virginia"></a> [sns\_topic\_arn\_virginia](#output\_sns\_topic\_arn\_virginia) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
