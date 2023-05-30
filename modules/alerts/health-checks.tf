@@ -14,6 +14,7 @@ locals {
 
   health_check_alerts = [for key, health_check in aws_route53_health_check.health_checks : {
     name               = key
+    description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
     source             = "AWS/Route53/HealthCheckStatus"
     filters            = { HealthCheckId = health_check.id }
     statistic          = "min"
