@@ -31,11 +31,12 @@ locals {
 
 module "cloudwatch_metric-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "3.3.0"
+  version = "4.3.0"
 
   for_each = { for alert in local.alert : "${alert.name}-${alert.source}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
+  alarm_description   = each.value.description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = each.value.evaluation_periods
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -70,11 +71,12 @@ module "cloudwatch_metric-alarm" {
 # account where the metrics are. This will probably lead to confusion, but a technical limitation.
 module "cloudwatch_metric-alarm_with_anomalydetection" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "3.3.0"
+  version = "4.3.0"
 
   for_each = { for alert in local.alert_w_anomalydetec : "${alert.name}-${alert.source}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
+  alarm_description   = each.value.description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -109,11 +111,12 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
 module "cloudwatch_log-based-metric-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "3.3.0"
+  version = "4.3.0"
 
   for_each = { for alert in local.log_based_alert : "${alert.source}-${alert.name}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
+  alarm_description   = each.value.description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -148,11 +151,12 @@ module "cloudwatch_log-based-metric-alarm" {
 
 module "external_health_check-alarms" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "3.3.0"
+  version = "4.3.0"
 
   for_each = { for alert in local.health_check_alerts : "${alert.source}-${alert.name}" => alert }
 
   alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
+  alarm_description   = each.value.description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold           = each.value.threshold
