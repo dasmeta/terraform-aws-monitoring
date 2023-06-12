@@ -28,7 +28,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_cpu_utilization_over_pod_limit" },
+    { MetricName = "pod_cpu_limit" },
     { MetricName = "pod_cpu_utilization" },
     { MetricName = "pod_cpu_reserved_capacity", color = "#d62728" }
   ]
