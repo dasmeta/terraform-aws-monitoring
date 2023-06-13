@@ -87,9 +87,10 @@ locals {
 
   text_title = local.widget_config["text/title"]
 
-  log_based       = local.widget_config["log-based"]
-  custom          = local.widget_config["custom"]
-  application     = local.widget_config["application"]
+  log_based   = local.widget_config["log-based"]
+  custom      = local.widget_config["custom"]
+  application = local.widget_config["application"]
+
   rds_cpu         = local.widget_config["rds/cpu"]
   rds_memory      = local.widget_config["rds/memory"]
   rds_disk        = local.widget_config["rds/disk"]

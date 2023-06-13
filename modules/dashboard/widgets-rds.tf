@@ -14,7 +14,7 @@ module "widget_rds_cpu" {
   # stats
   period = local.rds_cpu[count.index].period
 
-  # container
+  # rds name
   rds_name = local.rds_cpu[count.index].rds_name
 }
 
@@ -33,7 +33,7 @@ module "widget_rds_memory" {
   # stats
   period = local.rds_memory[count.index].period
 
-  # container
+  # rds name
   rds_name = local.rds_memory[count.index].rds_name
 }
 
@@ -52,7 +52,7 @@ module "widget_rds_disk" {
   # stats
   period = local.rds_disk[count.index].period
 
-  # container
+  # rds name
   rds_name = local.rds_disk[count.index].rds_name
 }
 
@@ -71,6 +71,6 @@ module "widget_rds_db_connections" {
   # stats
   period = local.rds_connections[count.index].period
 
-  # container
+  # rds name
   rds_name = local.rds_connections[count.index].rds_name
 }

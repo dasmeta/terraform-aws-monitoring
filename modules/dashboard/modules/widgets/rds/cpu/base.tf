@@ -18,7 +18,7 @@ module "base" {
   }
 
   period = var.period
-  # region = "eu-central-1"
+
   metrics = [
     { MetricName = "CPUUtilization" },
   ]

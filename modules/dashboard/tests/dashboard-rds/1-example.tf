@@ -1,4 +1,4 @@
-# this is going to create emplty dashboard
+# this is going to create rds dashboard
 
 module "dashboard_rds" {
   source = "../../"

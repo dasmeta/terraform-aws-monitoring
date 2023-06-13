@@ -27,5 +27,6 @@ variable "period" {
 }
 
 variable "rds_name" {
-  type = string
+  type        = string
+  description = "Database name"
 }
