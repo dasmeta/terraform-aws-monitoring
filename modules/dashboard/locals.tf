@@ -69,6 +69,10 @@ locals {
     "alarm/status"        = []
     "alarm/metric"        = []
     "sla-slo-sli"         = []
+    "rds/cpu"             = []
+    "rds/memory"          = []
+    "rds/disk"            = []
+    "rds/connections"     = []
   }
 
   # widget aliases
@@ -86,6 +90,11 @@ locals {
   log_based   = local.widget_config["log-based"]
   custom      = local.widget_config["custom"]
   application = local.widget_config["application"]
+
+  rds_cpu         = local.widget_config["rds/cpu"]
+  rds_memory      = local.widget_config["rds/memory"]
+  rds_disk        = local.widget_config["rds/disk"]
+  rds_connections = local.widget_config["rds/connections"]
 
   logs_insight_logs   = local.widget_config["logs-insight/logs"]
   logs_insight_metric = local.widget_config["logs-insight/metric"]
@@ -119,6 +128,12 @@ locals {
 
     # application/prometheus metrics
     module.widget_application[*].data,
+
+    # RDS
+    module.widget_rds_cpu[*].data,
+    module.widget_rds_memory[*].data,
+    module.widget_rds_disk[*].data,
+    module.widget_rds_db_connections[*].data,
 
     # logs insights metrics/logs
     module.widget_logs_insight_logs[*].data,

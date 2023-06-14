@@ -85,6 +85,10 @@
 | <a name="module_widget_log_based"></a> [widget\_log\_based](#module\_widget\_log\_based) | ./modules/widgets/log-based | n/a |
 | <a name="module_widget_logs_insight_logs"></a> [widget\_logs\_insight\_logs](#module\_widget\_logs\_insight\_logs) | ./modules/widgets/logs-insight/logs | n/a |
 | <a name="module_widget_logs_insight_metric"></a> [widget\_logs\_insight\_metric](#module\_widget\_logs\_insight\_metric) | ./modules/widgets/logs-insight/metric | n/a |
+| <a name="module_widget_rds_cpu"></a> [widget\_rds\_cpu](#module\_widget\_rds\_cpu) | ./modules/widgets/rds/cpu | n/a |
+| <a name="module_widget_rds_db_connections"></a> [widget\_rds\_db\_connections](#module\_widget\_rds\_db\_connections) | ./modules/widgets/rds/db-connections | n/a |
+| <a name="module_widget_rds_disk"></a> [widget\_rds\_disk](#module\_widget\_rds\_disk) | ./modules/widgets/rds/disk | n/a |
+| <a name="module_widget_rds_memory"></a> [widget\_rds\_memory](#module\_widget\_rds\_memory) | ./modules/widgets/rds/memory | n/a |
 | <a name="module_widget_sla_slo_sli"></a> [widget\_sla\_slo\_sli](#module\_widget\_sla\_slo\_sli) | ./modules/widgets/sla-slo-sli | n/a |
 
 ## Resources
