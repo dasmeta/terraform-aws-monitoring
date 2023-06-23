@@ -70,3 +70,9 @@ variable "enable_alarm_actions" {
   default     = true
   description = "Enable alarm actions alert"
 }
+
+variable "expression_alert" {
+  type        = any
+  default     = {}
+  description = "Add multiple metrics in one alert and add expression."
+}
