@@ -73,5 +73,6 @@ variable "enable_alarm_actions" {
 
 variable "expression_alert" {
   type        = any
+  default     = {}
   description = "Add multiple metrics in one alert and add expression."
 }
