@@ -171,3 +171,22 @@ module "external_health_check-alarms" {
   ok_actions                = local.ok_actions
   insufficient_data_actions = local.alarm_actions
 }
+
+module "cloudwatch_expression-alarm" {
+  source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
+  version = "4.3.0"
+
+  for_each = var.expression_alert
+
+  alarm_name          = each.key
+  alarm_description   = lookup(each.value, "description", null)
+  comparison_operator = local.comparison_operators[each.value.equation]
+  threshold           = each.value.threshold
+  evaluation_periods  = 1
+
+  metric_query = each.value.metrics
+
+  alarm_actions             = var.enable_alarm_actions ? local.alarm_actions : null
+  ok_actions                = var.enable_ok_actions ? local.ok_actions : null
+  insufficient_data_actions = var.enable_insufficient_data_actions ? local.alarm_actions : null
+}
