@@ -1,6 +1,6 @@
 resource "aws_cloudwatch_event_rule" "securityhub" {
   name        = var.name
-  description = "Test create EventBridge rule for SecurityHub"
+  description = "Create EventBridge rule for SecurityHub"
 
   event_pattern = jsonencode({
     "source" : ["aws.securityhub"],
