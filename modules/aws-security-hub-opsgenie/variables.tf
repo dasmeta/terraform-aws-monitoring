@@ -1,22 +1,36 @@
-variable "securityhub_action_target_name" {
-  type    = string
-  default = "Send-to-SNS"
+variable "name" {
+  type        = string
+  description = "Name"
 }
 
-variable "opsgenie_webhook" {
+variable "create_teams_target" {
+  type        = bool
+  default     = false
+  description = "Create Target for send notification to Teams"
+}
+
+variable "create_sns_target" {
+  type        = bool
+  default     = false
+  description = "Create Target for send notification to SNS"
+}
+
+variable "create_slack_target" {
+  type        = bool
+  default     = false
+  description = "Create Target for send notification to Slack"
+}
+
+variable "sns_opsgenie_subscription" {
   type        = string
+  default     = ""
   description = "Webhook for sending notification to opsgenie"
 }
 
-variable "sns_topic_name" {
+variable "sns_email_subscription" {
   type        = string
-  description = "Topic name"
-  default     = "Send-to-Opsgenie"
-}
-
-variable "protocol" {
-  type    = string
-  default = "https"
+  default     = ""
+  description = "Webhook for sending notification to Email"
 }
 
 variable "link_mode" {
@@ -34,4 +48,16 @@ variable "enable_security_hub_finding_aggregator" {
   type        = bool
   default     = true
   description = "Whether to enable/create security hub and its finding aggregator for aws account, this is useful in case there is already created security hub finding aggregator"
+}
+
+variable "lambda_environment_variables" {
+  description = "Environment variables to pass to Lambda function"
+  type        = map(any)
+  default     = {}
+}
+
+variable "securityhub_members" {
+  description = "Security Hub Member Accounts (Email and Account Id)"
+  type        = map(any)
+  default     = {}
 }
