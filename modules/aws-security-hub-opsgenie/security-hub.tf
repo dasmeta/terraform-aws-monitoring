@@ -3,10 +3,13 @@ resource "aws_securityhub_account" "sec-hub" {
 }
 
 resource "aws_securityhub_action_target" "sec-hub-target" {
-  depends_on  = [aws_securityhub_account.sec-hub]
-  name        = var.securityhub_action_target_name
-  identifier  = "SendToSns"
-  description = "This  is custom action sends selected findings to sns"
+  name        = var.name
+  identifier  = "SendToTargets"
+  description = "This  is custom action sends selected findings to Targets"
+
+  depends_on = [
+    aws_securityhub_account.sec-hub
+  ]
 }
 
 resource "aws_securityhub_finding_aggregator" "sec-hub-aggregator" {
@@ -14,5 +17,15 @@ resource "aws_securityhub_finding_aggregator" "sec-hub-aggregator" {
 
   count = var.enable_security_hub_finding_aggregator ? 1 : 0
 
-  depends_on = [aws_securityhub_account.sec-hub]
+  depends_on = [
+    aws_securityhub_account.sec-hub
+  ]
+}
+
+resource "aws_securityhub_member" "account" {
+  for_each = var.securityhub_members
+
+  account_id = each.value
+  email      = each.key
+  invite     = true
 }
