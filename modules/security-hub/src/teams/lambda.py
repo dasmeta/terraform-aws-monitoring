@@ -35,26 +35,7 @@ def payload(account,resources,types,recommendation,description,id,resource_type)
             }
         ]
     if recommendation == "" :
-        recommendation_item = {}
-    else :
-        recommendation_item = {
-            "type": "ActionSet",
-            "actions": [
-                {
-                    "type": "Action.OpenUrl",
-                    "title": recommendation["Text"],
-                    "url": recommendation["Url"]
-                }
-            ]
-        }
-
-    payload = {
-        "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "contentUrl": "contentUrl",
-                "content": {
+        content = {
                     "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                     "type": "AdaptiveCard",
                     "title": "Security Hub Scan",
@@ -83,10 +64,62 @@ def payload(account,resources,types,recommendation,description,id,resource_type)
                                     "url": "https://eu-central-1.console.aws.amazon.com/securityhub/home?region=eu-central-1#/findings?search=WorkflowStatus=%5Coperator%5C%3AEQUALS%5C%3ANEW"
                                 }
                             ]
-                        },
-                        recommendation_item
+                        }
                     ]
                 }
+
+    else :
+        content = {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "title": "Security Hub Scan",
+            "version": "1.2",
+            "msteams": {
+                "width": "Full"
+            },
+            "body": [
+                {
+                    "type": "TextBlock",
+                    "text": str(types),
+                    "size": "Large",
+                    "weight": "Bolder",
+                    "style": "heading"
+                },
+                {
+                    "type": "Container",
+                    "items": items
+                },
+                {
+                    "type": "ActionSet",
+                    "actions": [
+                        {
+                            "type": "Action.OpenUrl",
+                            "title": recommendation["Text"],
+                            "url": recommendation["Url"]
+                        }
+                    ]
+                },
+                {
+                    "type": "ActionSet",
+                    "actions": [
+                        {
+                            "type": "Action.OpenUrl",
+                            "title": "Security Hub Url",
+                            "url": "https://eu-central-1.console.aws.amazon.com/securityhub/home?region=eu-central-1#/findings?search=WorkflowStatus=%5Coperator%5C%3AEQUALS%5C%3ANEW"
+                        }
+                    ]
+                }
+            ]
+        }
+
+    payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": "contentUrl",
+                "content": content
+
             }
         ]
     }
