@@ -34,6 +34,20 @@ def payload(account,resources,types,recommendation,description,id,resource_type)
                 },]
             }
         ]
+    if recommendation == "" :
+        recommendation_item = {}
+    else :
+        recommendation_item = {
+            "type": "ActionSet",
+            "actions": [
+                {
+                    "type": "Action.OpenUrl",
+                    "title": recommendation["Text"],
+                    "url": recommendation["Url"]
+                }
+            ]
+        }
+
     payload = {
         "type": "message",
         "attachments": [
@@ -70,16 +84,7 @@ def payload(account,resources,types,recommendation,description,id,resource_type)
                                 }
                             ]
                         },
-                        {
-                            "type": "ActionSet",
-                            "actions": [
-                                {
-                                    "type": "Action.OpenUrl",
-                                    "title": recommendation["Text"],
-                                    "url": recommendation["Url"]
-                                }
-                            ]
-                        }
+                        recommendation_item
                     ]
                 }
             }
@@ -101,7 +106,9 @@ def handler(event, context):
     resources   = event["detail"]["findings"][0]["Resources"]
     resource_type  = event["detail"]["findings"][0]["Resources"][0]["Type"]
     description    =  event["detail"]["findings"][0]["Description"]
-    recommendation = event["detail"]["findings"][0]["Remediation"]["Recommendation"]
+    recommendation = ""
+    if "Recommendation" in event["detail"]["findings"][0]:
+        recommendation = event["detail"]["findings"][0]["Remediation"]["Recommendation"]
 
 
 
