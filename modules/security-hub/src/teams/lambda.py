@@ -132,6 +132,8 @@ def handler(event, context):
     teams_webhook_url = os.environ['WEBHOOK_URL']
 
     logger.debug("Event: {}".format(event))
+    create_time = event["detail"]["findings"][0]["CreatedAt"]
+    updated_time = event["detail"]["findings"][0]["UpdatedAt"]
 
     id          =  event["detail"]["findings"][0]["Resources"][0]["Id"]
     types       = event["detail"]["findings"][0]["Types"]
@@ -159,18 +161,22 @@ def handler(event, context):
         headers, method=method
     )
 
-    try:
-        response = urlopen(req)
-        response.read()
-        logger.info("Message posted")
-        print("Message posted status 200 OK")
-        return {"status": "200 OK"}
-    except HTTPError as e:
-        logger.debug(e)
-        logger.error("Request failed: %d %s", e.code, e.reason)
-        print("Request failed: %d %s", e.code, e.reason)
-        return e
-    except URLError as e:
-        logger.error("Server connection failed: %s", e.reason)
-        print("Server connection failed: %s", e.reason)
-        return e
+    if create_time==updated_time:
+        print("Created Event: ")
+        try:
+            response = urlopen(req)
+            response.read()
+            logger.info("Message posted")
+            print("Message posted status 200 OK")
+            return {"status": "200 OK"}
+        except HTTPError as e:
+            logger.debug(e)
+            logger.error("Request failed: %d %s", e.code, e.reason)
+            print("Request failed: %d %s", e.code, e.reason)
+            return e
+        except URLError as e:
+            logger.error("Server connection failed: %s", e.reason)
+            print("Server connection failed: %s", e.reason)
+            return e
+    else:
+        print("Updated Event")
