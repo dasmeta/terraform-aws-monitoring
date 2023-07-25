@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         path:
-          - modules/aws-security-hub-opsgenie
+          - modules/security-hub
           - modules/billing
           - modules/dashboard
           - modules/eventbridge

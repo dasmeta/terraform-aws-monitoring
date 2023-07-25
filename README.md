@@ -19,7 +19,7 @@ git config core.hooksPath githooks
 
 
 ## What
-- aws-security-hub-opsgenie
+- security-hub
 - aws-billing
 - eventbridge
 - pre-commit hooks
