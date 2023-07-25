@@ -5,4 +5,5 @@ module "this" {
 
   name                   = "test-email"
   sns_email_subscription = "devops@dasmeta.com"
+  create_sns_target      = true
 }
