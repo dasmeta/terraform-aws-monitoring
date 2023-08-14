@@ -43,7 +43,7 @@ No providers.
 | <a name="module_alerts_application_channel"></a> [alerts\_application\_channel](#module\_alerts\_application\_channel) | ./modules/alerts/ | n/a |
 | <a name="module_aws_cloudwatch_log_metric_filter"></a> [aws\_cloudwatch\_log\_metric\_filter](#module\_aws\_cloudwatch\_log\_metric\_filter) | dasmeta/modules/aws//modules/cloudwatch-log-metric | 1.7.0 |
 | <a name="module_eks_monitoring_dashboard"></a> [eks\_monitoring\_dashboard](#module\_eks\_monitoring\_dashboard) | ./modules/dashboard/ | n/a |
-| <a name="module_health-check"></a> [health-check](#module\_health-check) | ./modules/alerts/ | n/a |
+| <a name="module_health-check"></a> [health-check](#module\_health-check) | ./modules/health_checks | n/a |
 | <a name="module_monitoring_dashboard"></a> [monitoring\_dashboard](#module\_monitoring\_dashboard) | ./modules/dashboard/ | n/a |
 | <a name="module_sns-to-teams"></a> [sns-to-teams](#module\_sns-to-teams) | ./modules/cloudwatch-alarm-actions/ | n/a |
 | <a name="module_sns-to-teams-application-channel"></a> [sns-to-teams-application-channel](#module\_sns-to-teams-application-channel) | ./modules/cloudwatch-alarm-actions/ | n/a |
