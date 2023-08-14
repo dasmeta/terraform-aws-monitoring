@@ -65,6 +65,7 @@ No resources.
 | <a name="input_create_application_channel"></a> [create\_application\_channel](#input\_create\_application\_channel) | Create application alert | `bool` | `true` | no |
 | <a name="input_eks_monitroing_dashboard"></a> [eks\_monitroing\_dashboard](#input\_eks\_monitroing\_dashboard) | Dashboard for monitoring EKS cluster | `any` | `[]` | no |
 | <a name="input_enable_log_base_metrics"></a> [enable\_log\_base\_metrics](#input\_enable\_log\_base\_metrics) | n/a | `bool` | `true` | no |
+| <a name="input_enable_teams_notifications"></a> [enable\_teams\_notifications](#input\_enable\_teams\_notifications) | Enable Teams notifications | `bool` | `false` | no |
 | <a name="input_fallback_email_addresses"></a> [fallback\_email\_addresses](#input\_fallback\_email\_addresses) | List of fallback email addresses to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_fallback_phone_numbers"></a> [fallback\_phone\_numbers](#input\_fallback\_phone\_numbers) | List of international formatted phone number to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_health_checks"></a> [health\_checks](#input\_health\_checks) | Health\_checks endpoints and paths | `any` | `[]` | no |

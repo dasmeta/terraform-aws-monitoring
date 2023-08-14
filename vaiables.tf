@@ -89,3 +89,9 @@ variable "fallback_phone_numbers" {
   default     = []
   description = "List of international formatted phone number to send notification when lambda failed"
 }
+
+variable "enable_teams_notifications" {
+  type        = bool
+  default     = false
+  description = "Enable Teams notifications"
+}

@@ -5,7 +5,7 @@ locals {
 }
 
 module "sns-to-teams-application-channel" {
-  count = var.create_application_channel ? 1 : 0
+  count = var.enable_teams_notifications && var.create_application_channel ? 1 : 0
 
   source = "./modules/cloudwatch-alarm-actions/"
 
@@ -19,7 +19,7 @@ module "sns-to-teams-application-channel" {
 }
 
 module "sns-to-teams" {
-  count = var.create_alerts ? 1 : 0
+  count = var.enable_teams_notifications && var.create_alerts ? 1 : 0
 
   source = "./modules/cloudwatch-alarm-actions/"
 
@@ -33,7 +33,7 @@ module "sns-to-teams" {
 }
 
 module "sns-to-teams-virginia" {
-  count = length(var.health_checks) > 0 ? 1 : 0
+  count = var.enable_teams_notifications ? 1 : 0
 
   source = "./modules/cloudwatch-alarm-actions/"
 
