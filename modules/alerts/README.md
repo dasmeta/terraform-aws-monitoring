@@ -102,13 +102,12 @@ module "alerts" {
 | <a name="module_cloudwatch_log-based-metric-alarm"></a> [cloudwatch\_log-based-metric-alarm](#module\_cloudwatch\_log-based-metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
 | <a name="module_cloudwatch_metric-alarm"></a> [cloudwatch\_metric-alarm](#module\_cloudwatch\_metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
 | <a name="module_cloudwatch_metric-alarm_with_anomalydetection"></a> [cloudwatch\_metric-alarm\_with\_anomalydetection](#module\_cloudwatch\_metric-alarm\_with\_anomalydetection) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
-| <a name="module_external_health_check-alarms"></a> [external\_health\_check-alarms](#module\_external\_health\_check-alarms) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
+| <a name="module_health-checks"></a> [health-checks](#module\_health-checks) | ../health_checks | n/a |
 
 ## Resources
 
 | Name | Type |
 |------|------|
-| [aws_route53_health_check.health_checks](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_health_check) | resource |
 | [aws_caller_identity.project](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_region.project](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 

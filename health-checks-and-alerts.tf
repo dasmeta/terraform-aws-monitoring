@@ -5,10 +5,6 @@ module "health-check" {
   sns_topic                        = local.sns_topic_name_virginia
   health_checks                    = var.health_checks
   enable_insufficient_data_actions = false
-
-  providers = {
-    aws = aws.virginia
-  }
 }
 
 module "alerts" {

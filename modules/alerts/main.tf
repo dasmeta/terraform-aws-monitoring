@@ -148,30 +148,6 @@ module "cloudwatch_log-based-metric-alarm" {
   insufficient_data_actions = local.alarm_actions
 }
 
-
-module "external_health_check-alarms" {
-  source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
-
-  for_each = { for alert in local.health_check_alerts : "${alert.source}-${alert.name}" => alert }
-
-  alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
-  comparison_operator = local.comparison_operators[each.value.equation]
-  evaluation_periods  = 1
-  threshold           = each.value.threshold
-  treat_missing_data  = each.value.treat_missing_data != null ? each.value.treat_missing_data : "missing"
-  dimensions          = each.value.filters
-  metric_name         = length(split("/", each.value.source)) == 3 ? split("/", each.value.source)[2] : split("/", each.value.source)[1]
-  namespace           = length(split("/", each.value.source)) == 3 ? format("%s/%s", split("/", each.value.source)[0], split("/", each.value.source)[1]) : split("/", each.value.source)[0]
-  period              = each.value.period
-  statistic           = local.statistics[each.value.statistic]
-
-  alarm_actions             = local.alarm_actions
-  ok_actions                = local.ok_actions
-  insufficient_data_actions = local.alarm_actions
-}
-
 module "cloudwatch_expression-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
   version = "4.3.0"
