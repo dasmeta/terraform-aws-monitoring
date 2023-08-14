@@ -42,8 +42,8 @@
 # }
 
 
-module "health-checks" {
-  source        = "../health_checks"
-  health_checks = var.health_checks
-  sns_topic     = var.sns_topic
-}
+# module "health-checks" {
+#   source        = "../health_checks"
+#   health_checks = var.health_checks
+#   sns_topic     = var.sns_topic
+# }
