@@ -59,12 +59,13 @@ No resources.
 |------|-------------|------|---------|:--------:|
 | <a name="input_alerts"></a> [alerts](#input\_alerts) | Alerts | `any` | `[]` | no |
 | <a name="input_application_channel_alerts"></a> [application\_channel\_alerts](#input\_application\_channel\_alerts) | Application channel alerts | `any` | `[]` | no |
-| <a name="input_application_channel_webhook_url"></a> [application\_channel\_webhook\_url](#input\_application\_channel\_webhook\_url) | Application Teams Channel Webhook URL | `string` | n/a | yes |
+| <a name="input_application_channel_webhook_url"></a> [application\_channel\_webhook\_url](#input\_application\_channel\_webhook\_url) | Application Teams Channel Webhook URL | `string` | `""` | no |
 | <a name="input_application_monitroing_dashboard"></a> [application\_monitroing\_dashboard](#input\_application\_monitroing\_dashboard) | Application for monitoring EKS cluster | `any` | `[]` | no |
 | <a name="input_create_alerts"></a> [create\_alerts](#input\_create\_alerts) | Create Alert | `bool` | `true` | no |
 | <a name="input_create_application_channel"></a> [create\_application\_channel](#input\_create\_application\_channel) | Create application alert | `bool` | `true` | no |
 | <a name="input_eks_monitroing_dashboard"></a> [eks\_monitroing\_dashboard](#input\_eks\_monitroing\_dashboard) | Dashboard for monitoring EKS cluster | `any` | `[]` | no |
 | <a name="input_enable_log_base_metrics"></a> [enable\_log\_base\_metrics](#input\_enable\_log\_base\_metrics) | n/a | `bool` | `true` | no |
+| <a name="input_enable_teams_notifications"></a> [enable\_teams\_notifications](#input\_enable\_teams\_notifications) | Enable Teams notifications | `bool` | `false` | no |
 | <a name="input_fallback_email_addresses"></a> [fallback\_email\_addresses](#input\_fallback\_email\_addresses) | List of fallback email addresses to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_fallback_phone_numbers"></a> [fallback\_phone\_numbers](#input\_fallback\_phone\_numbers) | List of international formatted phone number to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_health_checks"></a> [health\_checks](#input\_health\_checks) | Health\_checks endpoints and paths | `any` | `[]` | no |
@@ -72,7 +73,7 @@ No resources.
 | <a name="input_name"></a> [name](#input\_name) | Dashboard name | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources should be managed. In this repository it's secondary because IAM is always global. | `string` | `"eu-central-1"` | no |
 | <a name="input_sns_topic_name"></a> [sns\_topic\_name](#input\_sns\_topic\_name) | SNS topic name | `string` | `"cloudwatch-alarm"` | no |
-| <a name="input_webhook_url"></a> [webhook\_url](#input\_webhook\_url) | Teams Webhook URL | `string` | n/a | yes |
+| <a name="input_webhook_url"></a> [webhook\_url](#input\_webhook\_url) | Teams Webhook URL | `string` | `""` | no |
 
 ## Outputs
 

@@ -47,11 +47,13 @@ variable "log_base_metrics" {
 variable "webhook_url" {
   type        = string
   description = "Teams Webhook URL"
+  default     = ""
 }
 
 variable "application_channel_webhook_url" {
   type        = string
   description = "Application Teams Channel Webhook URL"
+  default     = ""
 }
 
 variable "alerts" {
@@ -88,4 +90,10 @@ variable "fallback_phone_numbers" {
   type        = list(string)
   default     = []
   description = "List of international formatted phone number to send notification when lambda failed"
+}
+
+variable "enable_teams_notifications" {
+  type        = bool
+  default     = false
+  description = "Enable Teams notifications"
 }
