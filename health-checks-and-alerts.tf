@@ -25,3 +25,15 @@ module "alerts" {
   sns_topic = local.sns_topic_name
   alerts    = var.alerts
 }
+
+module "alerts_slo_sli_sla" {
+  source = "./modules/alerts/"
+
+  count = var.expression_alert != {} ? 1 : 0
+
+  sns_topic        = local.sns_topic_name
+  expression_alert = var.expression_alert
+
+  enable_insufficient_data_actions = false
+  enable_ok_actions                = false
+}
