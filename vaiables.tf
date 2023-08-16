@@ -44,6 +44,12 @@ variable "alerts" {
   description = "Alerts"
 }
 
+variable "expression_alert" {
+  type        = any
+  default     = {}
+  description = "Add multiple metrics in one alert and add expression."
+}
+
 variable "application_channel_alerts" {
   type        = any
   default     = []
