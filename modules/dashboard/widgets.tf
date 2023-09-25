@@ -21,6 +21,7 @@ locals {
     "balancer/4xx" : []
     "balancer/5xx" : []
     "text/title" : []
+    "log-based" : []
   }
 
   # widget aliases
@@ -34,6 +35,10 @@ locals {
   balancer_5xx = local.widget_config["balancer/5xx"]
 
   text_title = local.widget_config["text/title"]
+
+  log_based = local.widget_config["log-based"]
+
+  widget_cloudfront = local.widget_config["widget_cloudfront"]
 
   # combine results
   widget_result = concat(
@@ -49,6 +54,14 @@ locals {
     module.container_balancer_5xx_widget.*.data,
 
     // Widget/Text
-    module.text_title.*.data
+    module.text_title.*.data,
+    module.text_h2.*.data,
+    module.text_h3.*.data,
+
+    # log based metrics
+    module.widget_log_based.*.data,
+
+    # CloudFront
+    module.widget_cloudfront.*.data
   )
 }

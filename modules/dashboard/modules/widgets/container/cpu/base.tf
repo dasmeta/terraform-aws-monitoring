@@ -14,7 +14,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { "ContainerInsights" : "pod_cpu_utilization", },
+    { "ContainerInsights" : "pod_cpu_utilization", "Style" : { "color" : "#d62728" } },
     { "ContainerInsights" : "pod_cpu_reserved_capacity", "Style" : { "color" : "#d62728" } }
   ]
 }
