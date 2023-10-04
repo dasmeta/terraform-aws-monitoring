@@ -3,31 +3,29 @@ on:
   pull_request:
   push:
     branches: [main, master]
-
 jobs:
-  terraform-test:
+  terraform-validate:
+    permissions:
+      actions: write
+      contents: write
+      discussions: write
+      pull-requests: write
+      id-token: write
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path:
+          - modules/alerts
+          - modules/security-hub
+          - modules/billing
+          - modules/cloudwatch-alarm-actions
+          - modules/dashboard
+          - modules/eventbridge
+          - modules/sns_to_lambda
     steps:
-      - name: Checkout Branch
-        uses: actions/checkout@v2
+      - uses: dasmeta/reusable-actions-workflows/terraform-test@4.1.1
         with:
-          fetch-depth: 0
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION}}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.2.1
-
-      - name: Run Terraform Test
-        run: |
-          pwd
-          echo $PWD
-          cd modules/dashboard
-          terraform test
+          path: ${{ matrix.path }}

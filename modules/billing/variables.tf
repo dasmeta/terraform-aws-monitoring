@@ -18,49 +18,6 @@ variable "notification_type" {
   default = "ACTUAL"
 }
 
-variable "statistic" {
-  type    = string
-  default = "Maximum"
-}
-
-variable "period" {
-  type    = string
-  default = "28800"
-}
-
-variable "namespace" {
-  type    = string
-  default = "Billing"
-}
-
-variable "alarm_name" {
-  type    = string
-  default = "Billing-alarm"
-}
-
-variable "comparison_operator_billing" {
-  type    = string
-  default = "GreaterThanOrEqualToThreshold"
-}
-
-variable "evaluation_periods" {
-  type    = string
-  default = "1"
-}
-
-variable "metric_name" {
-  type    = string
-  default = "EstimatedCharges"
-}
-
-variable "delivery_policy" {
-  type        = string
-  default     = <<EOF
-  { "http": { "defaultHealthyRetryPolicy": { "minDelayTarget": 20, "maxDelayTarget": 20, "numRetries": 3, "numMaxDelayRetries": 0, "numNoDelayRetries": 0, "numMinDelayRetries": 0,"backoffFunction": "linear"},"disableSubscriptionOverrides": false, "defaultThrottlePolicy": { "maxReceivesPerSecond": 1 } }}
-  EOF
-  description = "The access logs format to sync into cloudwatch log group"
-}
-
 variable "name" {
   type    = string
   default = "Account-Monthly-Budget"
@@ -96,15 +53,14 @@ variable "time_period_start" {
   default = "2022-01-01_00:00"
 }
 
-variable "sns_subscription" {
-  default = {
-    "sns_subscription_email_address_list"    = []
-    "sns_subscription_phone_number_list"     = []
-    "sms_message_body"                       = "sms_message_body"
-    "slack_webhook_url"                      = ""
-    "slack_channel"                          = ""
-    "slack_username"                         = ""
-    "cloudwatch_log_group_retention_in_days" = 0
-    "opsgenie_endpoint"                      = ["https://api.opsgenie.com/v1/json/amazonsns?apiKey=5736f9c8-409d-4b67-b922-45926096bf54"]
-  }
+variable "sns_topic_arns" {
+  type        = list(string)
+  default     = []
+  description = "The arns of aws sns topic use as target for notifying about cost increase, either this or notify_email_addresses should be set"
+}
+
+variable "notify_email_addresses" {
+  type        = list(string)
+  default     = []
+  description = "The email addresses to notify about about cost increase, either this or sns_topic_arns should be set"
 }

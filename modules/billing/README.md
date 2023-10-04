@@ -165,3 +165,49 @@ No requirements.
 ## Outputs
 
 No outputs.
+<!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 4.3 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 4.3 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_budgets_budget.budget_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/budgets_budget) | resource |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_budget_type"></a> [budget\_type](#input\_budget\_type) | n/a | `string` | `"COST"` | no |
+| <a name="input_comparison_operator"></a> [comparison\_operator](#input\_comparison\_operator) | n/a | `string` | `"GREATER_THAN"` | no |
+| <a name="input_limit_amount"></a> [limit\_amount](#input\_limit\_amount) | n/a | `string` | `"200"` | no |
+| <a name="input_limit_unit"></a> [limit\_unit](#input\_limit\_unit) | n/a | `string` | `"USD"` | no |
+| <a name="input_name"></a> [name](#input\_name) | n/a | `string` | `"Account-Monthly-Budget"` | no |
+| <a name="input_notification_type"></a> [notification\_type](#input\_notification\_type) | n/a | `string` | `"ACTUAL"` | no |
+| <a name="input_notify_email_addresses"></a> [notify\_email\_addresses](#input\_notify\_email\_addresses) | The email addresses to notify about about cost increase, either this or sns\_topic\_arns should be set | `list(string)` | `[]` | no |
+| <a name="input_sns_topic_arns"></a> [sns\_topic\_arns](#input\_sns\_topic\_arns) | The arns of aws sns topic use as target for notifying about cost increase, either this or notify\_email\_addresses should be set | `list(string)` | `[]` | no |
+| <a name="input_threshold"></a> [threshold](#input\_threshold) | n/a | `string` | `"200"` | no |
+| <a name="input_threshold_type"></a> [threshold\_type](#input\_threshold\_type) | n/a | `string` | `"PERCENTAGE"` | no |
+| <a name="input_time_period_end"></a> [time\_period\_end](#input\_time\_period\_end) | n/a | `string` | `"2087-06-15_00:00"` | no |
+| <a name="input_time_period_start"></a> [time\_period\_start](#input\_time\_period\_start) | n/a | `string` | `"2022-01-01_00:00"` | no |
+| <a name="input_time_unit"></a> [time\_unit](#input\_time\_unit) | n/a | `string` | `"MONTHLY"` | no |
+
+## Outputs
+
+No outputs.
+<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->

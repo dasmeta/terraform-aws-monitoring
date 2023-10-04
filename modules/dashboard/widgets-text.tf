@@ -2,8 +2,8 @@
 module "text_title" {
   source = "./modules/widgets/text/title"
 
-  count = length(local.widget_config["text/title"])
+  count = length(local.text_title)
 
-  text = local.widget_config["text/title"][count.index].text
-  y    = local.widget_config["text/title"][count.index].row
+  text = local.text_title[count.index].text
+  y    = local.text_title[count.index].row
 }
