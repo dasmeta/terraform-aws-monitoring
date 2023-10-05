@@ -6,21 +6,20 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Network / ${var.container}"
+  name = "Network / Combined"
 
   defaults = {
-    MetricNamespace   = "ContainerInsights"
-    ClusterName       = var.cluster
-    Namespace         = var.namespace
-    PodName           = var.container
-    accountId         = var.account_id
-    anomaly_detection = var.anomaly_detection
+    MetricNamespace = "ContainerInsights"
+    ClusterName     = var.cluster
+    Namespace       = var.namespace
+    PodName         = var.container
+    accountId       = var.account_id
   }
 
   period = var.period
 
   metrics = [
-    { MetricName = "pod_network_rx_bytes", color = "#17becf", label = "In" },
-    { MetricName = "pod_network_tx_bytes", color = "#e377c2", label = "Out" }
+    { MetricName = "pod_network_rx_bytes", color = "#17becf", label = "In", anomaly_detection = var.anomaly_detection },
+    { MetricName = "pod_network_tx_bytes", color = "#e377c2", label = "Out", anomaly_detection = var.anomaly_detection }
   ]
 }

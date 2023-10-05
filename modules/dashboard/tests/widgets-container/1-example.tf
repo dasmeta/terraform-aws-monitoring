@@ -1,40 +1,44 @@
+locals {
+  cluster   = "prod-6"
+  container = "query-me-app-superset-helm"
+}
+
 module "dashboard-with-container-metrics" {
   source = "../../"
   name   = "dashboard-with-container-metrics-test"
+  defaults = {
+    cluster : local.cluster
+  }
   rows = [
     [
       {
         type : "container/cpu",
-        period : 300,
-        container : "smm",
-        cluster : "dev"
+        container : local.container
       },
       {
         type : "container/memory",
-        period : 300,
-        container : "smm",
-        cluster : "dev"
+        container : local.container
       },
       {
         type : "container/network",
-        period : 300,
-        container : "smm",
-        cluster : "dev",
+        container : local.container
       },
       {
-        type : "container/restarts",
-        period : 300,
-        container : "smm",
-        cluster : "dev",
+        type : "container/network-in",
+        container : local.container
+    }],
+    [{
+      type : "container/network-out",
+      container : local.container
       },
-      {
-        type : "container/replicas",
-        period : 300,
-        container : "smm",
-        cluster : "dev",
-        x : 20,
-        y : 20
-      },
+      # {
+      #   type : "container/restarts",
+      #   container : local.container,
+      # },
+      # {
+      #   type : "container/replicas",
+      #   container : local.container,
+      # },
     ]
   ]
 }

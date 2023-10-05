@@ -53,35 +53,39 @@ locals {
 
   # necessary to always have at least empty list for each widget
   widget_defaults = {
-    "container/cpu"       = []
-    "container/memory"    = []
-    "container/network"   = []
-    "container/restarts"  = []
-    "container/replicas"  = []
-    "balancer/2xx"        = []
-    "balancer/4xx"        = []
-    "balancer/5xx"        = []
-    "text/title"          = []
-    "log-based"           = []
-    "custom"              = []
-    "application"         = []
-    "logs-insight/logs"   = []
-    "logs-insight/metric" = []
-    "alarm/status"        = []
-    "alarm/metric"        = []
-    "sla-slo-sli"         = []
-    "rds/cpu"             = []
-    "rds/memory"          = []
-    "rds/disk"            = []
-    "rds/connections"     = []
+    "container/cpu"         = []
+    "container/memory"      = []
+    "container/network"     = []
+    "container/network-in"  = []
+    "container/network-out" = []
+    "container/restarts"    = []
+    "container/replicas"    = []
+    "balancer/2xx"          = []
+    "balancer/4xx"          = []
+    "balancer/5xx"          = []
+    "text/title"            = []
+    "log-based"             = []
+    "custom"                = []
+    "application"           = []
+    "logs-insight/logs"     = []
+    "logs-insight/metric"   = []
+    "alarm/status"          = []
+    "alarm/metric"          = []
+    "sla-slo-sli"           = []
+    "rds/cpu"               = []
+    "rds/memory"            = []
+    "rds/disk"              = []
+    "rds/connections"       = []
   }
 
   # widget aliases
-  container_cpu      = local.widget_config["container/cpu"]
-  container_memory   = local.widget_config["container/memory"]
-  container_network  = local.widget_config["container/network"]
-  container_restarts = local.widget_config["container/restarts"]
-  container_replicas = local.widget_config["container/replicas"]
+  container_cpu         = local.widget_config["container/cpu"]
+  container_memory      = local.widget_config["container/memory"]
+  container_network     = local.widget_config["container/network"]
+  container_network_in  = local.widget_config["container/network-in"]
+  container_network_out = local.widget_config["container/network-out"]
+  container_restarts    = local.widget_config["container/restarts"]
+  container_replicas    = local.widget_config["container/replicas"]
 
   balancer_2xx = local.widget_config["balancer/2xx"]
   balancer_4xx = local.widget_config["balancer/4xx"]
@@ -112,6 +116,8 @@ locals {
     module.container_cpu_widget[*].data,
     module.container_memory_widget[*].data,
     module.container_network_widget[*].data,
+    module.container_network_in_widget[*].data,
+    module.container_network_out_widget[*].data,
     module.container_restarts_widget[*].data,
     module.container_replicas_widget[*].data,
 

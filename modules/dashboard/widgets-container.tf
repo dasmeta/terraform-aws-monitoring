@@ -68,7 +68,54 @@ module "container_network_widget" {
 
   account_id        = try(local.container_network[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_network[count.index].anomaly_detection, false)
+}
 
+module "container_network_in_widget" {
+  source = "./modules/widgets/container/network-in"
+
+  count = length(local.container_network_in)
+
+  platform = var.platform
+  # grafana dashboard platform specific params
+  data_source_uid = var.data_source_uid # TODO: for now this is global variable but it can be refactored and passed also per metric
+
+  # coordinates
+  coordinates = local.container_network_in[count.index].coordinates
+
+  # stats
+  period = local.container_network_in[count.index].period
+
+  # container
+  container = local.container_network_in[count.index].container
+  cluster   = local.container_network_in[count.index].cluster
+  namespace = local.container_network_in[count.index].namespace
+
+  account_id        = try(local.container_network_in[count.index].accountId, data.aws_caller_identity.project.account_id)
+  anomaly_detection = try(local.container_network_in[count.index].anomaly_detection, false)
+}
+
+module "container_network_out_widget" {
+  source = "./modules/widgets/container/network-out"
+
+  count = length(local.container_network_out)
+
+  platform = var.platform
+  # grafana dashboard platform specific params
+  data_source_uid = var.data_source_uid # TODO: for now this is global variable but it can be refactored and passed also per metric
+
+  # coordinates
+  coordinates = local.container_network_out[count.index].coordinates
+
+  # stats
+  period = local.container_network_out[count.index].period
+
+  # container
+  container = local.container_network_out[count.index].container
+  cluster   = local.container_network_out[count.index].cluster
+  namespace = local.container_network_out[count.index].namespace
+
+  account_id        = try(local.container_network_out[count.index].accountId, data.aws_caller_identity.project.account_id)
+  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, false)
 }
 
 module "container_replicas_widget" {
