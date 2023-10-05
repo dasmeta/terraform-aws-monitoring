@@ -24,7 +24,7 @@ locals {
   anomaly_detection_metrics = [for index, row in local.metrics_with_defaults : try(row.anomaly_detection, false) ? [{
     expression = "ANOMALY_DETECTION_BAND(m${index + 1}, 2)"
     id         = "ad${index + 1}"
-    label      = "anomaly_detection (${row.MetricName})"
+    label      = "Anomaly Band"
   }] : [] if try(row.anomaly_detection, false)]
 
 

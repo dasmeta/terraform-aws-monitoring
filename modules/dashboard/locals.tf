@@ -39,7 +39,7 @@ locals {
   widget_default_values = merge(
     {
       region            = "eu-central-1"
-      period            = 300
+      period            = 60
       stat              = "Sum"
       namespace         = "default"
       width             = 6

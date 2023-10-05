@@ -19,8 +19,7 @@ module "container_cpu_widget" {
   cluster   = local.container_cpu[count.index].cluster
   namespace = local.container_cpu[count.index].namespace
 
-  account_id        = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_cpu[count.index].anomaly_detection, false)
+  account_id = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
 }
 
 module "container_memory_widget" {
