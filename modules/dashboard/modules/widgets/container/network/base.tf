@@ -6,7 +6,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Container Network / ${var.container}"
+  name = "Network / ${var.container}"
 
   defaults = {
     MetricNamespace   = "ContainerInsights"
@@ -20,7 +20,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_network_rx_bytes", color = "#17becf" },
-    { MetricName = "pod_network_tx_bytes", color = "#e377c2" }
+    { MetricName = "pod_network_rx_bytes", color = "#17becf", label = "In" },
+    { MetricName = "pod_network_tx_bytes", color = "#e377c2", label = "Out" }
   ]
 }

@@ -6,7 +6,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Container Restarts / ${var.container}"
+  name = "Restarts / ${var.container}"
 
   stat = "Maximum"
 

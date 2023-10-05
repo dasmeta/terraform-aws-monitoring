@@ -1,36 +1,39 @@
 module "dashboard-with-container-metrics" {
   source = "../../"
-  name   = "dashboard-with-container-metrics"
-
-  defaults = {
-    cluster = "test-cluster"
-    # accountId = "12345435435"
-  }
+  name   = "dashboard-with-container-metrics-test"
   rows = [
     [
       {
         type : "container/cpu",
         period : 300,
-        container : "App 1",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       },
       {
         type : "container/memory",
         period : 300,
-        container : "App 1",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       },
       {
         type : "container/network",
         period : 300,
-        container : "App 1",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev",
       },
       {
         type : "container/restarts",
         period : 300,
-        container : "App 1"
-        accountId : "232323232323223232"
+        container : "smm",
+        cluster : "dev",
+      },
+      {
+        type : "container/replicas",
+        period : 300,
+        container : "smm",
+        cluster : "dev",
+        x : 20,
+        y : 20
       },
     ]
   ]

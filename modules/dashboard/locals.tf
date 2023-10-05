@@ -57,6 +57,7 @@ locals {
     "container/memory"    = []
     "container/network"   = []
     "container/restarts"  = []
+    "container/replicas"  = []
     "balancer/2xx"        = []
     "balancer/4xx"        = []
     "balancer/5xx"        = []
@@ -80,6 +81,7 @@ locals {
   container_memory   = local.widget_config["container/memory"]
   container_network  = local.widget_config["container/network"]
   container_restarts = local.widget_config["container/restarts"]
+  container_replicas = local.widget_config["container/replicas"]
 
   balancer_2xx = local.widget_config["balancer/2xx"]
   balancer_4xx = local.widget_config["balancer/4xx"]
@@ -111,6 +113,7 @@ locals {
     module.container_memory_widget[*].data,
     module.container_network_widget[*].data,
     module.container_restarts_widget[*].data,
+    module.container_replicas_widget[*].data,
 
     // Widget/Traffic
     module.container_balancer_2xx_widget[*].data,
@@ -121,7 +124,7 @@ locals {
     module.text_title[*].data,
 
     # log based metrics
-    module.widget_log_based[*].data,
+    # module.widget_log_based[*].data,
 
     # custom metrics
     module.widget_custom[*].data,

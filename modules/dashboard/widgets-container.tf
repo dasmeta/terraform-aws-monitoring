@@ -72,6 +72,23 @@ module "container_network_widget" {
 
 }
 
+module "container_replicas_widget" {
+  source = "./modules/widgets/container/replicas"
+
+  count = length(local.container_replicas)
+
+  # coordinates
+  coordinates = local.container_replicas[count.index].coordinates
+
+  # stats
+  period = local.container_replicas[count.index].period
+
+  # container
+  container = local.container_replicas[count.index].container
+  cluster   = local.container_replicas[count.index].cluster
+  namespace = local.container_replicas[count.index].namespace
+}
+
 module "container_restarts_widget" {
   source = "./modules/widgets/container/restarts"
 

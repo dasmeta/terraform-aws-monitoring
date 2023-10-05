@@ -66,17 +66,13 @@
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_cloudfront_combined"></a> [cloudfront\_combined](#module\_cloudfront\_combined) | ./modules/widgets/cloudfront/combined | n/a |
-| <a name="module_cloudfront_error_rate"></a> [cloudfront\_error\_rate](#module\_cloudfront\_error\_rate) | ./modules/widgets/cloudfront/error-rate | n/a |
-| <a name="module_cloudfront_errors"></a> [cloudfront\_errors](#module\_cloudfront\_errors) | ./modules/widgets/cloudfront/errors | n/a |
-| <a name="module_cloudfront_requests"></a> [cloudfront\_requests](#module\_cloudfront\_requests) | ./modules/widgets/cloudfront/requests | n/a |
-| <a name="module_cloudfront_traffic_bytes"></a> [cloudfront\_traffic\_bytes](#module\_cloudfront\_traffic\_bytes) | ./modules/widgets/cloudfront/traffic-bytes | n/a |
 | <a name="module_container_balancer_2xx_widget"></a> [container\_balancer\_2xx\_widget](#module\_container\_balancer\_2xx\_widget) | ./modules/widgets/balancer/2xx | n/a |
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
 | <a name="module_container_balancer_5xx_widget"></a> [container\_balancer\_5xx\_widget](#module\_container\_balancer\_5xx\_widget) | ./modules/widgets/balancer/5xx | n/a |
 | <a name="module_container_cpu_widget"></a> [container\_cpu\_widget](#module\_container\_cpu\_widget) | ./modules/widgets/container/cpu | n/a |
 | <a name="module_container_memory_widget"></a> [container\_memory\_widget](#module\_container\_memory\_widget) | ./modules/widgets/container/memory | n/a |
 | <a name="module_container_network_widget"></a> [container\_network\_widget](#module\_container\_network\_widget) | ./modules/widgets/container/network | n/a |
+| <a name="module_container_replicas_widget"></a> [container\_replicas\_widget](#module\_container\_replicas\_widget) | ./modules/widgets/container/replicas | n/a |
 | <a name="module_container_restarts_widget"></a> [container\_restarts\_widget](#module\_container\_restarts\_widget) | ./modules/widgets/container/restarts | n/a |
 | <a name="module_text_title"></a> [text\_title](#module\_text\_title) | ./modules/widgets/text/title | n/a |
 | <a name="module_widget_alarm_metric"></a> [widget\_alarm\_metric](#module\_widget\_alarm\_metric) | ./modules/widgets/alarm/metric | n/a |

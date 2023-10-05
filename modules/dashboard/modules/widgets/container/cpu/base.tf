@@ -14,7 +14,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Container CPU / ${var.container}"
+  name = "CPU / ${var.container}"
 
   defaults = {
     MetricNamespace   = "ContainerInsights"
@@ -28,8 +28,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_cpu_limit" },
-    { MetricName = "pod_cpu_utilization" },
-    { MetricName = "pod_cpu_reserved_capacity", color = "#d62728" }
+    { MetricName = "pod_cpu_usage_total", label = "Current" },
+    { MetricName = "pod_cpu_limit", color = "#d62728", label = "Limit" }
   ]
 }

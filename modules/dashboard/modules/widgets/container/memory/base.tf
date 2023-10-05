@@ -6,7 +6,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Container Memory / ${var.container}"
+  name = "Memory / ${var.container}"
 
   defaults = {
     MetricNamespace   = "ContainerInsights"
@@ -20,8 +20,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_memory_limit" },
-    { MetricName = "pod_memory_utilization", },
-    { MetricName = "pod_memory_reserved_capacity", color : "#d62728" }
+    { MetricName = "pod_memory_working_set", label = "Current" },
+    { MetricName = "pod_memory_limit", color = "#d62728", label = "Limit" }
   ]
 }
