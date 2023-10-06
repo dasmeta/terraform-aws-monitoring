@@ -44,7 +44,7 @@ locals {
       namespace         = "default"
       width             = 6
       height            = 6
-      anomaly_detection = false
+      anomaly_detection = true
       expressions       = []
       yAxis             = { left = { min = 0 } }
     },

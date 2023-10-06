@@ -11,12 +11,11 @@ module "base" {
   stat = "Maximum"
 
   defaults = {
-    MetricNamespace   = "ContainerInsights"
-    ClusterName       = var.cluster
-    Namespace         = var.namespace
-    PodName           = var.container
-    accountId         = var.account_id
-    anomaly_detection = var.anomaly_detection
+    MetricNamespace = "ContainerInsights"
+    ClusterName     = var.cluster
+    Namespace       = var.namespace
+    PodName         = var.container
+    accountId       = var.account_id
   }
 
   period = var.period

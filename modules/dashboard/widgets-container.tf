@@ -19,7 +19,8 @@ module "container_cpu_widget" {
   cluster   = local.container_cpu[count.index].cluster
   namespace = local.container_cpu[count.index].namespace
 
-  account_id = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
+  account_id        = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
+  anomaly_detection = try(local.container_memory[count.index].anomaly_detection, true)
 }
 
 module "container_memory_widget" {
@@ -43,7 +44,7 @@ module "container_memory_widget" {
   namespace = local.container_memory[count.index].namespace
 
   account_id        = try(local.container_memory[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_memory[count.index].anomaly_detection, false)
+  anomaly_detection = try(local.container_memory[count.index].anomaly_detection, true)
 }
 
 module "container_network_widget" {
@@ -67,7 +68,7 @@ module "container_network_widget" {
   namespace = local.container_network[count.index].namespace
 
   account_id        = try(local.container_network[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_network[count.index].anomaly_detection, false)
+  anomaly_detection = try(local.container_network[count.index].anomaly_detection, true)
 }
 
 module "container_network_in_widget" {
@@ -91,7 +92,7 @@ module "container_network_in_widget" {
   namespace = local.container_network_in[count.index].namespace
 
   account_id        = try(local.container_network_in[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_network_in[count.index].anomaly_detection, false)
+  anomaly_detection = try(local.container_network_in[count.index].anomaly_detection, true)
 }
 
 module "container_network_out_widget" {
@@ -115,7 +116,7 @@ module "container_network_out_widget" {
   namespace = local.container_network_out[count.index].namespace
 
   account_id        = try(local.container_network_out[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, false)
+  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, true)
 }
 
 module "container_replicas_widget" {
@@ -156,5 +157,5 @@ module "container_restarts_widget" {
   namespace = local.container_restarts[count.index].namespace
 
   account_id        = try(local.container_restarts[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_restarts[count.index].anomaly_detection, false)
+  anomaly_detection = try(local.container_restarts[count.index].anomaly_detection, true)
 }

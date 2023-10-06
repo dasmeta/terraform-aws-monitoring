@@ -20,6 +20,6 @@ module "base" {
 
   metrics = [
     { MetricName = "pod_memory_limit", color = "#FF0F3C", label = "Limit" },
-    { MetricName = "pod_memory_working_set", color = "#007CEF", label = "Current", anomaly_detection = true }
+    { MetricName = "pod_memory_working_set", color = "#007CEF", label = "Current", anomaly_detection = var.anomaly_detection }
   ]
 }

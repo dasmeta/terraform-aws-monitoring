@@ -28,6 +28,6 @@ module "base" {
 
   metrics = [
     { MetricName = "pod_cpu_limit", color = "#FF0F3C", label = "Limit" },
-    { MetricName = "pod_cpu_usage_total", color = "#007CEF", label = "Current", anomaly_detection = true }
+    { MetricName = "pod_cpu_usage_total", color = "#007CEF", label = "Current", anomaly_detection = var.anomaly_detection }
   ]
 }

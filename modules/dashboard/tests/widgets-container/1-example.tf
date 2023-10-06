@@ -8,6 +8,7 @@ module "dashboard-with-container-metrics" {
   name   = "dashboard-with-container-metrics-test"
   defaults = {
     cluster : local.cluster
+    anomaly_detection : false
   }
   rows = [
     [
