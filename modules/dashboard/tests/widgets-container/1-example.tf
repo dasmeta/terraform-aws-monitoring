@@ -8,7 +8,7 @@ module "dashboard-with-container-metrics" {
   name   = "dashboard-with-container-metrics-test"
   defaults = {
     cluster : local.cluster
-    anomaly_detection : false
+    anomaly_detection : true
   }
   rows = [
     [
@@ -32,14 +32,14 @@ module "dashboard-with-container-metrics" {
       type : "container/network-out",
       container : local.container
       },
-      # {
-      #   type : "container/restarts",
-      #   container : local.container,
-      # },
-      # {
-      #   type : "container/replicas",
-      #   container : local.container,
-      # },
+      {
+        type : "container/restarts",
+        container : local.container,
+      },
+      {
+        type : "container/replicas",
+        container : local.container,
+      },
     ]
   ]
 }

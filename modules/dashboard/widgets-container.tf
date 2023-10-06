@@ -134,6 +134,8 @@ module "container_replicas_widget" {
   container = local.container_replicas[count.index].container
   cluster   = local.container_replicas[count.index].cluster
   namespace = local.container_replicas[count.index].namespace
+
+  anomaly_detection = try(local.container_replicas[count.index].anomaly_detection, true)
 }
 
 module "container_restarts_widget" {
