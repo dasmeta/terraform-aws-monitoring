@@ -11,35 +11,17 @@ module "dashboard-with-container-metrics" {
     anomaly_detection : true
   }
   rows = [
+    [{ type : "text/title", text : "Superset" }],
     [
-      {
-        type : "container/cpu",
-        container : local.container
-      },
-      {
-        type : "container/memory",
-        container : local.container
-      },
-      {
-        type : "container/network",
-        container : local.container
-      },
-      {
-        type : "container/network-in",
-        container : local.container
-    }],
-    [{
-      type : "container/network-out",
-      container : local.container
-      },
-      {
-        type : "container/restarts",
-        container : local.container,
-      },
-      {
-        type : "container/replicas",
-        container : local.container,
-      },
-    ]
+      { type : "container/cpu", container : local.container },
+      { type : "container/memory", container : local.container },
+      { type : "container/network", container : local.container },
+      { type : "container/network-in", container : local.container }
+    ],
+    [
+      { type : "container/network-out", container : local.container },
+      { type : "container/restarts", container : local.container, },
+      { type : "container/replicas", container : local.container, },
+    ],
   ]
 }
