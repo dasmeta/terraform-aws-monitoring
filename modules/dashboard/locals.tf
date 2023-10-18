@@ -53,39 +53,45 @@ locals {
 
   # necessary to always have at least empty list for each widget
   widget_defaults = {
-    "container/cpu"         = []
-    "container/memory"      = []
-    "container/network"     = []
-    "container/network-in"  = []
-    "container/network-out" = []
-    "container/restarts"    = []
-    "container/replicas"    = []
-    "balancer/2xx"          = []
-    "balancer/4xx"          = []
-    "balancer/5xx"          = []
-    "text/title"            = []
-    "log-based"             = []
-    "custom"                = []
-    "application"           = []
-    "logs-insight/logs"     = []
-    "logs-insight/metric"   = []
-    "alarm/status"          = []
-    "alarm/metric"          = []
-    "sla-slo-sli"           = []
-    "rds/cpu"               = []
-    "rds/memory"            = []
-    "rds/disk"              = []
-    "rds/connections"       = []
+    "container/cpu"                  = []
+    "container/memory"               = []
+    "container/network"              = []
+    "container/network-in"           = []
+    "container/network-out"          = []
+    "container/restarts"             = []
+    "container/replicas"             = []
+    "contaner/request-count"         = []
+    "contaner/response-time"         = []
+    "contaner/external-health-check" = []
+    "balancer/2xx"                   = []
+    "balancer/4xx"                   = []
+    "balancer/5xx"                   = []
+    "text/title"                     = []
+    "log-based"                      = []
+    "custom"                         = []
+    "application"                    = []
+    "logs-insight/logs"              = []
+    "logs-insight/metric"            = []
+    "alarm/status"                   = []
+    "alarm/metric"                   = []
+    "sla-slo-sli"                    = []
+    "rds/cpu"                        = []
+    "rds/memory"                     = []
+    "rds/disk"                       = []
+    "rds/connections"                = []
   }
 
   # widget aliases
-  container_cpu         = local.widget_config["container/cpu"]
-  container_memory      = local.widget_config["container/memory"]
-  container_network     = local.widget_config["container/network"]
-  container_network_in  = local.widget_config["container/network-in"]
-  container_network_out = local.widget_config["container/network-out"]
-  container_restarts    = local.widget_config["container/restarts"]
-  container_replicas    = local.widget_config["container/replicas"]
+  container_cpu                   = local.widget_config["container/cpu"]
+  container_memory                = local.widget_config["container/memory"]
+  container_network               = local.widget_config["container/network"]
+  container_network_in            = local.widget_config["container/network-in"]
+  container_network_out           = local.widget_config["container/network-out"]
+  container_restarts              = local.widget_config["container/restarts"]
+  container_replicas              = local.widget_config["container/replicas"]
+  container_request_count         = local.widget_config["container/request-count"]
+  container_response_time         = local.widget_config["container/response-time"]
+  container_external_health_check = local.widget_config["container/external-health-check"]
 
   balancer_2xx = local.widget_config["balancer/2xx"]
   balancer_4xx = local.widget_config["balancer/4xx"]
@@ -120,6 +126,9 @@ locals {
     module.container_network_out_widget[*].data,
     module.container_restarts_widget[*].data,
     module.container_replicas_widget[*].data,
+    module.container_request_count_widget[*].data,
+    module.container_response_time_widget[*].data,
+    module.container_external_health_check_widget[*].data,
 
     // Widget/Traffic
     module.container_balancer_2xx_widget[*].data,
@@ -151,7 +160,6 @@ locals {
     # alarm status/metrics
     module.widget_alarm_status[*].data,
     module.widget_alarm_metric[*].data,
-
 
     module.widget_sla_slo_sli[*].data
   )
