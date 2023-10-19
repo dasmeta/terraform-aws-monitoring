@@ -3,7 +3,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "5XX"
+  name = "Unhealthy Request Count"
 
   # stats
   stat   = "Sum"
@@ -17,8 +17,6 @@ module "base" {
   }
 
   metrics = [
-    # { MetricName = "RequestCount" },
-    { MetricName = "HTTPCode_Target_5XX_Count", "color" = "#d62728" },
-    { MetricName = "HTTPCode_ELB_5XX_Count", "color" = "#ff9896" },
+    { MetricName = "UnhealthyRoutingRequestCount", color = "#d62728" }
   ]
 }

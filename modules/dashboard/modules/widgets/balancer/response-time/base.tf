@@ -3,10 +3,10 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "5XX"
+  name = "Response Time"
 
   # stats
-  stat   = "Sum"
+  stat   = "Maximum"
   period = var.period
 
   defaults = {
@@ -17,8 +17,6 @@ module "base" {
   }
 
   metrics = [
-    # { MetricName = "RequestCount" },
-    { MetricName = "HTTPCode_Target_5XX_Count", "color" = "#d62728" },
-    { MetricName = "HTTPCode_ELB_5XX_Count", "color" = "#ff9896" },
+    { MetricName = "TargetResponseTime", color = "#e377c2" },
   ]
 }

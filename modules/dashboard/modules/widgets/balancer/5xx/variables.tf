@@ -1,3 +1,8 @@
+variable "balancer_name" {
+  type    = string
+  default = null
+}
+
 variable "balancer_arn" {
   type    = string
   default = null

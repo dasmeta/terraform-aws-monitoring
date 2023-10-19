@@ -53,34 +53,38 @@ locals {
 
   # necessary to always have at least empty list for each widget
   widget_defaults = {
-    "container/cpu"                   = []
-    "container/memory"                = []
-    "container/network"               = []
-    "container/network-in"            = []
-    "container/network-out"           = []
-    "container/restarts"              = []
-    "container/replicas"              = []
-    "container/request-count"         = []
-    "container/response-time"         = []
-    "container/external-health-check" = []
-    "balancer/2xx"                    = []
-    "balancer/4xx"                    = []
-    "balancer/5xx"                    = []
-    "text/title"                      = []
-    "log-based"                       = []
-    "custom"                          = []
-    "application"                     = []
-    "logs-insight/logs"               = []
-    "logs-insight/metric"             = []
-    "alarm/status"                    = []
-    "alarm/metric"                    = []
-    "sla-slo-sli"                     = []
-    "rds/cpu"                         = []
-    "rds/memory"                      = []
-    "rds/disk"                        = []
-    "rds/connections"                 = []
-    "rds/network"                     = []
-    "rds/performance"                 = []
+    "container/cpu"                    = []
+    "container/memory"                 = []
+    "container/network"                = []
+    "container/network-in"             = []
+    "container/network-out"            = []
+    "container/restarts"               = []
+    "container/replicas"               = []
+    "container/request-count"          = []
+    "container/response-time"          = []
+    "container/external-health-check"  = []
+    "balancer/2xx"                     = []
+    "balancer/4xx"                     = []
+    "balancer/5xx"                     = []
+    "balancer/traffic"                 = []
+    "balancer/response-time"           = []
+    "balancer/unhealthy-request-count" = []
+    "text/title"                       = []
+    "log-based"                        = []
+    "custom"                           = []
+    "application"                      = []
+    "logs-insight/logs"                = []
+    "logs-insight/metric"              = []
+    "alarm/status"                     = []
+    "alarm/metric"                     = []
+    "sla-slo-sli"                      = []
+    "rds/cpu"                          = []
+    "rds/memory"                       = []
+    "rds/disk"                         = []
+    "rds/connections"                  = []
+    "rds/network"                      = []
+    "rds/iops"                         = []
+    "rds/performance"                  = []
   }
 
   # widget aliases
@@ -95,9 +99,12 @@ locals {
   container_response_time         = local.widget_config["container/response-time"]
   container_external_health_check = local.widget_config["container/external-health-check"]
 
-  balancer_2xx = local.widget_config["balancer/2xx"]
-  balancer_4xx = local.widget_config["balancer/4xx"]
-  balancer_5xx = local.widget_config["balancer/5xx"]
+  balancer_2xx                     = local.widget_config["balancer/2xx"]
+  balancer_4xx                     = local.widget_config["balancer/4xx"]
+  balancer_5xx                     = local.widget_config["balancer/5xx"]
+  balancer_traffic                 = local.widget_config["balancer/traffic"]
+  balancer_response_time           = local.widget_config["balancer/response-time"]
+  balancer_unhealthy_request_count = local.widget_config["balancer/unhealthy-request-count"]
 
   text_title = local.widget_config["text/title"]
 
@@ -139,6 +146,9 @@ locals {
     module.container_balancer_2xx_widget[*].data,
     module.container_balancer_4xx_widget[*].data,
     module.container_balancer_5xx_widget[*].data,
+    module.container_balancer_traffic_widget[*].data,
+    module.container_balancer_response_time_widget[*].data,
+    module.container_balancer_unhealthy_request_count_widget[*].data,
 
     // Widget/Text
     module.text_title[*].data,

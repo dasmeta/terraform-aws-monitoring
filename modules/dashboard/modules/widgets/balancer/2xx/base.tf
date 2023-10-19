@@ -3,7 +3,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Requests (${local.balancer_name})"
+  name = "2XX"
 
   # stats
   stat   = "Sum"
