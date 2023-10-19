@@ -74,3 +74,60 @@ module "widget_rds_db_connections" {
   # rds name
   rds_name = local.rds_connections[count.index].rds_name
 }
+
+module "widget_rds_network" {
+  source = "./modules/widgets/rds/network"
+
+  count = length(local.rds_network)
+
+  platform = var.platform
+  # grafana dashboard platform specific params
+  data_source_uid = var.data_source_uid # TODO: for now this is global variable but it can be refactored and passed also per metric
+
+  # coordinates
+  coordinates = local.rds_network[count.index].coordinates
+
+  # stats
+  period = local.rds_network[count.index].period
+
+  # rds name
+  rds_name = local.rds_network[count.index].rds_name
+}
+
+module "widget_rds_iops" {
+  source = "./modules/widgets/rds/iops"
+
+  count = length(local.rds_iops)
+
+  platform = var.platform
+  # grafana dashboard platform specific params
+  data_source_uid = var.data_source_uid # TODO: for now this is global variable but it can be refactored and passed also per metric
+
+  # coordinates
+  coordinates = local.rds_iops[count.index].coordinates
+
+  # stats
+  period = local.rds_iops[count.index].period
+
+  # rds name
+  rds_name = local.rds_iops[count.index].rds_name
+}
+
+module "widget_rds_performance" {
+  source = "./modules/widgets/rds/performance"
+
+  count = length(local.rds_performance)
+
+  platform = var.platform
+  # grafana dashboard platform specific params
+  data_source_uid = var.data_source_uid # TODO: for now this is global variable but it can be refactored and passed also per metric
+
+  # coordinates
+  coordinates = local.rds_performance[count.index].coordinates
+
+  # stats
+  period = local.rds_performance[count.index].period
+
+  # rds name
+  rds_name = local.rds_performance[count.index].rds_name
+}

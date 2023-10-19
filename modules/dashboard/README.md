@@ -89,7 +89,10 @@
 | <a name="module_widget_rds_cpu"></a> [widget\_rds\_cpu](#module\_widget\_rds\_cpu) | ./modules/widgets/rds/cpu | n/a |
 | <a name="module_widget_rds_db_connections"></a> [widget\_rds\_db\_connections](#module\_widget\_rds\_db\_connections) | ./modules/widgets/rds/db-connections | n/a |
 | <a name="module_widget_rds_disk"></a> [widget\_rds\_disk](#module\_widget\_rds\_disk) | ./modules/widgets/rds/disk | n/a |
+| <a name="module_widget_rds_iops"></a> [widget\_rds\_iops](#module\_widget\_rds\_iops) | ./modules/widgets/rds/iops | n/a |
 | <a name="module_widget_rds_memory"></a> [widget\_rds\_memory](#module\_widget\_rds\_memory) | ./modules/widgets/rds/memory | n/a |
+| <a name="module_widget_rds_network"></a> [widget\_rds\_network](#module\_widget\_rds\_network) | ./modules/widgets/rds/network | n/a |
+| <a name="module_widget_rds_performance"></a> [widget\_rds\_performance](#module\_widget\_rds\_performance) | ./modules/widgets/rds/performance | n/a |
 | <a name="module_widget_sla_slo_sli"></a> [widget\_sla\_slo\_sli](#module\_widget\_sla\_slo\_sli) | ./modules/widgets/sla-slo-sli | n/a |
 
 ## Resources

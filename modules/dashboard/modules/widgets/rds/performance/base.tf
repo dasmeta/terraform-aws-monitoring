@@ -10,7 +10,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "CPU"
+  name = "Performance Metric - Load"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
@@ -20,6 +20,8 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "CPUUtilization", anomaly_detection = var.anomaly_detection },
+    { MetricName = "DBLoad", anomaly_detection = var.anomaly_detection },
+    { MetricName = "DBLoadNonCPU" },
+    { MetricName = "DBLoadCPU" },
   ]
 }

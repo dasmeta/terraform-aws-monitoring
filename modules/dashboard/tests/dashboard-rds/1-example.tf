@@ -1,37 +1,26 @@
 # this is going to create rds dashboard
+locals {
+  rds = "db-prod"
+}
 
 module "dashboard_rds" {
   source = "../../"
 
-  name = "test-rds"
+  name = "dashboard-with-rds-metrics-test"
   rows = [
     [
-      {
-        type : "text/title"
-        text : "rds-dev"
-      }
+      { type : "text/title", text : "RDS (db-prod)" }
     ],
     [
-      {
-        type : "rds/cpu",
-        period : 300,
-        rds_name : "rds-dev",
-      },
-      {
-        type : "rds/memory",
-        period : 300,
-        rds_name : "rds-dev",
-      },
-      {
-        type : "rds/disk",
-        period : 300,
-        rds_name : "rds-dev",
-      },
-      {
-        type : "rds/connections",
-        period : 300,
-        rds_name : "rds-dev",
-      },
+      { type : "rds/cpu", rds_name : local.rds, anomaly_detection : true },
+      # { type : "rds/memory", rds_name : local.rds },
+      # { type : "rds/disk", rds_name : local.rds },
+      { type : "rds/connections", rds_name : local.rds },
+      { type : "rds/network", rds_name : local.rds },
+      { type : "rds/iops", rds_name : local.rds },
+    ],
+    [
+      { type : "rds/performance", rds_name : local.rds },
     ]
   ]
 }

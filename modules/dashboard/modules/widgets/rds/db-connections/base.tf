@@ -10,7 +10,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "DatabaseConnections / ${var.rds_name}"
+  name = "Connections"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
@@ -20,6 +20,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "DatabaseConnections" },
+    { MetricName = "DatabaseConnections", label = "Connections", anomaly_detection = var.anomaly_detection },
   ]
 }

@@ -53,32 +53,34 @@ locals {
 
   # necessary to always have at least empty list for each widget
   widget_defaults = {
-    "container/cpu"                  = []
-    "container/memory"               = []
-    "container/network"              = []
-    "container/network-in"           = []
-    "container/network-out"          = []
-    "container/restarts"             = []
-    "container/replicas"             = []
-    "contaner/request-count"         = []
-    "contaner/response-time"         = []
-    "contaner/external-health-check" = []
-    "balancer/2xx"                   = []
-    "balancer/4xx"                   = []
-    "balancer/5xx"                   = []
-    "text/title"                     = []
-    "log-based"                      = []
-    "custom"                         = []
-    "application"                    = []
-    "logs-insight/logs"              = []
-    "logs-insight/metric"            = []
-    "alarm/status"                   = []
-    "alarm/metric"                   = []
-    "sla-slo-sli"                    = []
-    "rds/cpu"                        = []
-    "rds/memory"                     = []
-    "rds/disk"                       = []
-    "rds/connections"                = []
+    "container/cpu"                   = []
+    "container/memory"                = []
+    "container/network"               = []
+    "container/network-in"            = []
+    "container/network-out"           = []
+    "container/restarts"              = []
+    "container/replicas"              = []
+    "container/request-count"         = []
+    "container/response-time"         = []
+    "container/external-health-check" = []
+    "balancer/2xx"                    = []
+    "balancer/4xx"                    = []
+    "balancer/5xx"                    = []
+    "text/title"                      = []
+    "log-based"                       = []
+    "custom"                          = []
+    "application"                     = []
+    "logs-insight/logs"               = []
+    "logs-insight/metric"             = []
+    "alarm/status"                    = []
+    "alarm/metric"                    = []
+    "sla-slo-sli"                     = []
+    "rds/cpu"                         = []
+    "rds/memory"                      = []
+    "rds/disk"                        = []
+    "rds/connections"                 = []
+    "rds/network"                     = []
+    "rds/performance"                 = []
   }
 
   # widget aliases
@@ -107,6 +109,9 @@ locals {
   rds_memory      = local.widget_config["rds/memory"]
   rds_disk        = local.widget_config["rds/disk"]
   rds_connections = local.widget_config["rds/connections"]
+  rds_network     = local.widget_config["rds/network"]
+  rds_iops        = local.widget_config["rds/iops"]
+  rds_performance = local.widget_config["rds/performance"]
 
   logs_insight_logs   = local.widget_config["logs-insight/logs"]
   logs_insight_metric = local.widget_config["logs-insight/metric"]
@@ -152,6 +157,9 @@ locals {
     module.widget_rds_memory[*].data,
     module.widget_rds_disk[*].data,
     module.widget_rds_db_connections[*].data,
+    module.widget_rds_network[*].data,
+    module.widget_rds_iops[*].data,
+    module.widget_rds_performance[*].data,
 
     # logs insights metrics/logs
     module.widget_logs_insight_logs[*].data,

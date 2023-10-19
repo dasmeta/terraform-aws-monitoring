@@ -10,7 +10,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "CPU"
+  name = "Network"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
@@ -20,6 +20,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "CPUUtilization", anomaly_detection = var.anomaly_detection },
+    { MetricName = "NetworkReceiveThroughput", anomaly_detection = var.anomaly_detection },
+    { MetricName = "NetworkTransmitThroughput", anomaly_detection = var.anomaly_detection },
   ]
 }
