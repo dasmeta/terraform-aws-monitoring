@@ -1,28 +1,21 @@
+locals {
+  cdn_id = "E1KAF214ASDAY"
+}
 module "dashboard-with-container-metrics" {
   source = "../../"
-  name   = "dashboard-with-cloudfront-metrics"
+  name   = "dashboard-with-cloudfront-metrics-test"
+
+  defaults = {
+    period : 300
+  }
+
   rows = [
     [
-      {
-        type : "cloudfront/combined",
-        distribution : "test-distribution"
-      },
-      {
-        type : "cloudfront/error-rate",
-        distribution : "test-distribution"
-      },
-      {
-        type : "cloudfront/errors",
-        distribution : "test-distribution"
-      },
-      {
-        type : "cloudfront/requests",
-        distribution : "test-distribution"
-      },
-      {
-        type : "cloudfront/traffic-bytes",
-        distribution : "test-distribution"
-      }
+      # { type : "cloudfront/combined", distribution : local.cdn_id },
+      { type : "cloudfront/error-rate", distribution : local.cdn_id },
+      { type : "cloudfront/errors", distribution : local.cdn_id },
+      { type : "cloudfront/requests", distribution : local.cdn_id },
+      { type : "cloudfront/traffic-bytes", distribution : local.cdn_id },
     ]
   ]
 }

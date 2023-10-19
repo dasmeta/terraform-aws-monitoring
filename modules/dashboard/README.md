@@ -86,6 +86,10 @@
 | <a name="module_widget_alarm_metric"></a> [widget\_alarm\_metric](#module\_widget\_alarm\_metric) | ./modules/widgets/alarm/metric | n/a |
 | <a name="module_widget_alarm_status"></a> [widget\_alarm\_status](#module\_widget\_alarm\_status) | ./modules/widgets/alarm/status | n/a |
 | <a name="module_widget_application"></a> [widget\_application](#module\_widget\_application) | ./modules/widgets/application | n/a |
+| <a name="module_widget_cloudfront_error_rate"></a> [widget\_cloudfront\_error\_rate](#module\_widget\_cloudfront\_error\_rate) | ./modules/widgets/cloudfront/error-rate | n/a |
+| <a name="module_widget_cloudfront_errors"></a> [widget\_cloudfront\_errors](#module\_widget\_cloudfront\_errors) | ./modules/widgets/cloudfront/errors | n/a |
+| <a name="module_widget_cloudfront_requests"></a> [widget\_cloudfront\_requests](#module\_widget\_cloudfront\_requests) | ./modules/widgets/cloudfront/requests | n/a |
+| <a name="module_widget_cloudfront_traffic_bytes"></a> [widget\_cloudfront\_traffic\_bytes](#module\_widget\_cloudfront\_traffic\_bytes) | ./modules/widgets/cloudfront/traffic-bytes | n/a |
 | <a name="module_widget_custom"></a> [widget\_custom](#module\_widget\_custom) | ./modules/widgets/custom | n/a |
 | <a name="module_widget_logs_insight_logs"></a> [widget\_logs\_insight\_logs](#module\_widget\_logs\_insight\_logs) | ./modules/widgets/logs-insight/logs | n/a |
 | <a name="module_widget_logs_insight_metric"></a> [widget\_logs\_insight\_metric](#module\_widget\_logs\_insight\_metric) | ./modules/widgets/logs-insight/metric | n/a |

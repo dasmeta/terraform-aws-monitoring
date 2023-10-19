@@ -85,6 +85,10 @@ locals {
     "rds/network"                      = []
     "rds/iops"                         = []
     "rds/performance"                  = []
+    "cloudfront/errors"                = []
+    "cloudfront/error-rate"            = []
+    "cloudfront/traffic-bytes"         = []
+    "cloudfront/requests"              = []
   }
 
   # widget aliases
@@ -119,6 +123,11 @@ locals {
   rds_network     = local.widget_config["rds/network"]
   rds_iops        = local.widget_config["rds/iops"]
   rds_performance = local.widget_config["rds/performance"]
+
+  cloudfront_errors        = local.widget_config["cloudfront/errors"]
+  cloudfront_error_rate    = local.widget_config["cloudfront/error-rate"]
+  cloudfront_traffic_bytes = local.widget_config["cloudfront/traffic-bytes"]
+  cloudfront_requests      = local.widget_config["cloudfront/requests"]
 
   logs_insight_logs   = local.widget_config["logs-insight/logs"]
   logs_insight_metric = local.widget_config["logs-insight/metric"]
@@ -170,6 +179,12 @@ locals {
     module.widget_rds_network[*].data,
     module.widget_rds_iops[*].data,
     module.widget_rds_performance[*].data,
+
+    # CDN
+    module.widget_cloudfront_errors[*].data,
+    module.widget_cloudfront_error_rate[*].data,
+    module.widget_cloudfront_traffic_bytes[*].data,
+    module.widget_cloudfront_requests[*].data,
 
     # logs insights metrics/logs
     module.widget_logs_insight_logs[*].data,
