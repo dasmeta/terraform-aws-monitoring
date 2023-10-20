@@ -20,7 +20,7 @@ module "container_cpu_widget" {
   namespace = local.container_cpu[count.index].namespace
 
   account_id        = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
-  anomaly_detection = try(local.container_memory[count.index].anomaly_detection, true)
+  anomaly_detection = try(local.container_cpu[count.index].anomaly_detection, true)
 }
 
 module "container_memory_widget" {
@@ -174,7 +174,7 @@ module "container_request_count_widget" {
   period = local.container_request_count[count.index].period
 
   target_group_arn  = try(local.container_request_count[count.index].target_group_arn, null)
-  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, true)
+  anomaly_detection = try(local.container_request_count[count.index].anomaly_detection, true)
 }
 
 module "container_response_time_widget" {
@@ -188,9 +188,13 @@ module "container_response_time_widget" {
   # stats
   period = local.container_response_time[count.index].period
 
-  target_group_arn  = try(local.container_response_time[count.index].target_group_arn, null)
-  balancer_arn      = try(local.container_response_time[count.index].balancer_arn, null)
-  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, true)
+  target_group_arn = try(local.container_response_time[count.index].target_group_arn, null)
+
+  # balancer
+  balancer_arn  = try(local.container_response_time[count.index].balancer_arn, null)
+  balancer_name = try(local.container_response_time[count.index].balancer_name, null)
+
+  anomaly_detection = try(local.container_response_time[count.index].anomaly_detection, true)
 }
 
 module "container_external_health_check_widget" {
@@ -204,5 +208,5 @@ module "container_external_health_check_widget" {
   # stats
   period            = local.container_external_health_check[count.index].period
   healthcheck_id    = local.container_external_health_check[count.index].healthcheck_id
-  anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, true)
+  anomaly_detection = try(local.container_external_health_check[count.index].anomaly_detection, true)
 }

@@ -3,6 +3,11 @@ variable "target_group_arn" {
   default = null
 }
 
+variable "balancer_name" {
+  type    = string
+  default = null
+}
+
 variable "balancer_arn" {
   type    = string
   default = null
