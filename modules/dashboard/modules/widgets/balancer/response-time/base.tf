@@ -17,6 +17,6 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "TargetResponseTime", color = "#e377c2" },
+    { MetricName = "TargetResponseTime", color = "#56F2D6" },
   ]
 }

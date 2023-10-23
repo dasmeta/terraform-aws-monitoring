@@ -17,6 +17,6 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "5xxErrorRate", "color" = "#FF0F3C" }
+    { MetricName = "5xxErrorRate", color = "#FF0F3C" }
   ]
 }

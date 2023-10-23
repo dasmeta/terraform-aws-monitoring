@@ -13,6 +13,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "RequestCountPerTarget", anomaly_detection = var.anomaly_detection }
+    { MetricName = "RequestCountPerTarget", color = "#007CEF", anomaly_detection = var.anomaly_detection }
   ]
 }

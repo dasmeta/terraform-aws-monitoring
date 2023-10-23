@@ -17,6 +17,6 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "Requests", "color" = "#2ca02c" }
+    { MetricName = "Requests", color = "#007CEF" }
   ]
 }

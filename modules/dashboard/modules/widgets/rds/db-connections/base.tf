@@ -17,9 +17,17 @@ module "base" {
     DBInstanceIdentifier = var.rds_name
   }
 
+  annotations = var.db_max_connections_count != null ? {
+    horizontal = [
+      {
+        label : "Max"
+        value : var.db_max_connections_count
+      }
+    ]
+  } : {}
   period = var.period
 
   metrics = [
-    { MetricName = "DatabaseConnections", label = "Connections", anomaly_detection = var.anomaly_detection },
+    { MetricName = "DatabaseConnections", color = "#007CEF", label = "Connections", anomaly_detection = var.anomaly_detection },
   ]
 }

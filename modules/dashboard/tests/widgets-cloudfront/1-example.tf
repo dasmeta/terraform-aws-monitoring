@@ -1,5 +1,5 @@
 locals {
-  cdn_id = "E1KAF214ASDAY"
+  cdn_id = "E1KE24SFESF0852Y"
 }
 module "dashboard-with-container-metrics" {
   source = "../../"

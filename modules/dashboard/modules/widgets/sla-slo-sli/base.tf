@@ -3,13 +3,13 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "SLA/SLO/SLI (${local.balancer_name})"
+  name = "SLA"
 
   # stats
   stat   = "Sum"
   period = var.period
   view   = "gauge"
-  yAxis  = { left = { min = 0, max = 100 } }
+  yAxis  = { left = { min = 85, max = 100 } }
 
   setPeriodToTimeRange     = true
   singleValueFullPrecision = false
@@ -18,6 +18,28 @@ module "base" {
   start                    = "-PT8640H"
   trend                    = false
   end                      = "P0D"
+  annotations = {
+    horizontal = [
+      {
+        color : "#3ECE76",
+        label : "Great",
+        value : 99.9,
+        fill : "below"
+      },
+      {
+        color : "#FFC300",
+        label : "Good",
+        value : 99,
+        fill : "below"
+      },
+      {
+        color : "#FF0F3C",
+        label : "Bad",
+        value : 90,
+        fill : "below"
+      }
+    ]
+  }
 
 
   defaults = {
@@ -43,22 +65,23 @@ module "base" {
   expressions = [
     {
       expression = "100*(mTotal-me5x)/mTotal"
-      label      = "ALB (excl. 5xx) %"
-      color      = "#2ca02c"
+      label      = "Availability %"
+      color      = "#3ECE76"
     },
     {
       expression = "100*(mTotal-me5x-me4x)/mTotal"
-      label      = "ALB (excl. 5xx+4xx) %"
-      color      = "#bcbd22"
+      label      = "Including 4XX"
+      color      = "#FF774D"
     },
-    {
-      expression = "100*(mTotal-mt5x)/mTotal"
-      label      = "Target (excl. 5xx) %"
-    },
-    {
-      expression = "100*(mTotal-mt4x-mt5x)/mTotal"
-      label      = "Target (excl. 5xx+4xx) %"
-      color      = "#17becf"
-    }
+    //These do not seem to be used anymore
+    # {
+    #   expression = "100*(mTotal-mt5x)/mTotal"
+    #   label      = "Target (excl. 5xx) %"
+    # },
+    # {
+    #   expression = "100*(mTotal-mt4x-mt5x)/mTotal"
+    #   label      = "Target (excl. 5xx+4xx) %"
+    #   color      = "#17becf"
+    # }
   ]
 }

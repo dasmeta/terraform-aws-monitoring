@@ -10,17 +10,25 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "IOPS"
+  name = "Swap Usage"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
     DBInstanceIdentifier = var.rds_name
   }
 
+  annotations = {
+    horizontal = [
+      {
+        color : "#fe6e73",
+        label : "Too Much Swap Usage",
+        value : 50000000,
+      }
+    ]
+  }
   period = var.period
 
   metrics = [
-    { MetricName = "ReadIOPS", color = "#7AAFF9", anomaly_detection = var.anomaly_detection },
-    { MetricName = "WriteIOPS", color = "#EF8BBE", anomaly_detection = var.anomaly_detection },
+    { MetricName = "SwapUsage", color = "#FE6E73" },
   ]
 }

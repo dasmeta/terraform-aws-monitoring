@@ -66,10 +66,8 @@ No requirements.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Allow to enable anomaly detection on widget metrics | `bool` | `true` | no |
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_data_source_uid"></a> [data\_source\_uid](#input\_data\_source\_uid) | The grafana dashboard widget item data source id | `string` | n/a | yes |
-| <a name="input_db_max_connections_count"></a> [db\_max\_connections\_count](#input\_db\_max\_connections\_count) | RDS connection's maximum count | `number` | `null` | no |
 | <a name="input_period"></a> [period](#input\_period) | stats | `number` | `300` | no |
 | <a name="input_platform"></a> [platform](#input\_platform) | The platform/service/adapter to create dashboard on. for now only cloudwatch and grafana supported | `string` | `"cloudwatch"` | no |
 | <a name="input_rds_name"></a> [rds\_name](#input\_rds\_name) | Database name | `string` | n/a | yes |

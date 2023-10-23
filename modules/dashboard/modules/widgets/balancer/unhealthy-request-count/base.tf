@@ -17,6 +17,6 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "UnhealthyRoutingRequestCount", color = "#d62728" }
+    { MetricName = "UnhealthyRoutingRequestCount", color = "#FF0F3C" }
   ]
 }

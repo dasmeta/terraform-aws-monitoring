@@ -85,10 +85,15 @@ locals {
     "rds/network"                      = []
     "rds/iops"                         = []
     "rds/performance"                  = []
+    "rds/free-storage"                 = []
+    "rds/swap"                         = []
+    "rds/disk-latency"                 = []
     "cloudfront/errors"                = []
     "cloudfront/error-rate"            = []
     "cloudfront/traffic-bytes"         = []
     "cloudfront/requests"              = []
+    "dns/queries-gauge"                = []
+    "dns/queries-chart"                = []
   }
 
   # widget aliases
@@ -116,18 +121,24 @@ locals {
   custom      = local.widget_config["custom"]
   application = local.widget_config["application"]
 
-  rds_cpu         = local.widget_config["rds/cpu"]
-  rds_memory      = local.widget_config["rds/memory"]
-  rds_disk        = local.widget_config["rds/disk"]
-  rds_connections = local.widget_config["rds/connections"]
-  rds_network     = local.widget_config["rds/network"]
-  rds_iops        = local.widget_config["rds/iops"]
-  rds_performance = local.widget_config["rds/performance"]
+  rds_cpu          = local.widget_config["rds/cpu"]
+  rds_memory       = local.widget_config["rds/memory"]
+  rds_disk         = local.widget_config["rds/disk"]
+  rds_connections  = local.widget_config["rds/connections"]
+  rds_network      = local.widget_config["rds/network"]
+  rds_iops         = local.widget_config["rds/iops"]
+  rds_performance  = local.widget_config["rds/performance"]
+  rds_free_storage = local.widget_config["rds/free-storage"]
+  rds_swap         = local.widget_config["rds/swap"]
+  rds_disk_latency = local.widget_config["rds/disk-latency"]
 
   cloudfront_errors        = local.widget_config["cloudfront/errors"]
   cloudfront_error_rate    = local.widget_config["cloudfront/error-rate"]
   cloudfront_traffic_bytes = local.widget_config["cloudfront/traffic-bytes"]
   cloudfront_requests      = local.widget_config["cloudfront/requests"]
+
+  dns_queries_gauge = local.widget_config["dns/queries-gauge"]
+  dns_queries_chart = local.widget_config["dns/queries-chart"]
 
   logs_insight_logs   = local.widget_config["logs-insight/logs"]
   logs_insight_metric = local.widget_config["logs-insight/metric"]
@@ -179,12 +190,19 @@ locals {
     module.widget_rds_network[*].data,
     module.widget_rds_iops[*].data,
     module.widget_rds_performance[*].data,
+    module.widget_rds_free_storage[*].data,
+    module.widget_rds_swap[*].data,
+    module.widget_rds_disk_latency[*].data,
 
     # CDN
     module.widget_cloudfront_errors[*].data,
     module.widget_cloudfront_error_rate[*].data,
     module.widget_cloudfront_traffic_bytes[*].data,
     module.widget_cloudfront_requests[*].data,
+
+    # DNS
+    module.widget_dns_queries_gauge[*].data,
+    module.widget_dns_queries_chart[*].data,
 
     # logs insights metrics/logs
     module.widget_logs_insight_logs[*].data,

@@ -17,7 +17,7 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "BytesUploaded", "color" = "#9467bd" },
-    { MetricName = "BytesDownloaded", "color" = "#8c564b" },
+    { MetricName = "BytesUploaded", color = "#EF8BBE" },
+    { MetricName = "BytesDownloaded", color = "#7AAFF9" },
   ]
 }

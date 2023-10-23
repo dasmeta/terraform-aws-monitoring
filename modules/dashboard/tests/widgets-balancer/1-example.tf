@@ -11,8 +11,8 @@
 # }
 
 locals {
-  balancer_name = "alb-name"
-  account_id    = "2131242142143141"
+  balancer_name = "prod"
+  account_id    = "123454555569"
 }
 
 module "dashboard-with-balancer-metrics" {
@@ -43,13 +43,13 @@ module "dashboard-with-balancer-metrics" {
     # ]
 
     # If you have multiple sa or want to display the metrics of another account, specify the ARN
+    # [
+    # { type : "balancer/2xx", accountId : local.account_id, balancer_name : local.balancer_name },
+    # { type : "balancer/4xx", accountId : local.account_id, balancer_name : local.balancer_name },
+    # { type : "balancer/5xx", accountId : local.account_id, balancer_name : local.balancer_name },
+    # ],
     [
-      { type : "balancer/2xx", accountId : local.account_id, balancer_name : local.balancer_name },
-      { type : "balancer/4xx", accountId : local.account_id, balancer_name : local.balancer_name },
-      { type : "balancer/5xx", accountId : local.account_id, balancer_name : local.balancer_name },
       { type : "balancer/traffic", accountId : local.account_id, balancer_name : local.balancer_name },
-    ],
-    [
       { type : "balancer/response-time", accountId : local.account_id, balancer_name : local.balancer_name },
       { type : "balancer/unhealthy-request-count", accountId : local.account_id, balancer_name : local.balancer_name, anomaly_detection : true },
     ]

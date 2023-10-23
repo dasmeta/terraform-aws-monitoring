@@ -2,10 +2,11 @@ locals {
   cluster     = "prod-6"
   container_1 = "superset-helm"
   //TODO-?: find a solution
-  target_group_arn_1 = "arn:aws:elasticloadbalancing:eu-central-1:123456789:targetgroup/k8s-default-dsb00d/24124124214124asd"
-  balancer_name      = "query-me-prod"
+  target_group_arn_1 = "arn:aws:elasticloadbalancing:eu-central-1:12345678999:targetgroup/k8s-default-04sd214d/asfa21412dass"
+  balancer_name      = "-prod"
   //TODO-?: keep healthcheck ID in somewhere
-  healthcheck_id_1 = "smhfh234234-safasf-rtgdf-a782-gdgdsfr32542"
+  healthcheck_id_1 = "safcas234-12412-dsvsdc-4124da-8784d572893a"
+  # container_2 = "superset-helm"
 }
 
 module "dashboard-with-container-metrics" {

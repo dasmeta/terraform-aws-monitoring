@@ -20,7 +20,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "NetworkReceiveThroughput", anomaly_detection = var.anomaly_detection },
-    { MetricName = "NetworkTransmitThroughput", anomaly_detection = var.anomaly_detection },
+    { MetricName = "NetworkReceiveThroughput", color = "#3853E2", anomaly_detection = var.anomaly_detection },
+    { MetricName = "NetworkTransmitThroughput", color = "#D84293", anomaly_detection = var.anomaly_detection },
   ]
 }

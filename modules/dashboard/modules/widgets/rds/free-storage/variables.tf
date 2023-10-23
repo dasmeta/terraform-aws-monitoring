@@ -30,15 +30,3 @@ variable "rds_name" {
   type        = string
   description = "Database name"
 }
-
-variable "anomaly_detection" {
-  type        = bool
-  default     = true
-  description = "Allow to enable anomaly detection on widget metrics"
-}
-
-variable "db_max_connections_count" {
-  type        = number
-  description = "RDS connection's maximum count"
-  default     = null
-}

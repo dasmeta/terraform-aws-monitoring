@@ -91,15 +91,20 @@
 | <a name="module_widget_cloudfront_requests"></a> [widget\_cloudfront\_requests](#module\_widget\_cloudfront\_requests) | ./modules/widgets/cloudfront/requests | n/a |
 | <a name="module_widget_cloudfront_traffic_bytes"></a> [widget\_cloudfront\_traffic\_bytes](#module\_widget\_cloudfront\_traffic\_bytes) | ./modules/widgets/cloudfront/traffic-bytes | n/a |
 | <a name="module_widget_custom"></a> [widget\_custom](#module\_widget\_custom) | ./modules/widgets/custom | n/a |
+| <a name="module_widget_dns_queries_chart"></a> [widget\_dns\_queries\_chart](#module\_widget\_dns\_queries\_chart) | ./modules/widgets/dns/queries-chart | n/a |
+| <a name="module_widget_dns_queries_gauge"></a> [widget\_dns\_queries\_gauge](#module\_widget\_dns\_queries\_gauge) | ./modules/widgets/dns/queries-gauge | n/a |
 | <a name="module_widget_logs_insight_logs"></a> [widget\_logs\_insight\_logs](#module\_widget\_logs\_insight\_logs) | ./modules/widgets/logs-insight/logs | n/a |
 | <a name="module_widget_logs_insight_metric"></a> [widget\_logs\_insight\_metric](#module\_widget\_logs\_insight\_metric) | ./modules/widgets/logs-insight/metric | n/a |
 | <a name="module_widget_rds_cpu"></a> [widget\_rds\_cpu](#module\_widget\_rds\_cpu) | ./modules/widgets/rds/cpu | n/a |
 | <a name="module_widget_rds_db_connections"></a> [widget\_rds\_db\_connections](#module\_widget\_rds\_db\_connections) | ./modules/widgets/rds/db-connections | n/a |
 | <a name="module_widget_rds_disk"></a> [widget\_rds\_disk](#module\_widget\_rds\_disk) | ./modules/widgets/rds/disk | n/a |
+| <a name="module_widget_rds_disk_latency"></a> [widget\_rds\_disk\_latency](#module\_widget\_rds\_disk\_latency) | ./modules/widgets/rds/disk-latency | n/a |
+| <a name="module_widget_rds_free_storage"></a> [widget\_rds\_free\_storage](#module\_widget\_rds\_free\_storage) | ./modules/widgets/rds/free-storage | n/a |
 | <a name="module_widget_rds_iops"></a> [widget\_rds\_iops](#module\_widget\_rds\_iops) | ./modules/widgets/rds/iops | n/a |
 | <a name="module_widget_rds_memory"></a> [widget\_rds\_memory](#module\_widget\_rds\_memory) | ./modules/widgets/rds/memory | n/a |
 | <a name="module_widget_rds_network"></a> [widget\_rds\_network](#module\_widget\_rds\_network) | ./modules/widgets/rds/network | n/a |
 | <a name="module_widget_rds_performance"></a> [widget\_rds\_performance](#module\_widget\_rds\_performance) | ./modules/widgets/rds/performance | n/a |
+| <a name="module_widget_rds_swap"></a> [widget\_rds\_swap](#module\_widget\_rds\_swap) | ./modules/widgets/rds/swap | n/a |
 | <a name="module_widget_sla_slo_sli"></a> [widget\_sla\_slo\_sli](#module\_widget\_sla\_slo\_sli) | ./modules/widgets/sla-slo-sli | n/a |
 
 ## Resources

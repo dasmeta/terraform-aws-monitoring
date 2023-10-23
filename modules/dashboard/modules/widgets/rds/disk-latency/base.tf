@@ -10,17 +10,26 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "IOPS"
+  name = "Disk Latency"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
     DBInstanceIdentifier = var.rds_name
   }
 
+  annotations = {
+    horizontal = [
+      {
+        color : "#fe6e73",
+        label : "Above 100ms",
+        value : 0.1,
+      }
+    ]
+  }
   period = var.period
 
   metrics = [
-    { MetricName = "ReadIOPS", color = "#7AAFF9", anomaly_detection = var.anomaly_detection },
-    { MetricName = "WriteIOPS", color = "#EF8BBE", anomaly_detection = var.anomaly_detection },
+    { MetricName = "WriteLatency", color = "#EF8BBE" },
+    { MetricName = "ReadLatency", color = "#7AAFF9" }
   ]
 }

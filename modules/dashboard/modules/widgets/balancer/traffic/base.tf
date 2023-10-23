@@ -17,6 +17,6 @@ module "base" {
   }
 
   metrics = [
-    { MetricName = "ProcessedBytes", color = "#1f77b4" },
+    { MetricName = "ProcessedBytes", color = "#D400BF" },
   ]
 }
