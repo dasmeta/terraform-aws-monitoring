@@ -117,3 +117,43 @@ module "container_balancer_unhealthy_request_count_widget" {
 
   anomaly_detection = try(local.balancer_unhealthy_request_count[count.index].anomaly_detection, false)
 }
+
+module "container_balancer_request_count_widget" {
+  source = "./modules/widgets/balancer/request-count"
+
+  count = length(local.balancer_request_count)
+
+  # coordinates
+  coordinates = local.balancer_request_count[count.index].coordinates
+
+  # stats
+  period = local.balancer_request_count[count.index].period
+
+  # balancer
+  balancer_arn  = try(local.balancer_request_count[count.index].balancer_arn, null)
+  balancer_name = try(local.balancer_request_count[count.index].balancer_name, null)
+
+  account_id = try(local.balancer_request_count[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_request_count[count.index].anomaly_detection, false)
+}
+
+module "container_balancer_all_requests_widget" {
+  source = "./modules/widgets/balancer/all-requests"
+
+  count = length(local.balancer_all_requests)
+
+  # coordinates
+  coordinates = local.balancer_all_requests[count.index].coordinates
+
+  # stats
+  period = local.balancer_all_requests[count.index].period
+
+  # balancer
+  balancer_arn  = try(local.balancer_all_requests[count.index].balancer_arn, null)
+  balancer_name = try(local.balancer_all_requests[count.index].balancer_name, null)
+
+  account_id = try(local.balancer_all_requests[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_all_requests[count.index].anomaly_detection, false)
+}

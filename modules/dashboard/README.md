@@ -69,6 +69,8 @@
 | <a name="module_container_balancer_2xx_widget"></a> [container\_balancer\_2xx\_widget](#module\_container\_balancer\_2xx\_widget) | ./modules/widgets/balancer/2xx | n/a |
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
 | <a name="module_container_balancer_5xx_widget"></a> [container\_balancer\_5xx\_widget](#module\_container\_balancer\_5xx\_widget) | ./modules/widgets/balancer/5xx | n/a |
+| <a name="module_container_balancer_all_requests_widget"></a> [container\_balancer\_all\_requests\_widget](#module\_container\_balancer\_all\_requests\_widget) | ./modules/widgets/balancer/all-requests | n/a |
+| <a name="module_container_balancer_request_count_widget"></a> [container\_balancer\_request\_count\_widget](#module\_container\_balancer\_request\_count\_widget) | ./modules/widgets/balancer/request-count | n/a |
 | <a name="module_container_balancer_response_time_widget"></a> [container\_balancer\_response\_time\_widget](#module\_container\_balancer\_response\_time\_widget) | ./modules/widgets/balancer/response-time | n/a |
 | <a name="module_container_balancer_traffic_widget"></a> [container\_balancer\_traffic\_widget](#module\_container\_balancer\_traffic\_widget) | ./modules/widgets/balancer/traffic | n/a |
 | <a name="module_container_balancer_unhealthy_request_count_widget"></a> [container\_balancer\_unhealthy\_request\_count\_widget](#module\_container\_balancer\_unhealthy\_request\_count\_widget) | ./modules/widgets/balancer/unhealthy-request-count | n/a |

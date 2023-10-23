@@ -69,6 +69,8 @@ locals {
     "balancer/traffic"                 = []
     "balancer/response-time"           = []
     "balancer/unhealthy-request-count" = []
+    "balancer/request-count"           = []
+    "balancer/all-requests"            = []
     "text/title"                       = []
     "log-based"                        = []
     "custom"                           = []
@@ -114,6 +116,8 @@ locals {
   balancer_traffic                 = local.widget_config["balancer/traffic"]
   balancer_response_time           = local.widget_config["balancer/response-time"]
   balancer_unhealthy_request_count = local.widget_config["balancer/unhealthy-request-count"]
+  balancer_request_count           = local.widget_config["balancer/request-count"]
+  balancer_all_requests            = local.widget_config["balancer/all-requests"]
 
   text_title = local.widget_config["text/title"]
 
@@ -169,6 +173,8 @@ locals {
     module.container_balancer_traffic_widget[*].data,
     module.container_balancer_response_time_widget[*].data,
     module.container_balancer_unhealthy_request_count_widget[*].data,
+    module.container_balancer_request_count_widget[*].data,
+    module.container_balancer_all_requests_widget[*].data,
 
     // Widget/Text
     module.text_title[*].data,

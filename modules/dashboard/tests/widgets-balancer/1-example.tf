@@ -52,6 +52,10 @@ module "dashboard-with-balancer-metrics" {
       { type : "balancer/traffic", accountId : local.account_id, balancer_name : local.balancer_name },
       { type : "balancer/response-time", accountId : local.account_id, balancer_name : local.balancer_name },
       { type : "balancer/unhealthy-request-count", accountId : local.account_id, balancer_name : local.balancer_name, anomaly_detection : true },
+      { type : "balancer/request-count", accountId : local.account_id, balancer_name : local.balancer_name },
+    ],
+    [
+      { type : "balancer/all-requests", accountId : local.account_id, balancer_name : local.balancer_name },
     ]
   ]
 
