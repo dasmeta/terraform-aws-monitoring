@@ -74,7 +74,10 @@ locals {
     "balancer/unhealthy-request-count" = []
     "balancer/request-count"           = []
     "balancer/all-requests"            = []
+    "balancer/error-rate"              = []
+    "balancer/connection-issues"       = []
     "text/title"                       = []
+    "text/title-with-link"             = []
     "log-based"                        = []
     "custom"                           = []
     "application"                      = []
@@ -124,8 +127,11 @@ locals {
   balancer_unhealthy_request_count = local.widget_config["balancer/unhealthy-request-count"]
   balancer_request_count           = local.widget_config["balancer/request-count"]
   balancer_all_requests            = local.widget_config["balancer/all-requests"]
+  balancer_error_rate              = local.widget_config["balancer/error-rate"]
+  balancer_connection_issues       = local.widget_config["balancer/connection-issues"]
 
-  text_title = local.widget_config["text/title"]
+  text_title           = local.widget_config["text/title"]
+  text_title_with_link = local.widget_config["text/title-with-link"]
 
   log_based   = local.widget_config["log-based"]
   custom      = local.widget_config["custom"]
@@ -184,9 +190,12 @@ locals {
     module.container_balancer_unhealthy_request_count_widget[*].data,
     module.container_balancer_request_count_widget[*].data,
     module.container_balancer_all_requests_widget[*].data,
+    module.container_balancer_error_rate[*].data,
+    module.container_balancer_connection_issues[*].data,
 
     // Widget/Text
     module.text_title[*].data,
+    module.text_title_with_link[*].data,
 
     # log based metrics
     # module.widget_log_based[*].data,

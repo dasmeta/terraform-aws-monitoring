@@ -33,7 +33,7 @@ locals {
   expression_metrics = [for index, row in var.expressions : [merge(
     { for key, value in row : key => value if value != null },
     {
-      id    = "e${index + 1}",
+      id    = row.id != null ? row.id : "e${index + 1}",
       label = coalesce(row.label, row.expression)
     }
   )]]

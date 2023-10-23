@@ -71,6 +71,8 @@
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
 | <a name="module_container_balancer_5xx_widget"></a> [container\_balancer\_5xx\_widget](#module\_container\_balancer\_5xx\_widget) | ./modules/widgets/balancer/5xx | n/a |
 | <a name="module_container_balancer_all_requests_widget"></a> [container\_balancer\_all\_requests\_widget](#module\_container\_balancer\_all\_requests\_widget) | ./modules/widgets/balancer/all-requests | n/a |
+| <a name="module_container_balancer_connection_issues"></a> [container\_balancer\_connection\_issues](#module\_container\_balancer\_connection\_issues) | ./modules/widgets/balancer/connection-issues | n/a |
+| <a name="module_container_balancer_error_rate"></a> [container\_balancer\_error\_rate](#module\_container\_balancer\_error\_rate) | ./modules/widgets/balancer/error-rate | n/a |
 | <a name="module_container_balancer_request_count_widget"></a> [container\_balancer\_request\_count\_widget](#module\_container\_balancer\_request\_count\_widget) | ./modules/widgets/balancer/request-count | n/a |
 | <a name="module_container_balancer_response_time_widget"></a> [container\_balancer\_response\_time\_widget](#module\_container\_balancer\_response\_time\_widget) | ./modules/widgets/balancer/response-time | n/a |
 | <a name="module_container_balancer_traffic_widget"></a> [container\_balancer\_traffic\_widget](#module\_container\_balancer\_traffic\_widget) | ./modules/widgets/balancer/traffic | n/a |
@@ -88,6 +90,7 @@
 | <a name="module_container_response_time_widget"></a> [container\_response\_time\_widget](#module\_container\_response\_time\_widget) | ./modules/widgets/container/response-time | n/a |
 | <a name="module_container_restarts_widget"></a> [container\_restarts\_widget](#module\_container\_restarts\_widget) | ./modules/widgets/container/restarts | n/a |
 | <a name="module_text_title"></a> [text\_title](#module\_text\_title) | ./modules/widgets/text/title | n/a |
+| <a name="module_text_title_with_link"></a> [text\_title\_with\_link](#module\_text\_title\_with\_link) | ./modules/widgets/text/title-with-link | n/a |
 | <a name="module_widget_alarm_metric"></a> [widget\_alarm\_metric](#module\_widget\_alarm\_metric) | ./modules/widgets/alarm/metric | n/a |
 | <a name="module_widget_alarm_status"></a> [widget\_alarm\_status](#module\_widget\_alarm\_status) | ./modules/widgets/alarm/status | n/a |
 | <a name="module_widget_application"></a> [widget\_application](#module\_widget\_application) | ./modules/widgets/application | n/a |

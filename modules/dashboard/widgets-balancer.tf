@@ -157,3 +157,43 @@ module "container_balancer_all_requests_widget" {
 
   anomaly_detection = try(local.balancer_all_requests[count.index].anomaly_detection, false)
 }
+
+module "container_balancer_error_rate" {
+  source = "./modules/widgets/balancer/error-rate"
+
+  count = length(local.balancer_error_rate)
+
+  # coordinates
+  coordinates = local.balancer_error_rate[count.index].coordinates
+
+  # stats
+  period = local.balancer_error_rate[count.index].period
+
+  # balancer
+  balancer_arn  = try(local.balancer_error_rate[count.index].balancer_arn, null)
+  balancer_name = try(local.balancer_error_rate[count.index].balancer_name, null)
+
+  account_id = try(local.balancer_error_rate[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_error_rate[count.index].anomaly_detection, false)
+}
+
+module "container_balancer_connection_issues" {
+  source = "./modules/widgets/balancer/connection-issues"
+
+  count = length(local.balancer_connection_issues)
+
+  # coordinates
+  coordinates = local.balancer_connection_issues[count.index].coordinates
+
+  # stats
+  period = local.balancer_connection_issues[count.index].period
+
+  # balancer
+  balancer_arn  = try(local.balancer_connection_issues[count.index].balancer_arn, null)
+  balancer_name = try(local.balancer_connection_issues[count.index].balancer_name, null)
+
+  account_id = try(local.balancer_connection_issues[count.index].accountId, data.aws_caller_identity.project.account_id)
+
+  anomaly_detection = try(local.balancer_connection_issues[count.index].anomaly_detection, false)
+}
