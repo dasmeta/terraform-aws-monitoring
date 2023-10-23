@@ -165,7 +165,7 @@ module "container_restarts_widget" {
 module "container_request_count_widget" {
   source = "./modules/widgets/container/request-count"
 
-  count = length(local.container_restarts)
+  count = length(local.container_request_count)
 
   # coordinates
   coordinates = local.container_request_count[count.index].coordinates
@@ -180,7 +180,7 @@ module "container_request_count_widget" {
 module "container_response_time_widget" {
   source = "./modules/widgets/container/response-time"
 
-  count = length(local.container_restarts)
+  count = length(local.container_response_time)
 
   # coordinates
   coordinates = local.container_response_time[count.index].coordinates
@@ -200,7 +200,7 @@ module "container_response_time_widget" {
 module "container_external_health_check_widget" {
   source = "./modules/widgets/container/external-health-check"
 
-  count = length(local.container_restarts)
+  count = length(local.container_external_health_check)
 
   # coordinates
   coordinates = local.container_external_health_check[count.index].coordinates
@@ -209,4 +209,64 @@ module "container_external_health_check_widget" {
   period            = local.container_external_health_check[count.index].period
   healthcheck_id    = local.container_external_health_check[count.index].healthcheck_id
   anomaly_detection = try(local.container_external_health_check[count.index].anomaly_detection, true)
+}
+
+module "container_error_rate" {
+  source = "./modules/widgets/container/error-rate"
+
+  count = length(local.container_error_rate)
+
+  # coordinates
+  coordinates = local.container_error_rate[count.index].coordinates
+
+  # stats
+  period = local.container_error_rate[count.index].period
+
+  target_group_arn = try(local.container_error_rate[count.index].target_group_arn, null)
+
+  # balancer
+  balancer_arn  = try(local.container_error_rate[count.index].balancer_arn, null)
+  balancer_name = try(local.container_error_rate[count.index].balancer_name, null)
+
+  anomaly_detection = try(local.container_error_rate[count.index].anomaly_detection, true)
+}
+
+module "container_all_requests" {
+  source = "./modules/widgets/container/all-requests"
+
+  count = length(local.container_all_requests)
+
+  # coordinates
+  coordinates = local.container_all_requests[count.index].coordinates
+
+  # stats
+  period = local.container_all_requests[count.index].period
+
+  target_group_arn = try(local.container_all_requests[count.index].target_group_arn, null)
+
+  # balancer
+  balancer_arn  = try(local.container_all_requests[count.index].balancer_arn, null)
+  balancer_name = try(local.container_all_requests[count.index].balancer_name, null)
+
+  anomaly_detection = try(local.container_all_requests[count.index].anomaly_detection, true)
+}
+
+module "container_health_check" {
+  source = "./modules/widgets/container/health-check"
+
+  count = length(local.container_health_check)
+
+  # coordinates
+  coordinates = local.container_health_check[count.index].coordinates
+
+  # stats
+  period = local.container_health_check[count.index].period
+
+  target_group_arn = try(local.container_health_check[count.index].target_group_arn, null)
+
+  # balancer
+  balancer_arn  = try(local.container_health_check[count.index].balancer_arn, null)
+  balancer_name = try(local.container_health_check[count.index].balancer_name, null)
+
+  anomaly_detection = try(local.container_health_check[count.index].anomaly_detection, true)
 }

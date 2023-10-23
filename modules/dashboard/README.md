@@ -66,6 +66,7 @@
 
 | Name | Source | Version |
 |------|--------|---------|
+| <a name="module_container_all_requests"></a> [container\_all\_requests](#module\_container\_all\_requests) | ./modules/widgets/container/all-requests | n/a |
 | <a name="module_container_balancer_2xx_widget"></a> [container\_balancer\_2xx\_widget](#module\_container\_balancer\_2xx\_widget) | ./modules/widgets/balancer/2xx | n/a |
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
 | <a name="module_container_balancer_5xx_widget"></a> [container\_balancer\_5xx\_widget](#module\_container\_balancer\_5xx\_widget) | ./modules/widgets/balancer/5xx | n/a |
@@ -75,7 +76,9 @@
 | <a name="module_container_balancer_traffic_widget"></a> [container\_balancer\_traffic\_widget](#module\_container\_balancer\_traffic\_widget) | ./modules/widgets/balancer/traffic | n/a |
 | <a name="module_container_balancer_unhealthy_request_count_widget"></a> [container\_balancer\_unhealthy\_request\_count\_widget](#module\_container\_balancer\_unhealthy\_request\_count\_widget) | ./modules/widgets/balancer/unhealthy-request-count | n/a |
 | <a name="module_container_cpu_widget"></a> [container\_cpu\_widget](#module\_container\_cpu\_widget) | ./modules/widgets/container/cpu | n/a |
+| <a name="module_container_error_rate"></a> [container\_error\_rate](#module\_container\_error\_rate) | ./modules/widgets/container/error-rate | n/a |
 | <a name="module_container_external_health_check_widget"></a> [container\_external\_health\_check\_widget](#module\_container\_external\_health\_check\_widget) | ./modules/widgets/container/external-health-check | n/a |
+| <a name="module_container_health_check"></a> [container\_health\_check](#module\_container\_health\_check) | ./modules/widgets/container/health-check | n/a |
 | <a name="module_container_memory_widget"></a> [container\_memory\_widget](#module\_container\_memory\_widget) | ./modules/widgets/container/memory | n/a |
 | <a name="module_container_network_in_widget"></a> [container\_network\_in\_widget](#module\_container\_network\_in\_widget) | ./modules/widgets/container/network-in | n/a |
 | <a name="module_container_network_out_widget"></a> [container\_network\_out\_widget](#module\_container\_network\_out\_widget) | ./modules/widgets/container/network-out | n/a |

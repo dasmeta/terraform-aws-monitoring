@@ -63,6 +63,9 @@ locals {
     "container/request-count"          = []
     "container/response-time"          = []
     "container/external-health-check"  = []
+    "container/error-rate"             = []
+    "container/all-requests"           = []
+    "container/health-check"           = []
     "balancer/2xx"                     = []
     "balancer/4xx"                     = []
     "balancer/5xx"                     = []
@@ -109,6 +112,9 @@ locals {
   container_request_count         = local.widget_config["container/request-count"]
   container_response_time         = local.widget_config["container/response-time"]
   container_external_health_check = local.widget_config["container/external-health-check"]
+  container_error_rate            = local.widget_config["container/error-rate"]
+  container_all_requests          = local.widget_config["container/all-requests"]
+  container_health_check          = local.widget_config["container/health-check"]
 
   balancer_2xx                     = local.widget_config["balancer/2xx"]
   balancer_4xx                     = local.widget_config["balancer/4xx"]
@@ -165,6 +171,9 @@ locals {
     module.container_request_count_widget[*].data,
     module.container_response_time_widget[*].data,
     module.container_external_health_check_widget[*].data,
+    module.container_error_rate[*].data,
+    module.container_all_requests[*].data,
+    module.container_health_check[*].data,
 
     // Widget/Traffic
     module.container_balancer_2xx_widget[*].data,
