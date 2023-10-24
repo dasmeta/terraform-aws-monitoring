@@ -178,7 +178,7 @@ def event_handler_for_expression(metrics_body):
     }
     return MetricWidget,expression,metric_namespace,metric_name
 
-def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,metric_name,image,url):
+def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url):
 
     if alert_type == "Expression":
         items = [
@@ -191,7 +191,7 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
                             "title": "Expression",
                             "value": dimension_string
                         },{
-                            "title": "Metics",
+                            "title": "Metrics",
                             "value": str(metric_name)
                         },{
                             "title": "Namespaces",
@@ -211,7 +211,7 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
                             "title": "Dimensions",
                             "value": dimension_string
                         }, {
-                            "title": "Metic",
+                            "title": "Meric",
                             "value": metric_namespace + "/" + metric_name
                         }]
                     }
@@ -226,8 +226,9 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
 
         if os.environ['CREATE_JIRA_TICKET']:
             all_data = items[0]["facts"]
-            description = "\n".join([f"{item['title']}: {item['value']}" for item in all_data])
-            description += f"\nURL: {url}"
+            description = "Description: \n{aws_alarmdescription}"
+            description += f"\n h2. Details"
+            description += f"\n".join([f"{item['title']}: {item['value']}" for item in all_data])
             print("Create jira ticket")
             create_jira_ticket(subject,description)
 
@@ -301,6 +302,7 @@ def handler(event, context):
     # json_body = event["Records"][0]["Sns"]["Message"] #TODO: can be removed. This was used to debug lambda on fly
     trigger_body = json_body["Trigger"]
     aws_account = json_body["AWSAccountId"]
+    aws_alarmdescription = json_body["AlarmDescription"]
     dimension_string = ""
 
     if "Metrics" in trigger_body:
@@ -357,7 +359,7 @@ def handler(event, context):
         response["MetricWidgetImage"]).decode('utf-8')
     image = 'data:image/png;base64, {}'.format(encoded_data)
 
-    payload_data = payload(alert_type,subject,aws_account,dimension_string,metric_namespace,metric_name,image,url)
+    payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
 
     headers = {'Content-Type': 'application/json'}
     method = 'POST'
