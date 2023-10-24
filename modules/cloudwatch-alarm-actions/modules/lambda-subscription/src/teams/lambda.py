@@ -180,13 +180,6 @@ def event_handler_for_expression(metrics_body):
 
 def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,metric_name,image,url):
 
-    # Check subject and add smile)
-    ok_check = "OK" in subject
-    if ok_check:
-        smile_subject = "✅ " + subject
-    else:
-        smile_subject = "❌ " + subject
-
     if alert_type == "Expression":
         items = [
                     {
@@ -224,11 +217,18 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
                     }
                 ]
 
-    if os.environ['CREATE_JIRA_TICKET']:
-        all_data = items[0]["facts"]
-        description = "\n".join([f"{item['title']}: {item['value']}" for item in all_data])
-        print("Create jira ticket")
-        create_jira_ticket(subject,description)
+    # Check subject and add smile)
+    ok_check = "OK" in subject
+    if ok_check:
+        smile_subject = "✅ " + subject
+    else:
+        smile_subject = "❌ " + subject
+
+        if os.environ['CREATE_JIRA_TICKET']:
+            all_data = items[0]["facts"]
+            description = "\n".join([f"{item['title']}: {item['value']}" for item in all_data])
+            print("Create jira ticket")
+            create_jira_ticket(subject,description)
 
     payload = {
         "type": "message",
