@@ -70,9 +70,14 @@ module "notify_teams" {
   type    = "teams"
   timeout = 10
   environment_variables = {
-    WEBHOOK_URL = each.value
-    REGION      = data.aws_region.current.name
-    LOG_LEVEL   = var.log_level
+    WEBHOOK_URL        = each.value
+    REGION             = data.aws_region.current.name
+    LOG_LEVEL          = var.log_level
+    CREATE_JIRA_TICKET = var.jira_config.enable
+    JIRA_URL           = var.jira_config.url
+    JIRA_KEY           = var.jira_config.key
+    JIRA_PASSWORD      = var.jira_config.user_api_token
+    JIRA_USERNAME      = var.jira_config.user_username
   }
 
   recreate_missing_package  = var.recreate_missing_package

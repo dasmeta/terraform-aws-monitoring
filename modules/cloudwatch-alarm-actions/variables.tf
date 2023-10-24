@@ -129,3 +129,22 @@ variable "lambda_failed_alert" {
   }
   description = "Alert for lambda failed "
 }
+
+variable "jira_config" {
+  type = object({
+    enable         = bool,
+    url            = string,
+    key            = string,
+    user_username  = string,
+    user_api_token = string
+  })
+
+  default = {
+    enable         = false
+    url            = null
+    key            = null
+    user_username  = null
+    user_api_token = null
+  }
+  description = "Lambda create Jira ticket for every alarm"
+}

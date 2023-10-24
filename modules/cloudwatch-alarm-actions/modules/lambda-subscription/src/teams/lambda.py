@@ -3,6 +3,7 @@ import json
 import os
 import boto3
 import base64
+import requests
 
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -15,6 +16,27 @@ logger.setLevel(getattr(logging, LOGLEVEL))
 
 logger.info("log level: {}".format(LOGLEVEL))
 
+def create_jira_ticket(summary,description):
+    # Jira API URL and authentication
+    url = os.environ['JIRA_URL']
+    username = os.environ['JIRA_USERNAME']
+    password = os.environ['JIRA_PASSWORD']
+    issue_data = {
+        "fields": {
+            "project": {"key": os.environ['JIRA_KEY']},
+            "summary": summary,
+            "description": description,
+            "issuetype": {"name": "Task"},
+            "labels": ["DevOps"]
+        }
+    }
+
+    response = requests.post(url, json=issue_data, auth=(username, password))
+    if response.status_code == 201:
+        print("Issue created successfully. Issue key:", response.json()['key'])
+    else:
+        print("Failed to create issue. Status code:", response.status_code)
+        print("Response content:", response.content)
 
 def guess_subject(event):
     """
@@ -201,6 +223,12 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
                         }]
                     }
                 ]
+
+    if os.environ['CREATE_JIRA_TICKET']:
+        all_data = items[0]["facts"]
+        description = "\n".join([f"{item['title']}: {item['value']}" for item in all_data])
+        print("Create jira ticket")
+        create_jira_ticket(subject,description)
 
     payload = {
         "type": "message",
