@@ -4,6 +4,7 @@ import os
 import boto3
 import base64
 import requests
+import urllib.parse
 
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -229,7 +230,8 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
             description = f"\n{aws_alarmdescription}"
             description += f"\n h2. Details\n"
             description += f"\n".join([f"{item['title']}: {item['value']}" for item in all_data])
-            description += f"\nURL: '{url}'"
+            url_encode = urllib.parse.quote(url)
+            description += f"\nURL: '{url_encode}'"
             print("Create jira ticket")
             create_jira_ticket(subject,description)
 
@@ -288,7 +290,7 @@ def handler(event, context):
     print("Context",context)
     teams_webhook_url = os.environ['WEBHOOK_URL']
     url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
-        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM"+ "))"
+        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM"+ ")"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
 
     logger.debug("Event: {}".format(event))
