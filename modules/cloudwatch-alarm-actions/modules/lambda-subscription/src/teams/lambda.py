@@ -226,8 +226,7 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
 
         if os.environ['CREATE_JIRA_TICKET']:
             all_data = items[0]["facts"]
-            description = "Alarm Description: "
-            description += f"\n{aws_alarmdescription}"
+            description = f"\n{aws_alarmdescription}"
             description += f"\n h2. Details\n"
             description += f"\n".join([f"{item['title']}: {item['value']}" for item in all_data])
             description += f"\nURL: {url}"
@@ -289,7 +288,7 @@ def handler(event, context):
     print("Context",context)
     teams_webhook_url = os.environ['WEBHOOK_URL']
     url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
-        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~'ALARM)"
+        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
 
     logger.debug("Event: {}".format(event))
