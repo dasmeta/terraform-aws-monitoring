@@ -288,7 +288,7 @@ def handler(event, context):
     print("Context",context)
     teams_webhook_url = os.environ['WEBHOOK_URL']
     url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
-        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~%27ALARM"+ ")"
     # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
 
     logger.debug("Event: {}".format(event))
