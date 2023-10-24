@@ -227,6 +227,7 @@ def payload(alert_type,subject,aws_account,dimension_string,metric_namespace,met
         if os.environ['CREATE_JIRA_TICKET']:
             all_data = items[0]["facts"]
             description = "\n".join([f"{item['title']}: {item['value']}" for item in all_data])
+            description += f"\nURL: {url}"
             print("Create jira ticket")
             create_jira_ticket(subject,description)
 
