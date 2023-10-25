@@ -229,7 +229,7 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
             description = f"\n{aws_alarmdescription}"
             description += f"\n h2. Details\n"
             description += f"\n".join([f"{item['title']}: {item['value']}" for item in all_data])
-            description += f"\nURL: '{url}'"
+            description += f"\nURL: {url}"
             print("Create jira ticket")
             create_jira_ticket(subject,description)
 
