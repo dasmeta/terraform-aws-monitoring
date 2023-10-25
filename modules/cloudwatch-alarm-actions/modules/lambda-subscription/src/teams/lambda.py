@@ -4,7 +4,6 @@ import os
 import boto3
 import base64
 import requests
-import urllib.parse
 
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -288,10 +287,8 @@ def handler(event, context):
     print("Event",event)
     print("Context",context)
     teams_webhook_url = os.environ['WEBHOOK_URL']
-    # url_encode = urllib.parse.quote("#alarmsV2:?~(alarmStateFilter~%27ALARM%29")
     url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
-        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~'ALARM)"
-    # url = "https://eu-central-1.console.aws.amazon.com/cloudwatch/home?region=eu-central-1#alarmsV2:?~(alarmStateFilter~%27ALARM)"
+        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~'ALARM)t"
 
     logger.debug("Event: {}".format(event))
     message = str(event['Records'][0]['Sns']['Message'])
