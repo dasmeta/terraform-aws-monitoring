@@ -103,6 +103,7 @@ module "notify_jira" {
     JIRA_KEY      = each.value.key
     JIRA_PASSWORD = each.value.user_api_token
     JIRA_USERNAME = each.value.user_username
+    REGION        = data.aws_region.current.name
   }
 
   recreate_missing_package  = var.recreate_missing_package

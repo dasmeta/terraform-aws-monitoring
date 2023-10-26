@@ -15,6 +15,22 @@ logger.setLevel(getattr(logging, LOGLEVEL))
 
 logger.info("log level: {}".format(LOGLEVEL))
 
+def guess_subject(event):
+    """
+    try to guess a good message subject
+    Messages from CloudWatch e.g. concerning ECS don't come with a subject.
+    """
+
+    # Just take the provided subject if there is one
+    subject_from_sns = event['Records'][0]['Sns']['Subject']
+    if str(subject_from_sns) != 'None' and len(subject_from_sns) > 0:
+        logger.info("Message subject from SNS")
+        return subject_from_sns
+    else:
+        logging.info(
+            "Message subject not included in SNS, using fallback message subject")
+        return FALLBACK_SUBJECT
+
 def event_handler_for_metrics(metrics_body):
 
     for metrics_this in metrics_body:
