@@ -4,6 +4,7 @@ import os
 import boto3
 import base64
 import requests
+import importlib
 from event_handler import event_handler
 
 from urllib.request import Request, urlopen
@@ -120,7 +121,17 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
     return payload
 
 def handler(event, context):
-    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = event_handler(event,context)
+    github_url = 'https://github.com/dasmeta/terraform-aws-monitoring/blob/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py'
+    response = requests.get(github_url)
+
+    if response.status_code == 200:
+        script_content = response.text
+        module = importlib.import_module('loaded_module')
+        exec(script_content, module.__dict__)
+        alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
+    else:
+        print("Can't read github file")
+
 
     payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
     teams_webhook_url =os.environ['WEBHOOK_URL']

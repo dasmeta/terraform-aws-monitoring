@@ -1,5 +1,6 @@
 import os
 import requests
+import importlib
 from event_handler import event_handler
 
 def create_jira_ticket(summary,description):
@@ -24,9 +25,17 @@ def create_jira_ticket(summary,description):
         print("Failed to create issue. Status code:", response.status_code)
         print("Response content:", response.content)
 
-
 def handler(event, context):
-    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = event_handler(event,context)
+    github_url = 'https://github.com/dasmeta/terraform-aws-monitoring/blob/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py'
+    response = requests.get(github_url)
+
+    if response.status_code == 200:
+        script_content = response.text
+        module = importlib.import_module('loaded_module')
+        exec(script_content, module.__dict__)
+        alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
+    else:
+        print("Can't read github file")
 
     if alert_type == "Expression":
         all_data =  [
