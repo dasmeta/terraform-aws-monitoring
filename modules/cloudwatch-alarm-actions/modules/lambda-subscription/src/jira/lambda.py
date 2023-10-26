@@ -1,6 +1,19 @@
 import os
 import requests
 import importlib
+import sys
+import types
+
+def import_from_url(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        module_name = url.split("/")[-1].split(".")[0]
+        new_module = types.ModuleType(module_name)
+        exec(response.text, new_module.__dict__)
+        sys.modules[module_name] = new_module
+        return new_module
+    else:
+        raise ImportError(f"Failed to fetch file from {url}, status code: {response.status_code}")
 
 def create_jira_ticket(summary,description):
     # Jira API URL and authentication
@@ -25,17 +38,12 @@ def create_jira_ticket(summary,description):
         print("Response content:", response.content)
 
 def handler(event, context):
-    github_url = 'https://github.com/dasmeta/terraform-aws-monitoring/blob/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py'
-    response = requests.get(github_url)
+    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
+    # Import the module
+    module = import_from_url(file_url)
 
-    if response.status_code == 200:
-        script_content = response.text
-        print("Import module if jira")
-        module = importlib.import_module('loaded_module')
-        exec(script_content, module.__dict__)
-        alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
-    else:
-        print("Can't read github file")
+    # Now you can use the function from the module
+    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
 
     if alert_type == "Expression":
         all_data =  [

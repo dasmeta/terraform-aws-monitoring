@@ -5,7 +5,8 @@ import boto3
 import base64
 import requests
 import importlib
-
+import sys
+import types
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -16,6 +17,17 @@ logger = logging.getLogger()
 logger.setLevel(getattr(logging, LOGLEVEL))
 
 logger.info("log level: {}".format(LOGLEVEL))
+
+def import_from_url(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        module_name = url.split("/")[-1].split(".")[0]
+        new_module = types.ModuleType(module_name)
+        exec(response.text, new_module.__dict__)
+        sys.modules[module_name] = new_module
+        return new_module
+    else:
+        raise ImportError(f"Failed to fetch file from {url}, status code: {response.status_code}")
 
 def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url):
     if alert_type == "Expression":
@@ -120,18 +132,12 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
     return payload
 
 def handler(event, context):
-    github_url = 'https://github.com/dasmeta/terraform-aws-monitoring/blob/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py'
-    response = requests.get(github_url)
+    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
+    # Import the module
+    module = import_from_url(file_url)
 
-    if response.status_code == 200:
-        script_content = response.text
-        print("Import module if")
-        module = importlib.import_module('loaded_module')
-        exec(script_content, module.__dict__)
-        alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
-    else:
-        print("Can't read github file")
-
+    # Now you can use the function from the module
+    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
 
     payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
     teams_webhook_url =os.environ['WEBHOOK_URL']
