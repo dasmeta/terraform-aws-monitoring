@@ -31,6 +31,7 @@ def handler(event, context):
 
     if response.status_code == 200:
         script_content = response.text
+        print("Import module if jira")
         module = importlib.import_module('loaded_module')
         exec(script_content, module.__dict__)
         alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context)
