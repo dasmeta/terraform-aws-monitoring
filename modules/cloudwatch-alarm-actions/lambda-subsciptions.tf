@@ -70,14 +70,39 @@ module "notify_teams" {
   type    = "teams"
   timeout = 10
   environment_variables = {
-    WEBHOOK_URL        = each.value
-    REGION             = data.aws_region.current.name
-    LOG_LEVEL          = var.log_level
-    CREATE_JIRA_TICKET = var.jira_config.enable
-    JIRA_URL           = var.jira_config.url
-    JIRA_KEY           = var.jira_config.key
-    JIRA_PASSWORD      = var.jira_config.user_api_token
-    JIRA_USERNAME      = var.jira_config.user_username
+    WEBHOOK_URL = each.value
+    REGION      = data.aws_region.current.name
+    LOG_LEVEL   = var.log_level
+  }
+
+  recreate_missing_package  = var.recreate_missing_package
+  log_group_retention_days  = var.log_group_retention_days
+  dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
+  attach_dead_letter_policy = var.enable_dead_letter_queue
+
+  depends_on = [
+    module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
+  ]
+}
+
+module "notify_jira" {
+  source = "./modules/lambda-subscription"
+
+  for_each = { for jira in var.jira_config : jira.url => jira }
+
+  # sns/subscription configs
+  sns_topic_name          = module.topic.name
+  fallback_sns_topic_name = module.fallback-topic.name
+
+  # lambda configs
+  uniq_id = each.value.url
+  type    = "jira"
+  timeout = 10
+  environment_variables = {
+    JIRA_URL      = each.value.url
+    JIRA_KEY      = each.value.key
+    JIRA_PASSWORD = each.value.user_api_token
+    JIRA_USERNAME = each.value.user_username
   }
 
   recreate_missing_package  = var.recreate_missing_package

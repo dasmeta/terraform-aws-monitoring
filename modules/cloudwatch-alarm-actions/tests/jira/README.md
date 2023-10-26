@@ -17,7 +17,7 @@
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_sns-to-teams"></a> [sns-to-teams](#module\_sns-to-teams) | ../../ | n/a |
+| <a name="module_sns-to-jira"></a> [sns-to-jira](#module\_sns-to-jira) | ../../ | n/a |
 
 ## Resources
 
