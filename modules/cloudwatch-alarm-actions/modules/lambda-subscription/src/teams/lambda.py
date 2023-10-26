@@ -5,7 +5,6 @@ import boto3
 import base64
 import requests
 import importlib
-from event_handler import event_handler
 
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError

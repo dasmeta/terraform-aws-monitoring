@@ -1,7 +1,6 @@
 import os
 import requests
 import importlib
-from event_handler import event_handler
 
 def create_jira_ticket(summary,description):
     # Jira API URL and authentication
