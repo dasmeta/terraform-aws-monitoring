@@ -21,7 +21,6 @@ def guess_subject(event):
     Messages from CloudWatch e.g. concerning ECS don't come with a subject.
     """
 
-    # Just take the provided subject if there is one
     subject_from_sns = event['Records'][0]['Sns']['Subject']
     if str(subject_from_sns) != 'None' and len(subject_from_sns) > 0:
         logger.info("Message subject from SNS")

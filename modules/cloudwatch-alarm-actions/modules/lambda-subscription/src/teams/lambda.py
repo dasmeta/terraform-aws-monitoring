@@ -1,8 +1,6 @@
 import logging
 import json
 import os
-import boto3
-import base64
 import requests
 import importlib
 import sys
@@ -124,11 +122,9 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
 
 def handler(event, context):
     file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
-    # Import the module
     module = import_from_url(file_url)
     region = os.environ['REGION']
 
-    # Now you can use the function from the module
     alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context,region)
 
     payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
