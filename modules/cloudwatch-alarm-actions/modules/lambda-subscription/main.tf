@@ -1,6 +1,6 @@
 locals {
   lambda_name                 = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
-  lambda_function_file_path   = "${path.module}/src/${var.type}/lambda.py"
+  lambda_function_file_path   = "${path.module}/src/${var.type}/"
   lambda_function_hash        = filesha256(local.lambda_function_file_path)
   lambda_function_output_path = "builds/lambda-${data.aws_region.current.name}-${local.lambda_function_hash}.zip"
 }
