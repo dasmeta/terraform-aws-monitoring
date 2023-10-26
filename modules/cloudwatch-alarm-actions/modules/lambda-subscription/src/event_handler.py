@@ -138,14 +138,14 @@ def event_handler_for_expression(metrics_body):
     }
     return MetricWidget,expression,metric_namespace,metric_name
 
-def event_handler(event, context):
+def event_handler(event, context,region):
     """send message via teams"""
 
     print("Event",event)
     print("Context",context)
 
-    url = "https://" + os.environ['REGION'] + ".console.aws.amazon.com/cloudwatch/home?region=" + \
-        os.environ['REGION'] + "#alarmsV2:?~(alarmStateFilter~'ALARM)t"
+    url = "https://" + region + ".console.aws.amazon.com/cloudwatch/home?region=" + \
+        region + "#alarmsV2:?~(alarmStateFilter~'ALARM)t"
 
     logger.debug("Event: {}".format(event))
     message = str(event['Records'][0]['Sns']['Message'])
@@ -209,7 +209,7 @@ def event_handler(event, context):
         }
 
     # Get Cloudwatch metric widget, encoded base64
-    cloudwatch = boto3.client('cloudwatch', region_name=os.environ['REGION'])
+    cloudwatch = boto3.client('cloudwatch', region_name=region)
     response = cloudwatch.get_metric_widget_image(
         MetricWidget=json.dumps(MetricWidget))
     encoded_data = base64.b64encode(
