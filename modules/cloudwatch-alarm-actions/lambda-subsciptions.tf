@@ -95,7 +95,7 @@ module "notify_jira" {
   fallback_sns_topic_name = module.fallback-topic.name
 
   # lambda configs
-  uniq_id = each.value.url
+  uniq_id = "jira_integration"
   type    = "jira"
   timeout = 10
   environment_variables = {
