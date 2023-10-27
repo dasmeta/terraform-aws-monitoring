@@ -84,3 +84,34 @@ module "notify_teams" {
     module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
   ]
 }
+
+module "notify_jira" {
+  source = "./modules/lambda-subscription"
+
+  for_each = { for jira in var.jira_config : jira.url => jira }
+
+  # sns/subscription configs
+  sns_topic_name          = module.topic.name
+  fallback_sns_topic_name = module.fallback-topic.name
+
+  # lambda configs
+  uniq_id = "jira_integration"
+  type    = "jira"
+  timeout = 10
+  environment_variables = {
+    JIRA_URL      = each.value.url
+    JIRA_KEY      = each.value.key
+    JIRA_PASSWORD = each.value.user_api_token
+    JIRA_USERNAME = each.value.user_username
+    REGION        = data.aws_region.current.name
+  }
+
+  recreate_missing_package  = var.recreate_missing_package
+  log_group_retention_days  = var.log_group_retention_days
+  dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
+  attach_dead_letter_policy = var.enable_dead_letter_queue
+
+  depends_on = [
+    module.topic # TODO: seems there is no need on this dependency, but without this it fails on getting topic by name in underlying subscription module, please check and get right solution of this
+  ]
+}

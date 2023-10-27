@@ -30,6 +30,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 |------|--------|---------|
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
 | <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.1.1 |
+| <a name="module_notify_jira"></a> [notify\_jira](#module\_notify\_jira) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
@@ -52,6 +53,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="input_fallback_email_addresses"></a> [fallback\_email\_addresses](#input\_fallback\_email\_addresses) | List of fallback email addresses to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_fallback_phone_numbers"></a> [fallback\_phone\_numbers](#input\_fallback\_phone\_numbers) | List of international formatted phone number to send notification when lambda failed | `list(string)` | `[]` | no |
 | <a name="input_fallback_web_endpoints"></a> [fallback\_web\_endpoints](#input\_fallback\_web\_endpoints) | List of web webhooks endpoints (like opsgenie) to send notification when lambda failed | `list(string)` | `[]` | no |
+| <a name="input_jira_config"></a> [jira\_config](#input\_jira\_config) | Lambda create Jira ticket for every alarm | <pre>list(object({<br>    url            = string,<br>    key            = string,<br>    user_username  = string,<br>    user_api_token = string<br>  }))</pre> | `[]` | no |
 | <a name="input_lambda_failed_alert"></a> [lambda\_failed\_alert](#input\_lambda\_failed\_alert) | Alert for lambda failed | `any` | <pre>{<br>  "equation": "gte",<br>  "period": 60,<br>  "statistic": "sum",<br>  "threshold": 1<br>}</pre> | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
 | <a name="input_log_level"></a> [log\_level](#input\_log\_level) | log level for python code | `string` | `"INFO"` | no |
