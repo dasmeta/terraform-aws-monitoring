@@ -20,12 +20,12 @@ module "this" {
     pass   = "test-servicenow-pass"
   }]
 
-  jira_config = {
+  jira_config = [{
     url            = "url"
     key            = "key"
     user_username  = "devops"
     user_api_token = "devops_user_api_token"
-  }
+  }]
 
   fallback_email_addresses = ["test@dasmeta.com"]
   fallback_phone_numbers   = ["+000000000"]
