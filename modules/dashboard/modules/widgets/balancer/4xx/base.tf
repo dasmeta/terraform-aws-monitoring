@@ -19,6 +19,6 @@ module "base" {
   metrics = [
     # { MetricName = "RequestCount" },
     { MetricName = "HTTPCode_Target_4XX_Count", "color" = "#ff7f0e" },
-    { MetricName = "HTTPCode_ELB_4XX_Count", "color" = "#ffbb78" }
+    # { MetricName = "HTTPCode_ELB_4XX_Count", "color" = "#ffbb78" }
   ]
 }
