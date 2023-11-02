@@ -1,14 +1,17 @@
 module "base" {
-  source = "../../base"
+  source = "../base"
 
   coordinates = var.coordinates
 
-  name = "Log Based / ${var.metric}"
+  name = var.title
 
-  defaults = {}
+  period = var.period
 
-  metrics = [
-    { "ContainerInsights" : "pod_cpu_utilization", },
-    { "ContainerInsights" : "pod_cpu_reserved_capacity", "Style" : { "color" : "#d62728" } }
-  ]
+  defaults = {
+    MetricNamespace   = "LogBasedMetrics${var.account_id == null ? "" : "/${var.account_id}"}"
+    accountId         = var.account_id
+    anomaly_detection = var.anomaly_detection
+  }
+
+  metrics = var.metrics
 }

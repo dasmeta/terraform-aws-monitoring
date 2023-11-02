@@ -29,6 +29,6 @@ variable "period" {
 
 variable "anomaly_detection" {
   type        = bool
-  default     = true
+  default     = false
   description = "Allow to enable anomaly detection on widget metrics"
 }

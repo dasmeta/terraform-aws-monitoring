@@ -1,7 +1,3 @@
-data "aws_caller_identity" "project" {
-  provider = aws
-}
-
 module "base" {
   source = "../../base"
 

@@ -1,4 +1,4 @@
-# dashboard-rds
+# dashboard-full
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
@@ -18,7 +18,7 @@
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_dashboard_rds"></a> [dashboard\_rds](#module\_dashboard\_rds) | ../../ | n/a |
+| <a name="module_basic-dashboard-with-text"></a> [basic-dashboard-with-text](#module\_basic-dashboard-with-text) | ../../ | n/a |
 
 ## Resources
 

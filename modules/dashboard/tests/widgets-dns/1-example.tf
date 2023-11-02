@@ -1,5 +1,5 @@
 locals {
-  zone_name = "example.com"
+  zone_name = "examlpe.me"
 }
 
 module "dashboard-with-dns-metrics" {

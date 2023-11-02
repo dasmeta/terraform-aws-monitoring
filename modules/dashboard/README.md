@@ -101,6 +101,7 @@
 | <a name="module_widget_custom"></a> [widget\_custom](#module\_widget\_custom) | ./modules/widgets/custom | n/a |
 | <a name="module_widget_dns_queries_chart"></a> [widget\_dns\_queries\_chart](#module\_widget\_dns\_queries\_chart) | ./modules/widgets/dns/queries-chart | n/a |
 | <a name="module_widget_dns_queries_gauge"></a> [widget\_dns\_queries\_gauge](#module\_widget\_dns\_queries\_gauge) | ./modules/widgets/dns/queries-gauge | n/a |
+| <a name="module_widget_log_based"></a> [widget\_log\_based](#module\_widget\_log\_based) | ./modules/widgets/log-based | n/a |
 | <a name="module_widget_logs_insight_logs"></a> [widget\_logs\_insight\_logs](#module\_widget\_logs\_insight\_logs) | ./modules/widgets/logs-insight/logs | n/a |
 | <a name="module_widget_logs_insight_metric"></a> [widget\_logs\_insight\_metric](#module\_widget\_logs\_insight\_metric) | ./modules/widgets/logs-insight/metric | n/a |
 | <a name="module_widget_rds_cpu"></a> [widget\_rds\_cpu](#module\_widget\_rds\_cpu) | ./modules/widgets/rds/cpu | n/a |

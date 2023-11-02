@@ -44,7 +44,7 @@ locals {
       namespace         = "default"
       width             = 6
       height            = 6
-      anomaly_detection = true
+      anomaly_detection = false
       expressions       = []
       yAxis             = { left = { min = 0 } }
     },
@@ -198,7 +198,7 @@ locals {
     module.text_title_with_link[*].data,
 
     # log based metrics
-    # module.widget_log_based[*].data,
+    module.widget_log_based[*].data,
 
     # custom metrics
     module.widget_custom[*].data,
