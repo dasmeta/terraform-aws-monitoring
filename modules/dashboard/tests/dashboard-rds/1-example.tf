@@ -9,7 +9,7 @@ module "dashboard_rds" {
   name = "dashboard-with-rds-metrics-test"
   rows = [
     [
-      { type : "text/title", text : "RDS (prod)" }
+      { type : "text/title", text : "RDS (prod))" }
     ],
     [
       { type : "rds/cpu", rds_name : local.rds, anomaly_detection : true },

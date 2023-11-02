@@ -60,7 +60,6 @@ No requirements.
 
 | Name | Type |
 |------|------|
-| [aws_caller_identity.project](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_db_instance.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/db_instance) | data source |
 
 ## Inputs

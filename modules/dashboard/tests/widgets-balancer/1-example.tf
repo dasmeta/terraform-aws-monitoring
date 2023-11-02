@@ -12,7 +12,7 @@
 
 locals {
   balancer_name = "prod"
-  account_id    = "123454555569"
+  account_id    = "123456789"
 }
 
 module "dashboard-with-balancer-metrics" {

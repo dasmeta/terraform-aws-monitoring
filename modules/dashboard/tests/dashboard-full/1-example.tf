@@ -79,10 +79,7 @@ module "basic-dashboard-with-text" {
       # { type : "container/network", container : local.container_1 },
     ],
     [
-      { type : "block/rds", name : "query-me-prod" }
-    ],
-    [
-      { type : "text/title-with-link", text : "RDS (query-me-prod)", link_to_jump = "https://eu-central-1.console.aws.amazon.com/rds/home?region=eu-central-1#database:id=query-me-prod;is-cluster=false;tab=connectivity" }
+      { type : "text/title-with-link", text : "RDS", link_to_jump = "https://eu-central-1.console.aws.amazon.com/rds/home?region=eu-central-1#database:id;is-cluster=false;tab=connectivity" }
     ],
     [
       { type : "rds/free-storage", rds_name : local.rds },
