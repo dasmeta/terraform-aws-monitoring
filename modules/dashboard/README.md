@@ -66,6 +66,8 @@
 
 | Name | Source | Version |
 |------|--------|---------|
+| <a name="module_block_rds"></a> [block\_rds](#module\_block\_rds) | ./modules/blocks/rds | n/a |
+| <a name="module_block_sqs"></a> [block\_sqs](#module\_block\_sqs) | ./modules/blocks/sqs | n/a |
 | <a name="module_container_all_requests"></a> [container\_all\_requests](#module\_container\_all\_requests) | ./modules/widgets/container/all-requests | n/a |
 | <a name="module_container_balancer_2xx_widget"></a> [container\_balancer\_2xx\_widget](#module\_container\_balancer\_2xx\_widget) | ./modules/widgets/balancer/2xx | n/a |
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
@@ -137,5 +139,6 @@
 
 | Name | Description |
 |------|-------------|
+| <a name="output_debug"></a> [debug](#output\_debug) | description |
 | <a name="output_dump"></a> [dump](#output\_dump) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
