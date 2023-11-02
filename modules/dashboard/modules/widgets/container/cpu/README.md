@@ -73,7 +73,7 @@ No requirements.
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_data_source_uid"></a> [data\_source\_uid](#input\_data\_source\_uid) | The grafana dashboard widget item data source id | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | n/a | `string` | `"default"` | no |
-| <a name="input_period"></a> [period](#input\_period) | stats | `number` | `300` | no |
+| <a name="input_period"></a> [period](#input\_period) | stats | `number` | `60` | no |
 | <a name="input_platform"></a> [platform](#input\_platform) | The platform/service/adapter to create dashboard on. for now only cloudwatch and grafana supported | `string` | `"cloudwatch"` | no |
 
 ## Outputs

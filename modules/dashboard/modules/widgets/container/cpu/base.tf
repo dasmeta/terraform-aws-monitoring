@@ -14,22 +14,20 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "Container CPU / ${var.container}"
+  name = "CPU"
 
   defaults = {
-    MetricNamespace   = "ContainerInsights"
-    ClusterName       = var.cluster
-    Namespace         = var.namespace
-    PodName           = var.container
-    accountId         = var.account_id
-    anomaly_detection = var.anomaly_detection
+    MetricNamespace = "ContainerInsights"
+    ClusterName     = var.cluster
+    Namespace       = var.namespace
+    PodName         = var.container
+    accountId       = var.account_id
   }
 
   period = var.period
 
   metrics = [
-    { MetricName = "pod_cpu_limit" },
-    { MetricName = "pod_cpu_utilization" },
-    { MetricName = "pod_cpu_reserved_capacity", color = "#d62728" }
+    { MetricName = "pod_cpu_limit", color = "#FF0F3C", label = "Limit" },
+    { MetricName = "pod_cpu_usage_total", color = "#007CEF", label = "Current", anomaly_detection = var.anomaly_detection }
   ]
 }

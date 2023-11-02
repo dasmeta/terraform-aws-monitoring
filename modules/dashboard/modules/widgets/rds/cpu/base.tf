@@ -1,7 +1,3 @@
-data "aws_caller_identity" "project" {
-  provider = aws
-}
-
 module "base" {
   source = "../../base"
 
@@ -10,7 +6,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "CPUUtilization / ${var.rds_name}"
+  name = "CPU"
 
   defaults = {
     MetricNamespace      = "AWS/RDS"
@@ -20,6 +16,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "CPUUtilization" },
+    { MetricName = "CPUUtilization", anomaly_detection = var.anomaly_detection },
   ]
 }

@@ -45,7 +45,9 @@ No modules.
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
-No requirements.
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
 
 ## Providers
 
@@ -69,7 +71,7 @@ No resources.
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | n/a | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_defaults"></a> [defaults](#input\_defaults) | Default values that will be passed to all metrics. | `any` | `{}` | no |
 | <a name="input_end"></a> [end](#input\_end) | end of widget | `string` | `null` | no |
-| <a name="input_expressions"></a> [expressions](#input\_expressions) | Custom metric expressions over metrics, note that metrics have auto generated m1,m2,..., m{n} ids | <pre>list(object({<br>    expression = string<br>    label      = optional(string, null)<br>    accountId  = optional(string, null)<br>    visible    = optional(bool, null)<br>    color      = optional(string, null)<br>    yAxis      = optional(string, null)<br>    region     = optional(string, null)<br>  }))</pre> | `[]` | no |
+| <a name="input_expressions"></a> [expressions](#input\_expressions) | Custom metric expressions over metrics, note that metrics have auto generated m1,m2,..., m{n} ids | <pre>list(object({<br>    expression = string<br>    label      = optional(string, null)<br>    accountId  = optional(string, null)<br>    visible    = optional(bool, null)<br>    color      = optional(string, null)<br>    yAxis      = optional(string, null)<br>    region     = optional(string, null)<br>    id         = optional(string, null)<br>  }))</pre> | `[]` | no |
 | <a name="input_metrics"></a> [metrics](#input\_metrics) | Metrics to be displayed on the widget. | `any` | `[]` | no |
 | <a name="input_name"></a> [name](#input\_name) | n/a | `string` | n/a | yes |
 | <a name="input_period"></a> [period](#input\_period) | n/a | `number` | `300` | no |
