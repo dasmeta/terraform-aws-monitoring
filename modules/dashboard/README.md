@@ -1,3 +1,28 @@
+# Module to create CloudWatch dashboard from json/hcl
+## Yaml example
+```
+source: dasmeta/aws/monitoring//modules/dashboard
+version: x.y.z
+variables:
+  name: test-dashboard
+  rows:
+    - ....
+```
+
+## HCL example
+
+## How add new block
+1. create module in modules/blocks (copy from one)
+2. implement data loading as required
+3. add new block in blocks.tf
+   1. in blocks_results local
+   2. in blocks_by_type local
+4. add module call in blocks.tf
+
+## To Improve
+1. reduce number of actions needed to add new widgets
+2. reduce number of actions needed to add new block
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 

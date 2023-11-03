@@ -8,14 +8,30 @@ locals {
     } if strcontains(block[0].type, "block/")
   ]
 
+  blocks_by_type_results = concat([
+    for type_blocks in local.blocks_by_type : [
+      for index3, block in type_blocks : merge(block, { results : local.blocks_results[block.type][index3] })
+    ]
+  ]...)
+
+  rows = concat([
+    for index1, row in var.rows : strcontains(row[0].type, "block/") ?
+    concat([
+      for item in local.blocks_by_type_results : item.results if item.index1 == index1
+    ]...)
+    : [row]
+  ]...)
+
+  # bring all module results together
+  blocks_results = {
+    rds = module.block_rds.*.result
+    sqs = module.block_sqs.*.result
+  }
+
   # annotate each block type with subIndex
   blocks_by_type = {
-    rds = [
-      for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "rds")
-    ],
-    sqs = [
-      for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "sqs")
-    ]
+    rds = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "rds")],
+    sqs = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "sqs")]
   }
 }
 
@@ -56,26 +72,4 @@ module "block_sqs" {
 
   # account_id        = try(local.alarm_status[count.index].accountId, null)
   # anomaly_detection = try(local.alarm_status[count.index].anomaly_detection, false)
-}
-
-locals {
-  # bring all module results together
-  blocks_results = {
-    rds = module.block_rds.*.result
-    sqs = module.block_sqs.*.result
-  }
-
-  blocks_by_type_results = concat([
-    for type_blocks in local.blocks_by_type : [
-      for index3, block in type_blocks : merge(block, { results : local.blocks_results[block.type][index3] })
-    ]
-  ]...)
-
-  rows = concat([
-    for index1, row in var.rows : strcontains(row[0].type, "block/") ?
-    concat([
-      for item in local.blocks_by_type_results : item.results if item.index1 == index1
-    ]...)
-    : [row]
-  ]...)
 }

@@ -1,8 +1,3 @@
-variable "name" {
-  type        = string
-  description = "description"
-}
-
 output "result" {
   description = "description"
   value = [
