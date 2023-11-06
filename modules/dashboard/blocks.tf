@@ -24,14 +24,22 @@ locals {
 
   # bring all module results together
   blocks_results = {
-    rds = module.block_rds.*.result
-    sqs = module.block_sqs.*.result
+    rds     = module.block_rds.*.result
+    dns     = module.block_dns.*.result
+    cdn     = module.block_cdn.*.result
+    alb     = module.block_alb.*.result
+    service = module.block_service.*.result
+    sla     = module.block_sla.*.result
   }
 
   # annotate each block type with subIndex
   blocks_by_type = {
-    rds = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "rds")],
-    sqs = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "sqs")]
+    rds     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "rds")],
+    dns     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "dns")],
+    cdn     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "cdn")],
+    alb     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "alb")]
+    service = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "service")]
+    sla     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "sla")]
   }
 }
 
@@ -41,35 +49,55 @@ module "block_rds" {
 
   count = length(local.blocks_by_type.rds)
 
-  # coordinates
-  name = local.blocks_by_type.rds[count.index].block.name
-  # coordinates = local.alarm_status[count.index].coordinates
-
-  # # metric
-  # title = local.alarm_status[count.index].title
-
-  # alarm_arns = local.alarm_status[count.index].alarm_arns
-  # stacked    = try(local.alarm_status[count.index].stacked, false)
-
-  # account_id        = try(local.alarm_status[count.index].accountId, null)
-  # anomaly_detection = try(local.alarm_status[count.index].anomaly_detection, false)
+  name                     = local.blocks_by_type.rds[count.index].block.name
+  db_max_connections_count = local.blocks_by_type.rds[count.index].block.db_max_connections_count
+  region                   = var.region != "" ? var.region : data.aws_region.current.name
 }
 
-module "block_sqs" {
-  source = "./modules/blocks/sqs"
+module "block_dns" {
+  source = "./modules/blocks/dns"
 
-  count = length(local.blocks_by_type.sqs)
+  count = length(local.blocks_by_type.dns)
 
-  # coordinates
-  name = local.blocks_by_type.sqs[count.index].block.name
-  # coordinates = local.alarm_status[count.index].coordinates
+  zone_name = local.blocks_by_type.dns[count.index].block.zone_name
+}
 
-  # # metric
-  # title = local.alarm_status[count.index].title
+module "block_cdn" {
+  source = "./modules/blocks/cdn"
 
-  # alarm_arns = local.alarm_status[count.index].alarm_arns
-  # stacked    = try(local.alarm_status[count.index].stacked, false)
+  count = length(local.blocks_by_type.cdn)
 
-  # account_id        = try(local.alarm_status[count.index].accountId, null)
-  # anomaly_detection = try(local.alarm_status[count.index].anomaly_detection, false)
+  cdn_id = local.blocks_by_type.cdn[count.index].block.cdn_id
+}
+
+module "block_alb" {
+  source = "./modules/blocks/alb"
+
+  count = length(local.blocks_by_type.alb)
+
+  balancer_name = local.blocks_by_type.alb[count.index].block.balancer_name
+  account_id    = local.blocks_by_type.alb[count.index].block.account_id
+  region        = var.region != "" ? var.region : data.aws_region.current.name
+}
+
+module "block_service" {
+  source = "./modules/blocks/service"
+
+  count = length(local.blocks_by_type.service)
+
+  service_name     = local.blocks_by_type.service[count.index].block.service_name
+  balancer_name    = local.blocks_by_type.service[count.index].block.balancer_name
+  target_group_arn = local.blocks_by_type.service[count.index].block.target_group_arn
+  healthcheck_id   = local.blocks_by_type.service[count.index].block.healthcheck_id
+  cluster          = local.blocks_by_type.service[count.index].block.cluster
+  region           = var.region != "" ? var.region : data.aws_region.current.name
+}
+
+module "block_sla" {
+  source = "./modules/blocks/sla"
+
+  count = length(local.blocks_by_type.sla)
+
+  balancer_name = local.blocks_by_type.service[count.index].block.balancer_name
+  region        = var.region != "" ? var.region : data.aws_region.current.name
 }

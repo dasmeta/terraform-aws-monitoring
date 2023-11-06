@@ -1,13 +1,13 @@
 locals {
-  account_id         = "133737826969"
-  zone_name          = "query.me"
-  balancer_name      = "query-me-prod"
-  cdn_id             = "E1KW6B6H80852Y"
-  container_1        = "query-me-app-superset-helm"
-  target_group_arn_1 = "arn:aws:elasticloadbalancing:eu-central-1:133737826969:targetgroup/k8s-default-querymea-04013fb00d/334f3b8b6d24c764"
-  healthcheck_id_1   = "9d51e128-be63-4a0d-a782-8784d572893a"
-  rds                = "query-me-prod"
-  cluster            = "prod-6"
+  account_id         = ""
+  zone_name          = ""
+  balancer_name      = ""
+  cdn_id             = ""
+  container_1        = ""
+  target_group_arn_1 = ""
+  healthcheck_id_1   = ""
+  rds                = ""
+  cluster            = ""
 }
 
 module "basic-dashboard-with-text" {
@@ -18,18 +18,21 @@ module "basic-dashboard-with-text" {
     cluster : local.cluster
   }
   rows = [
+    // sla block
     [
       { type = "sla-slo-sli", width : 8, balancer_name = local.balancer_name }
     ],
+    // dns block
     [
-      { type : "text/title-with-link", text : "DNS Zone", link_to_jump = "https://us-east-1.console.aws.amazon.com/route53/v2/hostedzones?region=eu-central-1#ListRecordSets/Z08123863M3ECTRR0CNC5" }
+      { type : "text/title-with-link", text : "DNS Zone", link_to_jump = "https://us-east-1.console.aws.amazon.com/route53/v2/hostedzones?region=eu-central-1#ListRecordSets/xxxxxx" }
     ],
     [
       { type : "dns/queries-gauge", zone_name : local.zone_name },
       { type : "dns/queries-chart", width : 18, zone_name : local.zone_name },
     ],
+    // cdn block
     [
-      { type : "text/title-with-link", text : "CDN (CloudFront)", link_to_jump = "https://us-east-1.console.aws.amazon.com/cloudfront/v3/home?region=us-east-1#/distributions/E30ILTOR2J789A" }
+      { type : "text/title-with-link", text : "CDN (CloudFront)", link_to_jump = "https://us-east-1.console.aws.amazon.com/cloudfront/v3/home?region=us-east-1#/distributions/xxxxxx" }
     ],
     [
       { type : "cloudfront/requests", distribution : local.cdn_id },
@@ -37,8 +40,9 @@ module "basic-dashboard-with-text" {
       { type : "cloudfront/error-rate", distribution : local.cdn_id },
       { type : "cloudfront/traffic-bytes", distribution : local.cdn_id },
     ],
+    // alb block
     [
-      { type : "text/title-with-link", text : "Load Balancer (ALB)", link_to_jump = "https://eu-central-1.console.aws.amazon.com/ec2/home?region=eu-central-1#LoadBalancer:loadBalancerArn=arn:aws:elasticloadbalancing:eu-central-1:133737826969:loadbalancer/app/query-me-prod/a64fd40a8da2216e;tab=listeners" }
+      { type : "text/title-with-link", text : "Load Balancer (ALB)", link_to_jump = "https://eu-central-1.console.aws.amazon.com/ec2/home?region=eu-central-1#LoadBalancer:loadBalancerArn=arn:aws:elasticloadbalancing:eu-central-1:xxxxxxxx:loadbalancer/app/xxxxx/xxxxxx;tab=listeners" }
     ],
     [
       { type : "balancer/request-count", accountId : local.account_id, balancer_name : local.balancer_name, anomaly_detection : false },
@@ -56,6 +60,7 @@ module "basic-dashboard-with-text" {
       { type : "balancer/response-time", accountId : local.account_id, balancer_name : local.balancer_name },
       { type : "balancer/traffic", accountId : local.account_id, balancer_name : local.balancer_name },
     ],
+    // service block
     [
       { type : "text/title", text : "Superset" }
     ],
@@ -78,6 +83,7 @@ module "basic-dashboard-with-text" {
       { type : "container/response-time", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name },
       # { type : "container/network", container : local.container_1 },
     ],
+    // rds block
     [
       { type : "text/title-with-link", text : "RDS", link_to_jump = "https://eu-central-1.console.aws.amazon.com/rds/home?region=eu-central-1#database:id;is-cluster=false;tab=connectivity" }
     ],

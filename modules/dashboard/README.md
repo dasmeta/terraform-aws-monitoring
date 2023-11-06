@@ -6,10 +6,43 @@ version: x.y.z
 variables:
   name: test-dashboard
   rows:
-    - ....
+    - type: block/sla
+      balancer_name: ""
+    - type: block/dns
+      zone_name: ""
+    - type: block/cdn
+      cdn_id: ""
+    - type: block/alb
+      balancer_name: ""
+      account_id: ""
+    - type: block/service
+      service_name: ""
+      cluster: ""
+      balancer_name: ""
+      target_group_arn: ""
+      healthcheck_id: ""
+    - type: block/rds
+      name: ""
+      db_max_connections_count: 100
 ```
 
 ## HCL example
+```
+module "this" {
+  source = "../.."
+
+  name = "test-dashboard-with-blocks"
+
+  rows = [
+    [{ "type" : "block/sla", "balancer_name" : "" }],
+    [{ "type" : "block/dns", "zone_name" : "" }],
+    [{ "type" : "block/cdn", "cdn_id" : "xxxxxxxxx" }],
+    [{ "type" : "block/alb", "balancer_name" : "", account_id : "xxxxxxxxx" }],
+    [{ "type" : "block/service", service_name : "", cluster : "prod", "balancer_name" : "", target_group_arn : "xxxxxxxxx", healthcheck_id : "xxxxxxxxx" }],
+    [{ "type" : "block/rds", "name" : "", db_max_connections_count : 100 }],
+  ]
+}
+```
 
 ## How add new block
 1. create module in modules/blocks (copy from one)
@@ -91,8 +124,12 @@ variables:
 
 | Name | Source | Version |
 |------|--------|---------|
+| <a name="module_block_alb"></a> [block\_alb](#module\_block\_alb) | ./modules/blocks/alb | n/a |
+| <a name="module_block_cdn"></a> [block\_cdn](#module\_block\_cdn) | ./modules/blocks/cdn | n/a |
+| <a name="module_block_dns"></a> [block\_dns](#module\_block\_dns) | ./modules/blocks/dns | n/a |
 | <a name="module_block_rds"></a> [block\_rds](#module\_block\_rds) | ./modules/blocks/rds | n/a |
-| <a name="module_block_sqs"></a> [block\_sqs](#module\_block\_sqs) | ./modules/blocks/sqs | n/a |
+| <a name="module_block_service"></a> [block\_service](#module\_block\_service) | ./modules/blocks/service | n/a |
+| <a name="module_block_sla"></a> [block\_sla](#module\_block\_sla) | ./modules/blocks/sla | n/a |
 | <a name="module_container_all_requests"></a> [container\_all\_requests](#module\_container\_all\_requests) | ./modules/widgets/container/all-requests | n/a |
 | <a name="module_container_balancer_2xx_widget"></a> [container\_balancer\_2xx\_widget](#module\_container\_balancer\_2xx\_widget) | ./modules/widgets/balancer/2xx | n/a |
 | <a name="module_container_balancer_4xx_widget"></a> [container\_balancer\_4xx\_widget](#module\_container\_balancer\_4xx\_widget) | ./modules/widgets/balancer/4xx | n/a |
@@ -149,6 +186,7 @@ variables:
 |------|------|
 | [aws_cloudwatch_dashboard.dashboards](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_dashboard) | resource |
 | [aws_caller_identity.project](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
@@ -159,6 +197,7 @@ variables:
 | <a name="input_defaults"></a> [defaults](#input\_defaults) | Default values to be supplied to all modules. | `any` | `{}` | no |
 | <a name="input_name"></a> [name](#input\_name) | Dashboard name. Should not contain spaces and special chars. | `string` | n/a | yes |
 | <a name="input_platform"></a> [platform](#input\_platform) | The platform/service/adapter to create dashboard on. for now only cloudwatch and grafana supported | `string` | `"cloudwatch"` | no |
+| <a name="input_region"></a> [region](#input\_region) | AWS region name where the dashboard will be created | `string` | `""` | no |
 | <a name="input_rows"></a> [rows](#input\_rows) | List of widgets to be inserted into the dashboard. See ./modules/widgets folder to see list of available widgets. | `any` | n/a | yes |
 
 ## Outputs
