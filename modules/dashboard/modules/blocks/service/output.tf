@@ -2,7 +2,7 @@ output "result" {
   description = "description"
   value = [
     [
-      { type : "text/title", text : "Superset" }
+      { type : "text/title", text : var.service_name }
     ],
     [
       { type : "container/request-count", container : var.service_name, target_group_arn : var.target_group_arn, cluster : var.cluster },
