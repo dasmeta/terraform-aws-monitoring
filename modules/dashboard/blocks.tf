@@ -98,6 +98,6 @@ module "block_sla" {
 
   count = length(local.blocks_by_type.sla)
 
-  balancer_name = local.blocks_by_type.service[count.index].block.balancer_name
+  balancer_name = local.blocks_by_type.sla[count.index].block.balancer_name
   region        = var.region != "" ? var.region : data.aws_region.current.name
 }
