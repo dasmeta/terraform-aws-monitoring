@@ -7,7 +7,8 @@ locals {
     "height" : 1,
 
     "properties" : {
-      "markdown" : "# ${var.text}"
+      "markdown" : "## ${var.text}"
+      "background" : "transparent"
     }
   }
 }

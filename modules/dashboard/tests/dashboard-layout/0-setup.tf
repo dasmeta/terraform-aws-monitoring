@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.3"
 
   required_providers {
     test = {
@@ -11,8 +11,4 @@ terraform {
       version = "~> 4.33"
     }
   }
-}
-
-provider "aws" {
-  # Configuration options
 }

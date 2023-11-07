@@ -38,6 +38,7 @@ variable "expressions" {
     color      = optional(string, null)
     yAxis      = optional(string, null)
     region     = optional(string, null)
+    id         = optional(string, null)
   }))
   default     = []
   description = "Custom metric expressions over metrics, note that metrics have auto generated m1,m2,..., m{n} ids"

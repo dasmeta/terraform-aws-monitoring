@@ -64,7 +64,7 @@
 
 | Name | Type |
 |------|------|
-| [aws_alb.balancer](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/alb) | data source |
+| [aws_lb.balancer](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/lb) | data source |
 
 ## Inputs
 
@@ -73,6 +73,7 @@
 | <a name="input_account_id"></a> [account\_id](#input\_account\_id) | n/a | `string` | `null` | no |
 | <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Allow to enable anomaly detection on widget metrics | `bool` | `false` | no |
 | <a name="input_balancer_arn"></a> [balancer\_arn](#input\_balancer\_arn) | n/a | `string` | `null` | no |
+| <a name="input_balancer_name"></a> [balancer\_name](#input\_balancer\_name) | n/a | `string` | `null` | no |
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_period"></a> [period](#input\_period) | stats | `number` | `300` | no |
 

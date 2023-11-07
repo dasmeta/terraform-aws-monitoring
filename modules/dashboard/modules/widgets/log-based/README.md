@@ -62,6 +62,8 @@ No resources.
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_metrics"></a> [metrics](#input\_metrics) | n/a | `list(any)` | n/a | yes |
 | <a name="input_period"></a> [period](#input\_period) | n/a | `number` | `300` | no |
+| <a name="input_region"></a> [region](#input\_region) | region | `string` | `""` | no |
+| <a name="input_stat"></a> [stat](#input\_stat) | stats | `string` | `null` | no |
 | <a name="input_title"></a> [title](#input\_title) | n/a | `string` | n/a | yes |
 
 ## Outputs

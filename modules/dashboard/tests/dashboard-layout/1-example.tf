@@ -7,41 +7,41 @@ module "dashboard-to-test-layout" {
     [
       {
         type : "text/title"
-        text : "App 1 (block 1)"
+        text : "smm (block 1)"
       }
     ],
     [
       {
         type : "container/cpu",
         period : 300,
-        container : "App 1",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       },
       {
         type : "container/memory",
         period : 300,
-        container : "App 1",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       },
     ],
     [
       {
         type : "text/title"
-        text : "App 2 (block 2)"
+        text : "smm 2 (block 2)"
       }
     ],
     [
       {
         type : "container/cpu",
         period : 300,
-        container : "App 2",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       },
       {
         type : "container/memory",
         period : 300,
-        container : "App 2",
-        cluster : "test-cluster"
+        container : "smm",
+        cluster : "dev"
       }
     ]
   ]

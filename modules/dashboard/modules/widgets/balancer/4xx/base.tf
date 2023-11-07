@@ -3,7 +3,7 @@ module "base" {
 
   coordinates = var.coordinates
 
-  name = "4XX (${local.balancer_name})"
+  name = "4XX"
 
   # stats
   stat   = "Sum"
@@ -17,8 +17,6 @@ module "base" {
   }
 
   metrics = [
-    # { MetricName = "RequestCount" },
     { MetricName = "HTTPCode_Target_4XX_Count", "color" = "#ff7f0e" },
-    { MetricName = "HTTPCode_ELB_4XX_Count", "color" = "#ffbb78" }
   ]
 }

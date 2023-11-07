@@ -24,7 +24,7 @@ locals {
   anomaly_detection_metrics = [for index, row in local.metrics_with_defaults : try(row.anomaly_detection, false) ? [{
     expression = "ANOMALY_DETECTION_BAND(m${index + 1}, 2)"
     id         = "ad${index + 1}"
-    label      = "anomaly_detection (${row.MetricName})"
+    label      = "Anomaly Band"
   }] : [] if try(row.anomaly_detection, false)]
 
 
@@ -33,7 +33,7 @@ locals {
   expression_metrics = [for index, row in var.expressions : [merge(
     { for key, value in row : key => value if value != null },
     {
-      id    = "e${index + 1}",
+      id    = row.id != null ? row.id : "e${index + 1}",
       label = coalesce(row.label, row.expression)
     }
   )]]

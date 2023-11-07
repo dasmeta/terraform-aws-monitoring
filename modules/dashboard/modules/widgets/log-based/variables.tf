@@ -12,6 +12,17 @@ variable "metrics" {
   # ]
 }
 
+# region
+variable "region" {
+  type    = string
+  default = ""
+}
+
+variable "account_id" {
+  type    = string
+  default = null
+}
+
 # position
 variable "coordinates" {
   type = object({
@@ -22,7 +33,8 @@ variable "coordinates" {
   })
 }
 
-variable "account_id" {
+# stats
+variable "stat" {
   type    = string
   default = null
 }
