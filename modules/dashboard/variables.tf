@@ -44,3 +44,9 @@ variable "account_id_as_name_prefix" {
   default     = false
   description = "Whether to use aws account id as dashboard name prefix"
 }
+
+variable "region" {
+  type        = string
+  description = "AWS region name where the dashboard will be created"
+  default     = ""
+}
