@@ -6,7 +6,7 @@ output "result" {
   description = "description"
   value = [
     [
-      { type : "text/title-with-link", text : "Load Balancer (ALB)", link_to_jump = "https://${var.region}.console.aws.amazon.com/ec2/home?region=${var.region}#LoadBalancer:loadBalancerArn=${data.aws_lb.balancer.arn};tab=listeners" }
+      { type : "text/title-with-link", text : "Load Balancer (${var.balancer_name})", link_to_jump = "https://${var.region}.console.aws.amazon.com/ec2/home?region=${var.region}#LoadBalancer:loadBalancerArn=${data.aws_lb.balancer.arn};tab=listeners" }
     ],
     [
       { type : "balancer/request-count", accountId : var.account_id, balancer_name : var.balancer_name, anomaly_detection : false },
@@ -21,8 +21,8 @@ output "result" {
       { type : "balancer/connection-issues", accountId : var.account_id, balancer_name : var.balancer_name, anomaly_detection = false },
     ],
     [
-      { type : "balancer/response-time", accountId : var.account_id, balancer_name : var.balancer_name },
-      { type : "balancer/traffic", accountId : var.account_id, balancer_name : var.balancer_name },
+      { type : "balancer/response-time", accountId : var.account_id, balancer_name : var.balancer_name, width : 12 },
+      { type : "balancer/traffic", accountId : var.account_id, balancer_name : var.balancer_name, width : 12 },
     ],
   ]
 }
