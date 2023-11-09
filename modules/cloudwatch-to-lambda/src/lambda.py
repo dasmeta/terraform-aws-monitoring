@@ -55,6 +55,6 @@ def handler(event, context):
         result = json.loads(uncompressed_data)
         print("Json Loads: ")
         print(result)
-        request_sender(result)
+        request_sender(uncompressed_data)
     except base64.binascii.Error as e:
         print("Error decoding base64 data:", e)

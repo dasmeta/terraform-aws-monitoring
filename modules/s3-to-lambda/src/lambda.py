@@ -18,7 +18,7 @@ logger.info("log level: {}".format(LOGLEVEL))
 
 def handler(event, context):
 
-    url = "https://4eb8-195-250-69-234.ngrok-free.app/aws"
+    url = os.environ['url']
     headers = {'Content-Type': 'application/json'}
     method = 'POST'
 
