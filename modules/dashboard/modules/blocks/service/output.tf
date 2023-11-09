@@ -34,8 +34,8 @@ output "result" {
       { type : "container/network-out", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
     ],
     [
-      { type : "container/replicas", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/restarts", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
+      { type : "container/replicas", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12 },
+      { type : "container/restarts", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12 },
     ]
   ]
 }
