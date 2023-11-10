@@ -1,3 +1,18 @@
+# Why
+Widget to render markdown text.
+
+```
+{
+  text: "Whatever text has to go here",
+  coordinates: {
+    x: 4
+    y: 10
+    width: 4
+    height: 4
+  }
+}
+```
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -49,10 +64,9 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_link_to_jump"></a> [link\_to\_jump](#input\_link\_to\_jump) | The URL to wich the user can be redirected after clicking on the title | `string` | n/a | yes |
+| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | n/a | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_text"></a> [text](#input\_text) | n/a | `string` | n/a | yes |
-| <a name="input_width"></a> [width](#input\_width) | n/a | `number` | `24` | no |
-| <a name="input_y"></a> [y](#input\_y) | n/a | `number` | n/a | yes |
+| <a name="input_transparent-background"></a> [transparent-background](#input\_transparent-background) | n/a | `bool` | `true` | no |
 
 ## Outputs
 

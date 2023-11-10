@@ -33,6 +33,6 @@ variable "zone_name" {
 
 variable "anomaly_detection" {
   type        = bool
-  default     = false
+  default     = true
   description = "Allow to enable anomaly detection on widget metrics"
 }

@@ -23,6 +23,11 @@ variable "cluster" {
   description = "EKS cluster name"
 }
 
+variable "namespace" {
+  type        = string
+  description = "EKS namespace name"
+}
+
 variable "region" {
   type    = string
   default = ""

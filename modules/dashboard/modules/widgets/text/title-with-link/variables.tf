@@ -10,3 +10,8 @@ variable "link_to_jump" {
 variable "y" {
   type = number
 }
+
+variable "width" {
+  type    = number
+  default = 24
+}

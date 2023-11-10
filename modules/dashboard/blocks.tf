@@ -86,10 +86,11 @@ module "block_service" {
   count = length(local.blocks_by_type.service)
 
   service_name     = local.blocks_by_type.service[count.index].block.service_name
-  balancer_name    = local.blocks_by_type.service[count.index].block.balancer_name
-  target_group_arn = local.blocks_by_type.service[count.index].block.target_group_arn
-  healthcheck_id   = local.blocks_by_type.service[count.index].block.healthcheck_id
+  balancer_name    = try(local.blocks_by_type.service[count.index].block.balancer_name, null)
+  target_group_arn = try(local.blocks_by_type.service[count.index].block.target_group_arn, null)
+  healthcheck_id   = try(local.blocks_by_type.service[count.index].block.healthcheck_id, null)
   cluster          = local.blocks_by_type.service[count.index].block.cluster
+  namespace        = try(local.blocks_by_type.service[count.index].block.namespace, "default")
   region           = var.region != "" ? var.region : data.aws_region.current.name
 }
 
@@ -98,6 +99,6 @@ module "block_sla" {
 
   count = length(local.blocks_by_type.sla)
 
-  balancer_name = local.blocks_by_type.service[count.index].block.balancer_name
+  balancer_name = local.blocks_by_type.sla[count.index].block.balancer_name
   region        = var.region != "" ? var.region : data.aws_region.current.name
 }

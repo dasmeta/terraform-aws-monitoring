@@ -3,7 +3,7 @@ locals {
     "type" : "text",
     "x" : 0,
     "y" : var.y,
-    "width" : 24,
+    "width" : var.width,
     "height" : 1,
 
     "properties" : {
