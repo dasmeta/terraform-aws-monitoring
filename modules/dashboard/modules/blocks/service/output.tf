@@ -11,10 +11,10 @@ output "result" {
       { type : "container/health-check", container : var.service_name, target_group_arn : var.target_group_arn, balancer_name : var.balancer_name, cluster : var.cluster, namespace : var.namespace },
     ],
     [
-      { type : "container/cpu", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/memory", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/network-in", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/network-out", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
+      { type : "container/cpu", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
+      { type : "container/memory", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
+      { type : "container/network-in", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
+      { type : "container/network-out", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
     ],
     [
       { type : "container/external-health-check", container : var.service_name, healthcheck_id : var.healthcheck_id, cluster : var.cluster, namespace : var.namespace },
@@ -28,14 +28,14 @@ output "result" {
       { type : "text/title", text : var.service_name }
     ],
     [
-      { type : "container/cpu", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/memory", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/network-in", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
-      { type : "container/network-out", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
+      { type : "container/cpu", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
+      { type : "container/memory", container : var.service_name, cluster : var.cluster, namespace : var.namespace, anomaly_detection : true },
+      { type : "container/replicas", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
+      { type : "container/restarts", container : var.service_name, cluster : var.cluster, namespace : var.namespace },
     ],
     [
-      { type : "container/replicas", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12 },
-      { type : "container/restarts", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12 },
+      { type : "container/network-in", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12, anomaly_detection : true },
+      { type : "container/network-out", container : var.service_name, cluster : var.cluster, namespace : var.namespace, width : 12, anomaly_detection : true },
     ]
   ]
 }

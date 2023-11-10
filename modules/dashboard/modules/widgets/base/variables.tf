@@ -121,7 +121,7 @@ variable "properties_type" {
 
 variable "yAxis" {
   type        = any
-  default     = { left = { min = 0 } }
+  default     = { left = {} } //min = 0 } }
   description = "Widget Item common yAxis option (applied only metric type widgets)."
 }
 

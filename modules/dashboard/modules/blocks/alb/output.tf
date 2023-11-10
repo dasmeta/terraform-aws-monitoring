@@ -21,8 +21,8 @@ output "result" {
       { type : "balancer/connection-issues", accountId : var.account_id, balancer_name : var.balancer_name, anomaly_detection = false },
     ],
     [
-      { type : "balancer/response-time", accountId : var.account_id, balancer_name : var.balancer_name, width : 12 },
-      { type : "balancer/traffic", accountId : var.account_id, balancer_name : var.balancer_name, width : 12 },
+      { type : "balancer/response-time", accountId : var.account_id, balancer_name : var.balancer_name, width : 12, anomaly_detection = true },
+      { type : "balancer/traffic", accountId : var.account_id, balancer_name : var.balancer_name, width : 12, anomaly_detection = true },
     ],
   ]
 }
