@@ -14,7 +14,6 @@ resource "aws_cloudwatch_log_subscription_filter" "subscription_filter" {
 resource "aws_lambda_permission" "cloudwatch_permission_to_trigger_lambda" {
   for_each = { for log_name in var.cloudwatch_log_group_names : log_name => log_name }
 
-  statement_id  = "AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
   function_name = module.lambda.lambda_function_arn
   principal     = "logs.${data.aws_region.current.name}.amazonaws.com"
