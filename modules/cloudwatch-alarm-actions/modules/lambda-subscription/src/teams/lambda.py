@@ -121,7 +121,7 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
     return payload
 
 def handler(event, context):
-    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
+    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/main/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
     module = import_from_url(file_url)
     region = os.environ['REGION']
 

@@ -37,7 +37,7 @@ def create_jira_ticket(summary,description):
         print("Response content:", response.content)
 
 def handler(event, context):
-    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/DMVP-2705/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
+    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/main/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
     module = import_from_url(file_url)
     region = os.environ['REGION']
 
