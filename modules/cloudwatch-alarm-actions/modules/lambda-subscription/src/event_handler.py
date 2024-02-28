@@ -65,6 +65,26 @@ def event_handler_for_metrics(metrics_body):
             "period": 300,
             "view": "timeSeries"
         }
+    elif len(metric["Dimensions"]) == 2:
+        MetricWidget = {
+            "width": 600,
+            "height": 395,
+            "metrics": [
+                [
+                    metric["Namespace"],
+                    metric_name,
+                    metric["Dimensions"][0]["name"],
+                    metric["Dimensions"][0]["value"],
+                    metric["Dimensions"][1]["name"],
+                    metric["Dimensions"][1]["value"],
+                    {
+                        "stat": "Average"
+                    }
+                ]
+            ],
+            "period": 300,
+            "view": "timeSeries"
+        }
     elif not len(metric["Dimensions"]):
         MetricWidget = {
             "width": 300,
