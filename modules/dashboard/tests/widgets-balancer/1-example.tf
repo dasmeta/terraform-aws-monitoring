@@ -1,15 +1,3 @@
-# module "vpc" {
-#   source = "dasmeta/modules/aws//modules/vpc/examples/minimal-vpc"
-# }
-
-# module "alb" {
-#   source  = "terraform-aws-modules/alb/aws"
-#   version = "8.1.0"
-#   depends_on = [
-#     module.vpc
-#   ]
-# }
-
 locals {
   balancer_name = "prod"
   account_id    = "123456789"
@@ -60,8 +48,4 @@ module "dashboard-with-balancer-metrics" {
       { type : "balancer/connection-issues", accountId : local.account_id, balancer_name : local.balancer_name, anomaly_detection = false },
     ]
   ]
-
-  # depends_on = [
-  #   module.alb
-  # ]
 }
