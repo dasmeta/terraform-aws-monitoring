@@ -27,7 +27,7 @@
 | [aws_cloudwatch_log_group.log_group_test_a](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_cloudwatch_log_group.log_group_test_b](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_cloudwatch_log_group.log_group_test_c](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
-| test_assertions.api_url | resource |
+| [test_assertions.api_url](https://registry.terraform.io/providers/hashicorp/test/latest/docs/resources/assertions) | resource |
 
 ## Inputs
 

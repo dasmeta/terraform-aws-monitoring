@@ -23,7 +23,7 @@
 
 | Name | Type |
 |------|------|
-| test_assertions.dummy | resource |
+| [test_assertions.dummy](https://registry.terraform.io/providers/hashicorp/test/latest/docs/resources/assertions) | resource |
 
 ## Inputs
 
