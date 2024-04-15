@@ -2,7 +2,7 @@ output "result" {
   description = "description"
   value = [
     [
-      { type : "text/title-with-link", text : "RDS (${var.name})", link_to_jump = "https://${var.region}.console.aws.amazon.com/rds/home?region=${var.region}#database:id=${var.name};is-cluster=false;tab=connectivity" }
+      { type : "text/title-with-link", text : "Database (${var.name})", link_to_jump = "https://${var.region}.console.aws.amazon.com/rds/home?region=${var.region}#database:id=${var.name};is-cluster=false;tab=connectivity" }
     ],
     [
       { type : "rds/free-storage", rds_name : var.name },
