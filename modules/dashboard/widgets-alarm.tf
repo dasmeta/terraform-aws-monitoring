@@ -15,6 +15,7 @@ module "widget_alarm_status" {
 
   account_id        = try(local.alarm_status[count.index].accountId, null)
   anomaly_detection = try(local.alarm_status[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.alarm_status[count.index].anomaly_deviation, 6)
 }
 
 # alarm metric widgets
@@ -35,4 +36,5 @@ module "widget_alarm_metric" {
 
   account_id        = try(local.alarm_metric[count.index].accountId, null)
   anomaly_detection = try(local.alarm_metric[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.alarm_metric[count.index].anomaly_deviation, 6)
 }

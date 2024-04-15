@@ -17,4 +17,5 @@ module "widget_log_based" {
 
   account_id        = try(local.log_based[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.log_based[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.log_based[count.index].anomaly_deviation, 6)
 }

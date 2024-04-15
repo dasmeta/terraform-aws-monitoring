@@ -57,6 +57,12 @@ variable "anomaly_detection" {
   description = "Enables anomaly detection on widget metrics"
 }
 
+variable "anomaly_deviation" {
+  type        = number
+  default     = 6
+  description = "Deviation of the anomaly band"
+}
+
 variable "yAxis" {
   type        = any
   default     = { left = { min = 0 } }

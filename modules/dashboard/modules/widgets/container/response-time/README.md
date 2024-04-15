@@ -64,6 +64,7 @@ No requirements.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Allow to enable anomaly detection on widget metrics | `bool` | `false` | no |
+| <a name="input_anomaly_deviation"></a> [anomaly\_deviation](#input\_anomaly\_deviation) | Deviation of the anomaly band | `number` | `6` | no |
 | <a name="input_balancer_arn"></a> [balancer\_arn](#input\_balancer\_arn) | n/a | `string` | `null` | no |
 | <a name="input_balancer_name"></a> [balancer\_name](#input\_balancer\_name) | n/a | `string` | `null` | no |
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |

@@ -13,6 +13,7 @@ module "base" {
     LoadBalancer      = local.balancer
     accountId         = var.account_id
     anomaly_detection = var.anomaly_detection
+    anomaly_deviation = var.anomaly_deviation
   }
 
   metrics = [

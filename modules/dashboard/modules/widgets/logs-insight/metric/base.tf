@@ -13,6 +13,7 @@ module "base" {
   defaults = {
     accountId         = var.account_id
     anomaly_detection = var.anomaly_detection
+    anomaly_deviation = var.anomaly_deviation
   }
 
   query   = "${var.query} | STATS ${join(",", var.stats)} BY bin(${var.time_period})"

@@ -37,6 +37,12 @@ variable "anomaly_detection" {
   description = "Allow to enable anomaly detection on widget metrics"
 }
 
+variable "anomaly_deviation" {
+  type        = number
+  default     = 6
+  description = "Deviation of the anomaly band"
+}
+
 variable "db_max_connections_count" {
   type        = number
   description = "RDS connection's maximum count"

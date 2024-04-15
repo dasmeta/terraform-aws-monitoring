@@ -61,6 +61,7 @@ No resources.
 | <a name="input_account_id"></a> [account\_id](#input\_account\_id) | n/a | `string` | `null` | no |
 | <a name="input_alarm_arn"></a> [alarm\_arn](#input\_alarm\_arn) | The aws alarm arn to show metrics | `string` | n/a | yes |
 | <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Enables anomaly detection on widget metrics | `bool` | `false` | no |
+| <a name="input_anomaly_deviation"></a> [anomaly\_deviation](#input\_anomaly\_deviation) | Deviation of the anomaly band | `number` | `4` | no |
 | <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
 | <a name="input_stacked"></a> [stacked](#input\_stacked) | The stacked option for log insights widgets | `bool` | `false` | no |
 | <a name="input_title"></a> [title](#input\_title) | n/a | `string` | `null` | no |

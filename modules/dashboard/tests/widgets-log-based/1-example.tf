@@ -5,10 +5,15 @@ module "dashboard-with-log-based-metrics" {
     [
       {
         type : "log-based",
-        title : "error1",
-        metrics : [{
-          MetricName = "error2"
-        }]
+        title : "container_exception_error",
+        metrics : [
+          {
+            MetricName        = "container_exception_error"
+            MetricNamespace   = "LogGroupFilter"
+            anomaly_detection = true
+            anomaly_deviation = 8
+          }
+        ]
       },
       {
         type : "log-based",

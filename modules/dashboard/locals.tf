@@ -18,6 +18,7 @@ locals {
       width             = 6
       height            = 6
       anomaly_detection = false
+      anomaly_deviation = 6
       expressions       = []
       yAxis             = { left = { min = 0 } }
     },

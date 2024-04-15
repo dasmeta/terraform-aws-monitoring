@@ -8,9 +8,11 @@ module "base" {
   stat = "Sum"
 
   defaults = {
-    MetricNamespace = "AWS/ApplicationELB"
-    LoadBalancer    = local.balancer
-    TargetGroup     = local.target_group
+    MetricNamespace   = "AWS/ApplicationELB"
+    LoadBalancer      = local.balancer
+    TargetGroup       = local.target_group
+    anomaly_detection = var.anomaly_detection
+    anomaly_deviation = var.anomaly_deviation
   }
 
   period = var.period

@@ -49,6 +49,12 @@ variable "anomaly_detection" {
   description = "Allow to enable anomaly detection on widget metrics"
 }
 
+variable "anomaly_deviation" {
+  type        = number
+  default     = 4
+  description = "Height of anomaly band"
+}
+
 variable "type" {
   type        = string
   default     = "metric"

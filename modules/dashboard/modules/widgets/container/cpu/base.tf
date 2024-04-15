@@ -28,7 +28,7 @@ module "base" {
 
   metrics = [
     { MetricName = "pod_cpu_limit", color = "#FF0F3C", label = "Limit" },
-    { MetricName = "pod_cpu_usage_total", color = "#D400BF", label = "Current Avg", stat = "Average", anomaly_detection = var.anomaly_detection },
-    { MetricName = "pod_cpu_usage_total", color = "#007CEF", label = "Current Max", stat = "Maximum", anomaly_detection = var.anomaly_detection }
+    { MetricName = "pod_cpu_usage_total", color = "#D400BF", label = "Current Avg", stat = "Average", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricName = "pod_cpu_usage_total", color = "#007CEF", label = "Current Max", stat = "Maximum", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation }
   ]
 }

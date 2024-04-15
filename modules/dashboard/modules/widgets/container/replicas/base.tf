@@ -14,8 +14,8 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "kube_deployment_spec_replicas", PodName = var.container, label = "Deployment Spec", anomaly_detection = var.anomaly_detection },
-    { MetricName = "kube_deployment_status_replicas_available", PodName = var.container, label = "Available", anomaly_detection = var.anomaly_detection },
-    { MetricNamespace = "ContainerInsights", Service = var.container, MetricName = "service_number_of_running_pods", label = "Available", anomaly_detection = var.anomaly_detection }
+    { MetricName = "kube_deployment_spec_replicas", PodName = var.container, label = "Deployment Spec", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricName = "kube_deployment_status_replicas_available", PodName = var.container, label = "Available", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricNamespace = "ContainerInsights", Service = var.container, MetricName = "service_number_of_running_pods", label = "Available", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation }
   ]
 }

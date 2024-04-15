@@ -21,6 +21,7 @@ module "container_cpu_widget" {
 
   account_id        = try(local.container_cpu[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_cpu[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_cpu[count.index].anomaly_deviation, 6)
 }
 
 module "container_memory_widget" {
@@ -45,6 +46,7 @@ module "container_memory_widget" {
 
   account_id        = try(local.container_memory[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_memory[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_memory[count.index].anomaly_deviation, 6)
 }
 
 module "container_network_widget" {
@@ -69,6 +71,7 @@ module "container_network_widget" {
 
   account_id        = try(local.container_network[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_network[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_network[count.index].anomaly_deviation, 6)
 }
 
 module "container_network_in_widget" {
@@ -93,6 +96,7 @@ module "container_network_in_widget" {
 
   account_id        = try(local.container_network_in[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_network_in[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_network_in[count.index].anomaly_deviation, 6)
 }
 
 module "container_network_out_widget" {
@@ -117,6 +121,7 @@ module "container_network_out_widget" {
 
   account_id        = try(local.container_network_out[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_network_out[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_network_out[count.index].anomaly_deviation, 6)
 }
 
 module "container_replicas_widget" {
@@ -136,6 +141,7 @@ module "container_replicas_widget" {
   namespace = local.container_replicas[count.index].namespace
 
   anomaly_detection = try(local.container_replicas[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_replicas[count.index].anomaly_deviation, 6)
 }
 
 module "container_restarts_widget" {
@@ -160,6 +166,7 @@ module "container_restarts_widget" {
 
   account_id        = try(local.container_restarts[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.container_restarts[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_restarts[count.index].anomaly_deviation, 6)
 }
 
 module "container_request_count_widget" {
@@ -175,6 +182,7 @@ module "container_request_count_widget" {
 
   target_group_arn  = try(local.container_request_count[count.index].target_group_arn, null)
   anomaly_detection = try(local.container_request_count[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_request_count[count.index].anomaly_deviation, 6)
 }
 
 module "container_response_time_widget" {
@@ -195,6 +203,7 @@ module "container_response_time_widget" {
   balancer_name = try(local.container_response_time[count.index].balancer_name, null)
 
   anomaly_detection = try(local.container_response_time[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_response_time[count.index].anomaly_deviation, 6)
 }
 
 module "container_external_health_check_widget" {
@@ -209,6 +218,7 @@ module "container_external_health_check_widget" {
   period            = local.container_external_health_check[count.index].period
   healthcheck_id    = local.container_external_health_check[count.index].healthcheck_id
   anomaly_detection = try(local.container_external_health_check[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_external_health_check[count.index].anomaly_deviation, 6)
 }
 
 module "container_error_rate" {
@@ -229,6 +239,7 @@ module "container_error_rate" {
   balancer_name = try(local.container_error_rate[count.index].balancer_name, null)
 
   anomaly_detection = try(local.container_error_rate[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_error_rate[count.index].anomaly_deviation, 6)
 }
 
 module "container_all_requests" {
@@ -249,6 +260,7 @@ module "container_all_requests" {
   balancer_name = try(local.container_all_requests[count.index].balancer_name, null)
 
   anomaly_detection = try(local.container_all_requests[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_all_requests[count.index].anomaly_deviation, 6)
 }
 
 module "container_health_check" {
@@ -269,4 +281,5 @@ module "container_health_check" {
   balancer_name = try(local.container_health_check[count.index].balancer_name, null)
 
   anomaly_detection = try(local.container_health_check[count.index].anomaly_detection, true)
+  anomaly_deviation = try(local.container_health_check[count.index].anomaly_deviation, 6)
 }

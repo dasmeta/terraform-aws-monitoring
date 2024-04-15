@@ -20,7 +20,7 @@ module "base" {
 
   metrics = [
     { MetricName = "pod_memory_limit", color = "#FF0F3C", label = "Limit" },
-    { MetricName = "pod_memory_working_set", color = "#007CEF", label = "Current Avg", stat = "Average", anomaly_detection = var.anomaly_detection },
-    { MetricName = "pod_memory_working_set", color = "#D400BF", label = "Current Max", stat = "Maximum", anomaly_detection = var.anomaly_detection }
+    { MetricName = "pod_memory_working_set", color = "#007CEF", label = "Current Avg", stat = "Average", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricName = "pod_memory_working_set", color = "#D400BF", label = "Current Max", stat = "Maximum", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation }
   ]
 }

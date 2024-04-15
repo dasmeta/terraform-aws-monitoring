@@ -49,7 +49,7 @@ locals {
 
   common_fields    = ["MetricNamespace", "MetricName"]
   attribute_fields = ["accountId", "period", "stat", "label", "visible", "color", "yAxis"]
-  custom_fields    = ["anomaly_detection"]
+  custom_fields    = ["anomaly_detection", "anomaly_deviation"]
   metrics_local    = var.metrics == null ? [] : var.metrics
 
   # merge metrics with defaults

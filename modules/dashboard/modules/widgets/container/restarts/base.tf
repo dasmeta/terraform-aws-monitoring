@@ -21,6 +21,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_number_of_container_restarts", label = "Restarts", color = "#d62728", anomaly_detection = var.anomaly_detection }
+    { MetricName = "pod_number_of_container_restarts", label = "Restarts", color = "#d62728", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation }
   ]
 }

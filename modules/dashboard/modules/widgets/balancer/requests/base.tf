@@ -10,9 +10,10 @@ module "base" {
   period = var.period
 
   defaults = {
-    MetricNamespace = "AWS/ApplicationELB"
-    LoadBalancer    = var.balancer
-    accountId       = var.account_id
+    MetricNamespace   = "AWS/ApplicationELB"
+    LoadBalancer      = var.balancer
+    accountId         = var.account_id
+    anomaly_deviation = var.anomaly_deviation
   }
 
   metrics = [
