@@ -1,5 +1,6 @@
 terraform {
   required_providers {
+    # Dear Tigran, test provider is deprecated and has to be renovated.
     # test = {
     #   source = "terraform.io/builtin/test"
     # }
