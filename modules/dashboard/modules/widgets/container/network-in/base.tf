@@ -20,6 +20,7 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "pod_network_rx_bytes", color = "#17becf", label = "In", anomaly_detection = var.anomaly_detection },
+    { MetricName = "pod_network_rx_bytes", color = "#17becf", label = "In Avg", stat = "Average", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricName = "pod_network_rx_bytes", color = "#007CEF", label = "In Max", stat = "Maximum", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
   ]
 }

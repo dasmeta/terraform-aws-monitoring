@@ -16,6 +16,7 @@ module "container_balancer_2xx_widget" {
 
   account_id        = try(local.balancer_2xx[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.balancer_2xx[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_2xx[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_4xx_widget" {
@@ -36,6 +37,7 @@ module "container_balancer_4xx_widget" {
   account_id = try(local.balancer_4xx[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_4xx[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_4xx[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_5xx_widget" {
@@ -56,6 +58,7 @@ module "container_balancer_5xx_widget" {
   account_id = try(local.balancer_5xx[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_5xx[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_5xx[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_traffic_widget" {
@@ -76,6 +79,7 @@ module "container_balancer_traffic_widget" {
   account_id = try(local.balancer_traffic[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_traffic[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_traffic[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_response_time_widget" {
@@ -96,6 +100,7 @@ module "container_balancer_response_time_widget" {
   account_id = try(local.balancer_response_time[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_response_time[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_response_time[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_unhealthy_request_count_widget" {
@@ -116,6 +121,7 @@ module "container_balancer_unhealthy_request_count_widget" {
   account_id = try(local.balancer_unhealthy_request_count[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_unhealthy_request_count[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_unhealthy_request_count[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_request_count_widget" {
@@ -136,6 +142,7 @@ module "container_balancer_request_count_widget" {
   account_id = try(local.balancer_request_count[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_request_count[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_request_count[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_all_requests_widget" {
@@ -156,6 +163,7 @@ module "container_balancer_all_requests_widget" {
   account_id = try(local.balancer_all_requests[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_all_requests[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_all_requests[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_error_rate" {
@@ -176,6 +184,7 @@ module "container_balancer_error_rate" {
   account_id = try(local.balancer_error_rate[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_error_rate[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_error_rate[count.index].anomaly_deviation, 6)
 }
 
 module "container_balancer_connection_issues" {
@@ -196,4 +205,5 @@ module "container_balancer_connection_issues" {
   account_id = try(local.balancer_connection_issues[count.index].accountId, data.aws_caller_identity.project.account_id)
 
   anomaly_detection = try(local.balancer_connection_issues[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.balancer_connection_issues[count.index].anomaly_deviation, 6)
 }

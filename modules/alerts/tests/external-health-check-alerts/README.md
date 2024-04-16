@@ -58,7 +58,7 @@ No outputs.
 | Name | Type |
 |------|------|
 | [aws_sns_topic.tets_topic_for_alarm_actions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
-| test_assertions.dummy | resource |
+| [test_assertions.dummy](https://registry.terraform.io/providers/hashicorp/test/latest/docs/resources/assertions) | resource |
 
 ## Inputs
 

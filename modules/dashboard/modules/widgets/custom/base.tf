@@ -12,6 +12,7 @@ module "base" {
   defaults = {
     accountId         = var.account_id
     anomaly_detection = var.anomaly_detection
+    anomaly_deviation = var.anomaly_deviation
   }
 
   metrics     = var.metrics

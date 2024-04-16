@@ -2,7 +2,7 @@ locals {
   common_fields         = ["MetricNamespace", "MetricName"]
   attribute_fields      = ["id", "accountId", "period", "stat", "label", "color", "yAxis", "region"]
   bool_attribute_fields = ["visible"]
-  custom_fields         = ["anomaly_detection"]
+  custom_fields         = ["anomaly_detection", "anomaly_deviation"]
   metrics_local         = var.metrics == null ? [] : var.metrics
 
   # merge metrics with defaults
@@ -22,7 +22,7 @@ locals {
   # concat parsed fields to have list as cloudwatch expects
   metrics = [for index, row in local.metrics_with_defaults : concat(local.metric_common[index], local.dimensions[index], local.metric_properties[index])]
   anomaly_detection_metrics = [for index, row in local.metrics_with_defaults : try(row.anomaly_detection, false) ? [{
-    expression = "ANOMALY_DETECTION_BAND(m${index + 1}, 2)"
+    expression = "ANOMALY_DETECTION_BAND(m${index + 1}, ${try(row.anomaly_deviation, 6)})"
     id         = "ad${index + 1}"
     label      = "Anomaly Band"
   }] : [] if try(row.anomaly_detection, false)]

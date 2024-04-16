@@ -55,7 +55,7 @@ No outputs.
 
 | Name | Type |
 |------|------|
-| test_assertions.api_url | resource |
+| [test_assertions.api_url](https://registry.terraform.io/providers/hashicorp/test/latest/docs/resources/assertions) | resource |
 
 ## Inputs
 

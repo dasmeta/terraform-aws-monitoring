@@ -15,7 +15,9 @@ module "widget_rds_cpu" {
   period = local.rds_cpu[count.index].period
 
   # rds name
-  rds_name = local.rds_cpu[count.index].rds_name
+  rds_name          = local.rds_cpu[count.index].rds_name
+  anomaly_detection = try(local.rds_cpu[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.rds_cpu[count.index].anomaly_deviation, 6)
 }
 
 module "widget_rds_memory" {

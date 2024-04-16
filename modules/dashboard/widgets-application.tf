@@ -22,5 +22,6 @@ module "widget_application" {
 
   account_id        = try(local.application[count.index].accountId, data.aws_caller_identity.project.account_id)
   anomaly_detection = try(local.application[count.index].anomaly_detection, false)
+  anomaly_deviation = try(local.application[count.index].anomaly_deviation, 6)
 
 }

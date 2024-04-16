@@ -11,7 +11,6 @@
 | Name | Version |
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 4.33 |
-| <a name="provider_test"></a> [test](#provider\_test) | n/a |
 
 ## Modules
 
@@ -25,7 +24,6 @@
 | Name | Type |
 |------|------|
 | [aws_cloudwatch_log_group.log_group_test](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
-| test_assertions.api_url | resource |
 
 ## Inputs
 

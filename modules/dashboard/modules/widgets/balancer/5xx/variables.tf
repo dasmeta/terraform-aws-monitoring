@@ -34,3 +34,9 @@ variable "anomaly_detection" {
   default     = false
   description = "Allow to enable anomaly detection on widget metrics"
 }
+
+variable "anomaly_deviation" {
+  type        = number
+  default     = 4
+  description = "Deviation of the anomaly band"
+}

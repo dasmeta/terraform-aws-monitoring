@@ -12,6 +12,7 @@ module "base_cloudwatch" {
   period                   = var.period
   region                   = local.region
   anomaly_detection        = var.anomaly_detection
+  anomaly_deviation        = var.anomaly_deviation
   type                     = var.type
   query                    = var.query
   sources                  = var.sources
@@ -43,6 +44,7 @@ module "base_grafana" {
   period            = var.period
   region            = local.region
   anomaly_detection = var.anomaly_detection
+  anomaly_deviation = var.anomaly_deviation
   type              = var.type
   query             = var.query
   sources           = var.sources

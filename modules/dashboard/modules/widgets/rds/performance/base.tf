@@ -1,3 +1,4 @@
+//Tese metrics are exposed when Performance Insights is enabled for the DB
 module "base" {
   source = "../../base"
 

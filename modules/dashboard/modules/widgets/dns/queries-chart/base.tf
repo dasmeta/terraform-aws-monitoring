@@ -23,6 +23,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "DNSQueries", color = "#007CEF", anomaly_detection = var.anomaly_detection },
+    { MetricName = "DNSQueries", color = "#007CEF", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
   ]
 }

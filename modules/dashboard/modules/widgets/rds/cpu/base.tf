@@ -16,6 +16,6 @@ module "base" {
   period = var.period
 
   metrics = [
-    { MetricName = "CPUUtilization", anomaly_detection = var.anomaly_detection },
+    { MetricName = "CPUUtilization", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
   ]
 }

@@ -14,7 +14,7 @@ module "base" {
   region = "us-east-1"
 
   metrics = [
-    { MetricName = "HealthCheckPercentageHealthy", anomaly_detection = var.anomaly_detection },
-    { MetricName = "HealthCheckStatus", anomaly_detection = var.anomaly_detection }
+    { MetricName = "HealthCheckPercentageHealthy", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation },
+    { MetricName = "HealthCheckStatus", anomaly_detection = var.anomaly_detection, anomaly_deviation = var.anomaly_deviation }
   ]
 }
