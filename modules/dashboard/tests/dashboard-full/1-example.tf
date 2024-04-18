@@ -8,6 +8,7 @@ locals {
   healthcheck_id_1   = ""
   rds                = ""
   cluster            = ""
+  namespace          = ""
 }
 
 module "basic-dashboard-with-text" {
@@ -57,18 +58,18 @@ module "basic-dashboard-with-text" {
       { type : "balancer/connection-issues", accountId : local.account_id, balancer_name : local.balancer_name, anomaly_detection = false },
     ],
     [
-      { type : "balancer/response-time", accountId : local.account_id, balancer_name : local.balancer_name },
-      { type : "balancer/traffic", accountId : local.account_id, balancer_name : local.balancer_name },
+      { type : "balancer/response-time", accountId : local.account_id, balancer_name : local.balancer_name, width : 12 },
+      { type : "balancer/traffic", accountId : local.account_id, balancer_name : local.balancer_name, width : 12 },
     ],
     // service block
     [
       { type : "text/title", text : "Superset" }
     ],
     [
+      { type : "container/release-version", container : local.container_1, namespace : local.namespace, version_label : "app-version", log_group_name : "app-logs" },
       { type : "container/request-count", container : local.container_1, target_group_arn : local.target_group_arn_1 },
       { type : "container/all-requests", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name },
       { type : "container/error-rate", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name },
-      { type : "container/health-check", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name },
     ],
     [
       { type : "container/cpu", container : local.container_1 },
@@ -77,11 +78,14 @@ module "basic-dashboard-with-text" {
       { type : "container/network-out", container : local.container_1 },
     ],
     [
-      { type : "container/external-health-check", container : local.container_1, healthcheck_id : local.healthcheck_id_1 },
-      { type : "container/replicas", container : local.container_1 },
-      { type : "container/restarts", container : local.container_1 },
-      { type : "container/response-time", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name },
+      { type : "container/replicas", container : local.container_1, width : 8 },
+      { type : "container/restarts", container : local.container_1, width : 8 },
+      { type : "container/response-time", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name, width : 8 },
       # { type : "container/network", container : local.container_1 },
+    ],
+    [
+      { type : "container/health-check", container : local.container_1, target_group_arn : local.target_group_arn_1, balancer_name : local.balancer_name, width : 12 },
+      { type : "container/external-health-check", container : local.container_1, healthcheck_id : local.healthcheck_id_1, width : 12 },
     ],
     // rds block
     [

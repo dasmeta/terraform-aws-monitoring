@@ -91,6 +91,8 @@ module "block_service" {
   healthcheck_id   = try(local.blocks_by_type.service[count.index].block.healthcheck_id, null)
   cluster          = local.blocks_by_type.service[count.index].block.cluster
   namespace        = try(local.blocks_by_type.service[count.index].block.namespace, "default")
+  version_label    = try(local.blocks_by_type.service[count.index].block.version_label, "app-version")
+  log_group_name   = local.blocks_by_type.service[count.index].block.log_group_name
   region           = var.region != "" ? var.region : data.aws_region.current.name
 }
 

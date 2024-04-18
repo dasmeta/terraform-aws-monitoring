@@ -40,6 +40,7 @@ locals {
     "container/error-rate"             = []
     "container/all-requests"           = []
     "container/health-check"           = []
+    "container/release-version"        = []
     "balancer/2xx"                     = []
     "balancer/4xx"                     = []
     "balancer/5xx"                     = []
@@ -133,6 +134,7 @@ locals {
   container_error_rate            = local.widget_config["container/error-rate"]
   container_all_requests          = local.widget_config["container/all-requests"]
   container_health_check          = local.widget_config["container/health-check"]
+  container_release_version       = local.widget_config["container/release-version"]
 
   balancer_2xx                     = local.widget_config["balancer/2xx"]
   balancer_4xx                     = local.widget_config["balancer/4xx"]
@@ -198,6 +200,7 @@ locals {
     module.container_error_rate[*].data,
     module.container_all_requests[*].data,
     module.container_health_check[*].data,
+    module.container_release_version[*].data,
 
     // Widget/Traffic
     module.container_balancer_2xx_widget[*].data,
