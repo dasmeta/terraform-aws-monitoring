@@ -283,3 +283,21 @@ module "container_health_check" {
   anomaly_detection = try(local.container_health_check[count.index].anomaly_detection, true)
   anomaly_deviation = try(local.container_health_check[count.index].anomaly_deviation, 6)
 }
+
+# Logs insight App version widgets
+module "container_release_version" {
+  source = "./modules/widgets/container/release-version"
+
+  count = length(local.container_release_version)
+
+  # coordinates
+  coordinates = local.container_release_version[count.index].coordinates
+
+  container      = local.container_release_version[count.index].container
+  namespace      = local.container_release_version[count.index].namespace
+  version_label  = try(local.container_release_version[count.index].version_label, "app-version")
+  log_group_name = local.container_release_version[count.index].log_group_name
+
+  account_id        = try(local.container_release_version[count.index].accountId, null)
+  anomaly_detection = try(local.container_release_version[count.index].anomaly_detection, false)
+}

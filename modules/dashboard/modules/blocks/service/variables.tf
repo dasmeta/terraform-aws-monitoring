@@ -32,3 +32,14 @@ variable "region" {
   type    = string
   default = ""
 }
+
+variable "version_label" {
+  type        = string
+  description = "The deployment label which shows app version"
+  default     = "app-version"
+}
+
+variable "log_group_name" {
+  type        = string
+  description = "The log group name where app sends logs"
+}
