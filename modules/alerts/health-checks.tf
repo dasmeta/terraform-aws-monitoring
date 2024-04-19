@@ -25,7 +25,7 @@ locals {
       treat_missing_data = "breaching"
     }],
     [for key, health_check in aws_route53_health_check.health_checks : {
-      name               = key
+      name               = "${key}-Percentage"
       description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
       source             = "AWS/Route53/HealthCheckPercentageHealthy"
       filters            = { HealthCheckId = health_check.id }
