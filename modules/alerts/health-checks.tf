@@ -12,17 +12,30 @@ locals {
     tags              = try(health_check.tags, {})
   } if try(health_check.host, null) != null]
 
-  health_check_alerts = [for key, health_check in aws_route53_health_check.health_checks : {
-    name               = key
-    description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
-    source             = "AWS/Route53/HealthCheckStatus"
-    filters            = { HealthCheckId = health_check.id }
-    statistic          = "min"
-    equation           = "lt"
-    threshold          = "1"
-    period             = "60"
-    treat_missing_data = "breaching"
-  }]
+  health_check_alerts = concat(
+    [for key, health_check in aws_route53_health_check.health_checks : {
+      name               = key
+      description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
+      source             = "AWS/Route53/HealthCheckStatus"
+      filters            = { HealthCheckId = health_check.id }
+      statistic          = "min"
+      equation           = "lt"
+      threshold          = "1"
+      period             = "60"
+      treat_missing_data = "breaching"
+    }],
+    [for key, health_check in aws_route53_health_check.health_checks : {
+      name               = key
+      description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
+      source             = "AWS/Route53/HealthCheckPercentageHealthy"
+      filters            = { HealthCheckId = health_check.id }
+      statistic          = "avg"
+      equation           = "lt"
+      threshold          = "75"
+      period             = "60"
+      treat_missing_data = "breaching"
+    }],
+  )
 }
 
 resource "aws_route53_health_check" "health_checks" {
