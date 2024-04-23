@@ -69,6 +69,11 @@ module "notify_teams" {
   uniq_id = each.key
   type    = "teams"
   timeout = 10
+
+  additional_script_files = [
+    "${path.module}/modules/lambda-subscription/src/event_handler.py"
+  ]
+
   environment_variables = {
     WEBHOOK_URL = each.value
     REGION      = data.aws_region.current.name
@@ -98,6 +103,11 @@ module "notify_jira" {
   uniq_id = "jira_integration"
   type    = "jira"
   timeout = 10
+
+  additional_script_files = [
+    "${path.module}/modules/lambda-subscription/src/event_handler.py"
+  ]
+
   environment_variables = {
     JIRA_URL      = each.value.url
     JIRA_KEY      = each.value.key

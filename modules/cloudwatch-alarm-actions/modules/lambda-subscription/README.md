@@ -31,6 +31,7 @@ No requirements.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_additional_script_files"></a> [additional\_script\_files](#input\_additional\_script\_files) | List of additional files to include into lambda function zip to upload to aws | `list(string)` | `[]` | no |
 | <a name="input_attach_dead_letter_policy"></a> [attach\_dead\_letter\_policy](#input\_attach\_dead\_letter\_policy) | Whether to attach dead letter queue | `bool` | `false` | no |
 | <a name="input_create_role"></a> [create\_role](#input\_create\_role) | Whether to create lambda role or not | `bool` | `true` | no |
 | <a name="input_dead_letter_queue_arn"></a> [dead\_letter\_queue\_arn](#input\_dead\_letter\_queue\_arn) | The SQS queue arn for using as dead letter | `string` | `null` | no |
