@@ -2,17 +2,7 @@ import os
 import requests
 import sys
 import types
-
-def import_from_url(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        module_name = url.split("/")[-1].split(".")[0]
-        new_module = types.ModuleType(module_name)
-        exec(response.text, new_module.__dict__)
-        sys.modules[module_name] = new_module
-        return new_module
-    else:
-        raise ImportError(f"Failed to fetch file from {url}, status code: {response.status_code}")
+from event_handler import event_handler
 
 def create_jira_ticket(summary,description):
     # Jira API URL and authentication
@@ -37,11 +27,8 @@ def create_jira_ticket(summary,description):
         print("Response content:", response.content)
 
 def handler(event, context):
-    file_url = "https://raw.githubusercontent.com/dasmeta/terraform-aws-monitoring/main/modules/cloudwatch-alarm-actions/modules/lambda-subscription/src/event_handler.py"
-    module = import_from_url(file_url)
     region = os.environ['REGION']
-
-    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = module.event_handler(event, context,region)
+    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = event_handler(event, context,region)
 
     if alert_type == "Expression":
         all_data =  [

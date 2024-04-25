@@ -14,6 +14,12 @@ variable "type" {
   default     = "empty"
 }
 
+variable "additional_script_files" {
+  description = "List of additional files to include into lambda function zip to upload to aws"
+  type        = list(string)
+  default     = []
+}
+
 variable "uniq_id" {
   description = "Unique string to set as prefix on lambda function name"
   type        = string

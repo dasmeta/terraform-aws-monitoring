@@ -1,7 +1,8 @@
 locals {
   lambda_name                 = substr(replace("${var.sns_topic_name}-${var.uniq_id}-${var.type}", ".", "-"), 0, 63)
+  lambda_sources              = concat(var.additional_script_files, [for file in tolist(fileset("${path.module}/src/${var.type}/", "**/*")) : "${path.module}/src/${var.type}/${file}"])
   lambda_function_file_path   = "${path.module}/src/${var.type}/lambda.py"
-  lambda_function_hash        = filesha256(local.lambda_function_file_path)
+  lambda_function_hash        = sha256(join("-", [for file in local.lambda_sources : filesha256(local.lambda_function_file_path)]))
   lambda_function_output_path = "builds/lambda-${data.aws_region.current.name}-${local.lambda_function_hash}.zip"
 }
 
@@ -11,8 +12,15 @@ data "aws_region" "current" {}
 
 data "archive_file" "lambda_code_zip" {
   type        = "zip"
-  source_file = local.lambda_function_file_path
   output_path = local.lambda_function_output_path
+
+  dynamic "source" {
+    for_each = concat(var.additional_script_files, local.lambda_sources)
+    content {
+      content  = file(source.value)
+      filename = basename(source.value)
+    }
+  }
 }
 
 module "lambda" {
