@@ -33,8 +33,8 @@ variable "health_checks" {
     port : optional(number, 443)
     path : optional(string, "/")
     type : optional(string, "HTTPS")
-    measure_latency : optional(bool)
-    regions : optional(list(string))
+    measure_latency : optional(bool, false)
+    regions : optional(list(string), ["us-west-1", "us-east-1", "eu-west-1"])
     tags : optional(map(string))
     main : optional(object({
       statistic : optional(string, "min")
