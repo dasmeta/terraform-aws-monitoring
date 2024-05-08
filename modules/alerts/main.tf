@@ -153,7 +153,10 @@ module "external_health_check-alarms" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
   version = "4.3.0"
 
-  for_each = { for alert in local.health_check_alerts : "${alert.source}-${alert.name}" => alert }
+  for_each = {
+    for alert in local.health_check_alerts :
+    "${alert.source}-${alert.name}" => alert
+  }
 
   alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
   alarm_description   = each.value.description
