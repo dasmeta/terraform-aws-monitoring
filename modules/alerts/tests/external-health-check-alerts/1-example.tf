@@ -12,7 +12,27 @@ module "this" {
     },
     {
       host = "example.com"
+      path = "/api"
+      percentage = {
+        statistic = "min"
+        period    = "60"
+      }
+    },
+    {
+      host = "example.com"
       port = 80
+      percentage = {
+        statistic = "min"
+        equation  = "lt"
+        threshold = "1"
+        period    = "60"
+      }
+      main = {
+        statistic = "max"
+        equation  = "gt"
+        threshold = "75"
+        period    = "60"
+      }
     }
   ]
 }

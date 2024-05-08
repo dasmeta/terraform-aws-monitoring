@@ -1,4 +1,32 @@
 locals {
+
+  health_check_alerts = flatten([
+    for health_check in var.health_checks : [
+      {
+        name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
+        description        = "Main monitoring for ${health_check.host}"
+        source             = "AWS/Route53/HealthCheckStatus"
+        filters            = { Host = health_check.host }
+        statistic          = try(health_check.main.statistic, "min")
+        equation           = try(health_check.main.equation, "lt")
+        threshold          = try(health_check.main.threshold, 1)
+        period             = try(health_check.main.period, 60)
+        treat_missing_data = "breaching"
+      },
+      {
+        name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
+        description        = "Percentage monitoring for ${health_check.host}"
+        source             = "AWS/Route53/HealthCheckPercentageHealthy"
+        filters            = { Host = health_check.host }
+        statistic          = try(health_check.percentage.statistic, "avg")
+        equation           = try(health_check.percentage.equation, "lt")
+        threshold          = try(health_check.percentage.threshold, 75)
+        period             = try(health_check.percentage.period, 60)
+        treat_missing_data = "breaching"
+      }
+    ]
+  ])
+
   health_checks = [for health_check in var.health_checks : {
     host              = health_check.host
     port              = try(health_check.port, 443)
@@ -11,35 +39,13 @@ locals {
     region            = try(health_check.region, data.aws_region.project.name)
     tags              = try(health_check.tags, {})
   } if try(health_check.host, null) != null]
-
-  health_check_alerts = concat(
-    [for key, health_check in aws_route53_health_check.health_checks : {
-      name               = key
-      description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
-      source             = "AWS/Route53/HealthCheckStatus"
-      filters            = { HealthCheckId = health_check.id }
-      statistic          = "min"
-      equation           = "lt"
-      threshold          = "1"
-      period             = "60"
-      treat_missing_data = "breaching"
-    }],
-    [for key, health_check in aws_route53_health_check.health_checks : {
-      name               = "${key}-Percentage"
-      description        = "Monitoring ${health_check.fqdn}:${health_check.port}${health_check.resource_path}"
-      source             = "AWS/Route53/HealthCheckPercentageHealthy"
-      filters            = { HealthCheckId = health_check.id }
-      statistic          = "avg"
-      equation           = "lt"
-      threshold          = "75"
-      period             = "60"
-      treat_missing_data = "breaching"
-    }],
-  )
 }
 
 resource "aws_route53_health_check" "health_checks" {
-  for_each = { for health_check in local.health_checks : "${health_check.host}:${health_check.port}${health_check.path}" => health_check }
+  for_each = {
+    for health_check in local.health_checks :
+    "${health_check.host}:${health_check.port}${health_check.path}" => health_check
+  }
 
   fqdn                    = each.value.host
   port                    = each.value.port

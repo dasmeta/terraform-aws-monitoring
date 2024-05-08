@@ -27,23 +27,29 @@ variable "alerts" {
 
 # IMPORTANT: only us-east-1 (Virginia) region aws provider works with health_checks, so pleas have provider and create SNS topic in this region
 variable "health_checks" {
-  type = list(any)
-  ## example list to pass
-  # [
-  #   {
-  #     host = "example.com"
-  #   },
-  #   {
-  #     host = "example.com"
-  #     path = "/12345"
-  #   },
-  #   {
-  #     host = "example.com"
-  #     port = 80
-  #   }
-  # ]
-  description = "Allows to create route53 health checks and alarms on them"
-  default     = []
+  description = "Specifies the name of the Amazon SNS topic defined for notification of log file delivery"
+  type = list(object({
+    host : string
+    port : optional(number, 443)
+    path : optional(string, "/")
+    type : optional(string, "HTTPS")
+    measure_latency : optional(bool)
+    regions : optional(list(string))
+    tags : optional(map(string))
+    main : optional(object({
+      statistic : optional(string, "min")
+      equation : optional(string, "lt")
+      threshold : optional(number, 1)
+      period : optional(number, "60")
+    }))
+    percentage : optional(object({
+      statistic : optional(string, "avg")
+      equation : optional(string, "lt")
+      threshold : optional(number, 75)
+      period : optional(number, 60)
+    }))
+  }))
+  default = []
 }
 
 # @todo refactor to get topic from ouside but also have default value
