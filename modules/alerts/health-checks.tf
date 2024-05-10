@@ -6,7 +6,7 @@ locals {
         name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
         description        = "Main monitoring for ${health_check.host}"
         source             = "AWS/Route53/HealthCheckStatus"
-        filters            = { Host = health_check.host }
+        filters            = { HealthCheckId = aws_route53_health_check.health_checks["${health_check.host}:${health_check.port}${health_check.path}"].id }
         statistic          = try(health_check.main.statistic, "min")
         equation           = try(health_check.main.equation, "lt")
         threshold          = try(health_check.main.threshold, 1)
@@ -17,7 +17,7 @@ locals {
         name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
         description        = "Percentage monitoring for ${health_check.host}"
         source             = "AWS/Route53/HealthCheckPercentageHealthy"
-        filters            = { Host = health_check.host }
+        filters            = { HealthCheckId = aws_route53_health_check.health_checks["${health_check.host}:${health_check.port}${health_check.path}"].id }
         statistic          = try(health_check.percentage.statistic, "avg")
         equation           = try(health_check.percentage.equation, "lt")
         threshold          = try(health_check.percentage.threshold, 75)
