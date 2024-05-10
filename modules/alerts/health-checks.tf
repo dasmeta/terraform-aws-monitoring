@@ -1,29 +1,33 @@
 locals {
 
   health_check_alerts = flatten([
-    for health_check in var.health_checks : [
-      {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
-        description        = "Main monitoring for ${health_check.host}"
-        source             = "AWS/Route53/HealthCheckStatus"
-        filters            = { Host = health_check.host }
-        statistic          = try(health_check.main.statistic, "min")
-        equation           = try(health_check.main.equation, "lt")
-        threshold          = try(health_check.main.threshold, 1)
-        period             = try(health_check.main.period, 60)
-        treat_missing_data = "breaching"
-      },
-      {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
-        description        = "Percentage monitoring for ${health_check.host}"
-        source             = "AWS/Route53/HealthCheckPercentageHealthy"
-        filters            = { Host = health_check.host }
-        statistic          = try(health_check.percentage.statistic, "avg")
-        equation           = try(health_check.percentage.equation, "lt")
-        threshold          = try(health_check.percentage.threshold, 75)
-        period             = try(health_check.percentage.period, 60)
-        treat_missing_data = "breaching"
-      }
+    for aws_hc in aws_route53_health_check.health_checks : [
+      for var_hc in local.health_checks :
+      aws_hc.fqdn == var_hc.host && tostring(aws_hc.port) == tostring(var_hc.port) && aws_hc.resource_path == var_hc.path ?
+      [
+        {
+          name               = "${var_hc.host}:${var_hc.port}${var_hc.path}-Main"
+          description        = "Main monitoring for ${var_hc.host}"
+          source             = "AWS/Route53/HealthCheckStatus"
+          filters            = { HealthCheckId = aws_hc.id }
+          statistic          = try(var_hc.main.statistic, "min")
+          equation           = try(var_hc.main.equation, "lt")
+          threshold          = try(var_hc.main.threshold, 1)
+          period             = try(var_hc.main.period, 60)
+          treat_missing_data = "breaching"
+        },
+        {
+          name               = "${var_hc.host}:${var_hc.port}${var_hc.path}-Percentage"
+          description        = "Percentage monitoring for ${var_hc.host}"
+          source             = "AWS/Route53/HealthCheckPercentageHealthy"
+          filters            = { HealthCheckId = aws_hc.id }
+          statistic          = try(var_hc.percentage.statistic, "avg")
+          equation           = try(var_hc.percentage.equation, "lt")
+          threshold          = try(var_hc.percentage.threshold, 75)
+          period             = try(var_hc.percentage.period, 60)
+          treat_missing_data = "breaching"
+        }
+      ] : []
     ]
   ])
 
