@@ -7,6 +7,7 @@ locals {
   target_group_arn_1 = ""
   healthcheck_id_1   = ""
   rds                = ""
+  redis              = ""
   cluster            = ""
   namespace          = ""
 }
@@ -102,6 +103,22 @@ module "basic-dashboard-with-text" {
       { type : "rds/iops", rds_name : local.rds },
       { type : "rds/swap", rds_name : local.rds },
       { type : "rds/disk-latency", rds_name : local.rds },
+    ],
+    // redis block
+    [
+      { type : "text/title-with-link", text : "Redis", link_to_jump = "https://eu-central-1.console.aws.amazon.com/elasticache/home?region=eu-central-1#/redis/xxxxx" }
+    ],
+    [
+      { type : "redis/cpu", redis_name : local.redis },
+      { type : "redis/memory", redis_name : local.redis },
+      { type : "redis/capacity", redis_name : local.redis },
+      { type : "redis/cache-hit", redis_name : local.redis },
+    ],
+    [
+      { type : "redis/current-connections", redis_name : local.redis },
+      { type : "redis/new-connections", redis_name : local.redis },
+      { type : "redis/network", redis_name : local.redis },
+      { type : "redis/latency", redis_name : local.redis },
     ]
   ]
 }

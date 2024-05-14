@@ -71,6 +71,14 @@ locals {
     "rds/free-storage"                 = []
     "rds/swap"                         = []
     "rds/disk-latency"                 = []
+    "redis/cache-hit"                  = []
+    "redis/capacity"                   = []
+    "redis/cpu"                        = []
+    "redis/current-connections"        = []
+    "redis/latency"                    = []
+    "redis/memory"                     = []
+    "redis/network"                    = []
+    "redis/new-connections"            = []
     "cloudfront/errors"                = []
     "cloudfront/error-rate"            = []
     "cloudfront/traffic-bytes"         = []
@@ -165,6 +173,15 @@ locals {
   rds_swap         = local.widget_config["rds/swap"]
   rds_disk_latency = local.widget_config["rds/disk-latency"]
 
+  redis_cache_hit           = local.widget_config["redis/cache-hit"]
+  redis_capacity            = local.widget_config["redis/capacity"]
+  redis_cpu                 = local.widget_config["redis/cpu"]
+  redis_current_connections = local.widget_config["redis/current-connections"]
+  redis_latency             = local.widget_config["redis/latency"]
+  redis_memory              = local.widget_config["redis/memory"]
+  redis_network             = local.widget_config["redis/network"]
+  redis_new_connections     = local.widget_config["redis/new-connections"]
+
   cloudfront_errors        = local.widget_config["cloudfront/errors"]
   cloudfront_error_rate    = local.widget_config["cloudfront/error-rate"]
   cloudfront_traffic_bytes = local.widget_config["cloudfront/traffic-bytes"]
@@ -238,6 +255,16 @@ locals {
     module.widget_rds_free_storage[*].data,
     module.widget_rds_swap[*].data,
     module.widget_rds_disk_latency[*].data,
+
+    # Redis
+    module.widget_redis_cache_hit[*].data,
+    module.widget_redis_capacity[*].data,
+    module.widget_redis_cpu[*].data,
+    module.widget_redis_current_connections[*].data,
+    module.widget_redis_latency[*].data,
+    module.widget_redis_memory[*].data,
+    module.widget_redis_network[*].data,
+    module.widget_redis_new_connections[*].data,
 
     # CDN
     module.widget_cloudfront_errors[*].data,
