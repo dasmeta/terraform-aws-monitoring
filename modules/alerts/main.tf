@@ -46,7 +46,7 @@ module "cloudwatch_metric-alarm" {
   metric_query = concat([
     {
       id          = "m1"
-      return_data = true
+      return_data = each.value.fill_insufficient_data ? false : true
 
       account_id = each.value.account_id == null ? data.aws_caller_identity.project.account_id : each.value.account_id
 
@@ -57,7 +57,11 @@ module "cloudwatch_metric-alarm" {
         period      = each.value.period
         stat        = local.statistics[each.value.statistic]
       }]
-    }]
+      }], each.value.fill_insufficient_data == true ? [{
+      id          = "e1"
+      expression  = "AVG(FILL(METRICS(), 0))"
+      return_data = each.value.fill_insufficient_data ? true : false
+    }] : []
   )
 
   alarm_actions             = var.enable_alarm_actions ? local.alarm_actions : null
