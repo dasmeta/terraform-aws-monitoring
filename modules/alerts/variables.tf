@@ -18,7 +18,7 @@ variable "alerts" {
     treat_missing_data     = optional(string, null)
     log_based_metric       = optional(bool, false)
     anomaly_detection      = optional(bool, false)
-    fill_insufficient_data = optional(bool, true)
+    fill_insufficient_data = optional(bool, false)
     account_id             = optional(string, null)
   }))
 

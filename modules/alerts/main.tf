@@ -17,10 +17,9 @@ locals {
     count : "SampleCount"
   }
 
-  alert                            = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection == false]
-  alert_w_anomalydetec             = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection != false]
-  alert_w_filled_insufficient_data = [for alert in var.alerts : alert if alert.fill_insufficient_data == true]
-  log_based_alert                  = [for alert in var.alerts : alert if alert.log_based_metric == true]
+  alert                = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection == false]
+  alert_w_anomalydetec = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection != false]
+  log_based_alert      = [for alert in var.alerts : alert if alert.log_based_metric == true]
 
   alarm_actions = [
     "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
@@ -47,7 +46,7 @@ module "cloudwatch_metric-alarm" {
   metric_query = concat([
     {
       id          = "m1"
-      return_data = true
+      return_data = each.value.fill_insufficient_data ? false : true
 
       account_id = each.value.account_id == null ? data.aws_caller_identity.project.account_id : each.value.account_id
 
@@ -58,7 +57,11 @@ module "cloudwatch_metric-alarm" {
         period      = each.value.period
         stat        = local.statistics[each.value.statistic]
       }]
-    }]
+      }], each.value.fill_insufficient_data == true ? [{
+      id          = "e1"
+      expression  = "AVG(FILL(METRICS(), 0))"
+      return_data = each.value.fill_insufficient_data ? true : false
+    }] : []
   )
 
   alarm_actions             = var.enable_alarm_actions ? local.alarm_actions : null
@@ -102,47 +105,6 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
     [{
       id          = "e1"
       expression  = "ANOMALY_DETECTION_BAND(m1)"
-      return_data = true
-    }]
-  )
-
-  alarm_actions             = local.alarm_actions
-  insufficient_data_actions = local.alarm_actions
-}
-
-# This module is used to create alarms for the metrics where insufficient data is filled with 0.
-module "cloudwatch_metric-alarm_with_filled_insufficient_data" {
-  source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
-
-  for_each = { for alert in local.alert_w_filled_insufficient_data : "${alert.name}-${alert.source}" => alert }
-
-  alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
-  comparison_operator = local.comparison_operators[each.value.equation]
-  evaluation_periods  = 1
-  threshold_metric_id = each.value.anomaly_detection ? "e1" : null
-  threshold           = each.value.anomaly_detection ? null : each.value.threshold
-  treat_missing_data  = each.value.treat_missing_data != null ? each.value.treat_missing_data : "missing"
-
-  metric_query = concat([
-    {
-      id          = "m1"
-      return_data = true
-
-      account_id = each.value.account_id == null ? data.aws_caller_identity.project.account_id : each.value.account_id
-
-      metric = [{
-        dimensions  = each.value.filters
-        metric_name = length(split("/", each.value.source)) == 3 ? split("/", each.value.source)[2] : split("/", each.value.source)[1]
-        namespace   = length(split("/", each.value.source)) == 3 ? format("%s/%s", split("/", each.value.source)[0], split("/", each.value.source)[1]) : split("/", each.value.source)[0]
-        period      = each.value.period
-        stat        = local.statistics[each.value.statistic]
-      }]
-    }],
-    [{
-      id          = "e1"
-      expression  = "AVG(FILL(METRICS(), 0))"
       return_data = true
     }]
   )
