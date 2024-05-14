@@ -6,19 +6,20 @@ variable "sns_topic" {
 
 variable "alerts" {
   type = list(object({
-    name               = string
-    source             = string
-    filters            = map(any)
-    description        = optional(string, null)
-    evaluation_periods = optional(number, 1)
-    statistic          = optional(string, "sum")
-    equation           = optional(string, "gte")
-    threshold          = optional(number, 1)
-    period             = optional(number, 300)
-    treat_missing_data = optional(string, null)
-    log_based_metric   = optional(bool, false)
-    anomaly_detection  = optional(bool, false)
-    account_id         = optional(string, null)
+    name                   = string
+    source                 = string
+    filters                = map(any)
+    description            = optional(string, null)
+    evaluation_periods     = optional(number, 1)
+    statistic              = optional(string, "sum")
+    equation               = optional(string, "gte")
+    threshold              = optional(number, 1)
+    period                 = optional(number, 300)
+    treat_missing_data     = optional(string, null)
+    log_based_metric       = optional(bool, false)
+    anomaly_detection      = optional(bool, false)
+    fill_insufficient_data = optional(bool, true)
+    account_id             = optional(string, null)
   }))
 
   description = "Allows to create standard and log based metric alarms"
