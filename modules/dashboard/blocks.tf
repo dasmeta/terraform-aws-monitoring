@@ -25,6 +25,7 @@ locals {
   # bring all module results together
   blocks_results = {
     rds     = module.block_rds.*.result
+    redis   = module.block_redis.*.result
     dns     = module.block_dns.*.result
     cdn     = module.block_cdn.*.result
     alb     = module.block_alb.*.result
@@ -35,6 +36,7 @@ locals {
   # annotate each block type with subIndex
   blocks_by_type = {
     rds     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "rds")],
+    redis   = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "redis")],
     dns     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "dns")],
     cdn     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "cdn")],
     alb     = [for index2, block in local.initial_blocks : merge(block, { index2 : index2 }) if strcontains(block.type, "alb")]
@@ -52,6 +54,15 @@ module "block_rds" {
   name                     = local.blocks_by_type.rds[count.index].block.name
   db_max_connections_count = local.blocks_by_type.rds[count.index].block.db_max_connections_count
   region                   = var.region != "" ? var.region : data.aws_region.current.name
+}
+
+module "block_redis" {
+  source = "./modules/blocks/redis"
+
+  count = length(local.blocks_by_type.redis)
+
+  name   = local.blocks_by_type.redis[count.index].block.name
+  region = var.region != "" ? var.region : data.aws_region.current.name
 }
 
 module "block_dns" {

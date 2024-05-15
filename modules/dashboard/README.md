@@ -128,6 +128,7 @@ module "this" {
 | <a name="module_block_cdn"></a> [block\_cdn](#module\_block\_cdn) | ./modules/blocks/cdn | n/a |
 | <a name="module_block_dns"></a> [block\_dns](#module\_block\_dns) | ./modules/blocks/dns | n/a |
 | <a name="module_block_rds"></a> [block\_rds](#module\_block\_rds) | ./modules/blocks/rds | n/a |
+| <a name="module_block_redis"></a> [block\_redis](#module\_block\_redis) | ./modules/blocks/redis | n/a |
 | <a name="module_block_service"></a> [block\_service](#module\_block\_service) | ./modules/blocks/service | n/a |
 | <a name="module_block_sla"></a> [block\_sla](#module\_block\_sla) | ./modules/blocks/sla | n/a |
 | <a name="module_container_all_requests"></a> [container\_all\_requests](#module\_container\_all\_requests) | ./modules/widgets/container/all-requests | n/a |
@@ -179,6 +180,14 @@ module "this" {
 | <a name="module_widget_rds_network"></a> [widget\_rds\_network](#module\_widget\_rds\_network) | ./modules/widgets/rds/network | n/a |
 | <a name="module_widget_rds_performance"></a> [widget\_rds\_performance](#module\_widget\_rds\_performance) | ./modules/widgets/rds/performance | n/a |
 | <a name="module_widget_rds_swap"></a> [widget\_rds\_swap](#module\_widget\_rds\_swap) | ./modules/widgets/rds/swap | n/a |
+| <a name="module_widget_redis_cache_hit"></a> [widget\_redis\_cache\_hit](#module\_widget\_redis\_cache\_hit) | ./modules/widgets/redis/cache-hit | n/a |
+| <a name="module_widget_redis_capacity"></a> [widget\_redis\_capacity](#module\_widget\_redis\_capacity) | ./modules/widgets/redis/capacity | n/a |
+| <a name="module_widget_redis_cpu"></a> [widget\_redis\_cpu](#module\_widget\_redis\_cpu) | ./modules/widgets/redis/cpu | n/a |
+| <a name="module_widget_redis_current_connections"></a> [widget\_redis\_current\_connections](#module\_widget\_redis\_current\_connections) | ./modules/widgets/redis/current-connections | n/a |
+| <a name="module_widget_redis_latency"></a> [widget\_redis\_latency](#module\_widget\_redis\_latency) | ./modules/widgets/redis/latency | n/a |
+| <a name="module_widget_redis_memory"></a> [widget\_redis\_memory](#module\_widget\_redis\_memory) | ./modules/widgets/redis/memory | n/a |
+| <a name="module_widget_redis_network"></a> [widget\_redis\_network](#module\_widget\_redis\_network) | ./modules/widgets/redis/network | n/a |
+| <a name="module_widget_redis_new_connections"></a> [widget\_redis\_new\_connections](#module\_widget\_redis\_new\_connections) | ./modules/widgets/redis/new-connections | n/a |
 | <a name="module_widget_sla_slo_sli"></a> [widget\_sla\_slo\_sli](#module\_widget\_sla\_slo\_sli) | ./modules/widgets/sla-slo-sli | n/a |
 
 ## Resources
