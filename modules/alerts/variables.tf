@@ -37,6 +37,7 @@ variable "health_checks" {
     measure_latency : optional(bool, false)
     regions : optional(list(string), ["us-west-1", "us-east-1", "eu-west-1"])
     tags : optional(map(string))
+    failure_threshold : optional(number, 1)
     main : optional(object({
       statistic : optional(string, "min")
       equation : optional(string, "lt")

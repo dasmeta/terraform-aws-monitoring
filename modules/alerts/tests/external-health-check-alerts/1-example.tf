@@ -19,6 +19,13 @@ module "this" {
       }
     },
     {
+      host              = "example.com"
+      failure_threshold = 5
+      percentage = {
+        threshold = "50"
+      }
+    },
+    {
       host = "example.com"
       port = 80
       percentage = {
