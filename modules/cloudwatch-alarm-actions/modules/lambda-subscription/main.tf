@@ -65,7 +65,7 @@ module "subscription" {
 
 module "alerts" {
   source  = "dasmeta/monitoring/aws//modules/alerts"
-  version = "1.3.4"
+  version = "1.18.1"
 
   sns_topic = var.fallback_sns_topic_name
 
@@ -77,10 +77,11 @@ module "alerts" {
       filters = {
         FunctionName = "${local.lambda_name}"
       }
-      period    = var.lambda_failed_alert.period
-      threshold = var.lambda_failed_alert.threshold
-      equation  = var.lambda_failed_alert.equation
-      statistic = var.lambda_failed_alert.statistic
+      period                 = var.lambda_failed_alert.period
+      threshold              = var.lambda_failed_alert.threshold
+      equation               = var.lambda_failed_alert.equation
+      statistic              = var.lambda_failed_alert.statistic
+      fill_insufficient_data = var.lambda_failed_alert.fill_insufficient_data
     }
   ]
 }

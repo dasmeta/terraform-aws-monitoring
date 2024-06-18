@@ -83,10 +83,11 @@ variable "recreate_missing_package" {
 variable "lambda_failed_alert" {
   type = any
   default = {
-    period    = 60
-    threshold = 1
-    equation  = "gte"
-    statistic = "sum"
+    period                 = 60
+    threshold              = 1
+    equation               = "gte"
+    statistic              = "sum"
+    fill_insufficient_data = true
   }
   description = "Alert for lambda failed "
 }
