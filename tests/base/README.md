@@ -5,7 +5,7 @@
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | = 4.59 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
 ## Providers
 
@@ -23,10 +23,10 @@
 
 | Name | Type |
 |------|------|
-| [aws_cloudwatch_log_group.test](https://registry.terraform.io/providers/hashicorp/aws/4.59/docs/resources/cloudwatch_log_group) | resource |
-| [aws_lb.test](https://registry.terraform.io/providers/hashicorp/aws/4.59/docs/resources/lb) | resource |
-| [aws_subnets.default](https://registry.terraform.io/providers/hashicorp/aws/4.59/docs/data-sources/subnets) | data source |
-| [aws_vpc.default](https://registry.terraform.io/providers/hashicorp/aws/4.59/docs/data-sources/vpc) | data source |
+| [aws_cloudwatch_log_group.test](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_lb.test](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
+| [aws_subnets.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets) | data source |
+| [aws_vpc.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
 ## Inputs
 
