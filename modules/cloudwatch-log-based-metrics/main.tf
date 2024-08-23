@@ -3,7 +3,7 @@ resource "aws_cloudwatch_log_metric_filter" "metric_filter" {
 
   name           = each.value.name
   pattern        = each.value.pattern
-  log_group_name = var.log_group_name
+  log_group_name = coalesce(each.value.log_group_name, var.log_group_name)
 
   metric_transformation {
     name          = each.value.name

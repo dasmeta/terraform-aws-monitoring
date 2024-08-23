@@ -1,12 +1,8 @@
 module "this" {
-  source                          = "../../"
-  name                            = "dev"
-  sns_topic_name                  = "alarm-dev"
-  webhook_url                     = ""
-  application_channel_webhook_url = ""
-  enable_log_base_metrics         = true
-  fallback_email_addresses        = []
-  fallback_phone_numbers          = []
+  source                  = "../../"
+  name                    = "dev"
+  sns_topic_name          = "alarm-dev"
+  enable_log_base_metrics = true
   health_checks = [
     {
       host = "dasmeta.com"
@@ -16,8 +12,8 @@ module "this" {
   log_base_metrics = [
     {
       name           = "container_exception_error_fail_crash_critical"
-      filter         = "{$.log = *error* || $.log = *fail* || $.log = *crash* || $.log = *critical* || $.log = *exception*}"
-      log_group_name = "eks-dev"
+      pattern        = "{$.log = *error* || $.log = *fail* || $.log = *crash* || $.log = *critical* || $.log = *exception*}"
+      log_group_name = aws_cloudwatch_log_group.test.name
     },
   ]
   application_channel_alerts = [
@@ -59,7 +55,7 @@ module "this" {
         width         = 24
         height        = 8
         type          = "sla-slo-sli",
-        balancer_name = "alb-dev"
+        balancer_name = aws_lb.test.name
         region        = "eu-central-1"
       }
     ],
@@ -68,4 +64,6 @@ module "this" {
     aws          = aws
     aws.virginia = aws.virginia
   }
+
+  depends_on = [aws_cloudwatch_log_group.test, aws_lb.test]
 }
