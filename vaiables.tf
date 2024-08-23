@@ -33,9 +33,17 @@ variable "enable_log_base_metrics" {
 }
 
 variable "log_base_metrics" {
-  type        = any
+  type = list(object({
+    name           = string
+    pattern        = string
+    log_group_name = string
+    unit           = optional(string, "None")
+    dimensions     = optional(any, {})
+    value          = optional(string, "1")
+    default_value  = optional(string, "0")
+  }))
   default     = []
-  description = "Log Base Metrics"
+  description = "Log Base Metrics creation configuration"
 }
 
 variable "alerts" {
