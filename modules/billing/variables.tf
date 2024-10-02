@@ -6,7 +6,7 @@ variable "comparison_operator" {
 variable "thresholds" {
   type        = list(string)
   description = "List of percentage thresholds that trigger notifications based on the limit amount. Example: ['90'] means notify when 90% of the budget is reached."
-  default     = ["90"]
+  default     = ["40", "60", "80", "90", "100", "110"]
 }
 
 variable "threshold_type" {
