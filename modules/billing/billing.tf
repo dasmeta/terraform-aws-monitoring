@@ -1,5 +1,6 @@
 resource "aws_budgets_budget" "budget_account" {
-  name              = var.name
+  for_each          = toset(var.thresholds)
+  name              = "${var.name}-${each.value}"
   budget_type       = var.budget_type
   limit_amount      = var.limit_amount
   limit_unit        = var.limit_unit
@@ -9,7 +10,7 @@ resource "aws_budgets_budget" "budget_account" {
 
   notification {
     comparison_operator = var.comparison_operator
-    threshold           = var.threshold
+    threshold           = each.value
     threshold_type      = var.threshold_type
     notification_type   = var.notification_type
 
