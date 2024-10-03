@@ -16,12 +16,8 @@ logger.setLevel(getattr(logging, LOGLEVEL))
 logger.info("log level: {}".format(LOGLEVEL))
 def handle_notification(event):
     # Function to handle notification logic
-    print("Handling SNS Notification:")
-    print(event)
     subject = event['Sns'].get('Subject')
     message = event['Sns'].get('Message')
-    print(subject)
-    print(message)
     items = [
             {
                 "type": "FactSet",
