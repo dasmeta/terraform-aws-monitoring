@@ -14,6 +14,56 @@ logger = logging.getLogger()
 logger.setLevel(getattr(logging, LOGLEVEL))
 
 logger.info("log level: {}".format(LOGLEVEL))
+def handle_notification(event):
+    # Function to handle notification logic
+    print("Handling SNS Notification:")
+    print(event)
+    subject = event['Sns'].get('Subject')
+    message = event['Sns'].get('Message')
+    print(subject)
+    print(message)
+    items = [
+            {
+                "type": "FactSet",
+                "facts": [{
+                    "title": "Message",
+                    "value": message
+                }]
+            }
+        ]
+    payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": "contentUrl",
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "title": subject,
+                    "version": "1.2",
+                    "msteams": {
+                        "width": "Full"
+                    },
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "text": subject,
+                            "size": "Large",
+                            "weight": "Bolder",
+                            "style": "heading"
+                        },
+                        {
+                            "type": "Container",
+                            "items": items
+                        },
+                    ]
+
+                }
+            }
+        ]
+    }
+    return payload
 
 def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url):
     if alert_type == "Expression":
@@ -110,11 +160,17 @@ def payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string
 
 def handler(event, context):
     region = os.environ['REGION']
-    alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = event_handler(event, context,region)
 
-    payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
+    logger.debug("Event: ",event)
+    if 'Records' in event:
+        for record in event['Records']:
+            if 'Sns' in record and record['Sns'].get('Type') == 'Notification':
+                payload_data = handle_notification(record)
+    else:
+        alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url = event_handler(event, context,region)
+        payload_data = payload(alert_type,subject,aws_account,aws_alarmdescription,dimension_string,metric_namespace,metric_name,image,url)
+
     teams_webhook_url =os.environ['WEBHOOK_URL']
-
     headers = {'Content-Type': 'application/json'}
     method = 'POST'
 
