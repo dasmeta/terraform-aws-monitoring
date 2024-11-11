@@ -31,6 +31,11 @@ variable "delivery_policy" {
     }
   }
 }
+variable "policy" {
+  type        = any
+  description = "The SNS topic policy"
+  default     = null
+}
 
 variable "email_addresses" {
   type        = list(string)
