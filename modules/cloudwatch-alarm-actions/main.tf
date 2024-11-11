@@ -2,7 +2,7 @@ module "topic" {
   # source  = "dasmeta/sns/aws//modules/topic"
   # version = "1.1.1"
 
-  source = "git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic"
+  source = "git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic?ref=DMVP-5761"
 
   name            = var.topic_name
   create          = var.create_topic

@@ -34,7 +34,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
-| <a name="module_topic"></a> [topic](#module\_topic) | git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic | n/a |
+| <a name="module_topic"></a> [topic](#module\_topic) | git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic | DMVP-5761 |
 
 ## Resources
 
