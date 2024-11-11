@@ -1,6 +1,6 @@
 module "topic" {
   source  = "dasmeta/sns/aws//modules/topic"
-  version = "1.1.3"
+  version = "1.2.4"
 
   name            = var.topic_name
   create          = var.create_topic
