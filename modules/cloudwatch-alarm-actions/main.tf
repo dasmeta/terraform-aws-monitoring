@@ -26,6 +26,7 @@ module "fallback-topic" {
 
   name            = "fallback-${var.topic_name}"
   delivery_policy = var.delivery_policy
+  policy          = var.policy
 
   # email/sms/endpoint(https) subscriptions
   subscriptions = local.fallback_subscriptions
