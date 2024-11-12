@@ -1,11 +1,11 @@
 module "topic" {
   source  = "dasmeta/sns/aws//modules/topic"
-  version = "1.1.1"
+  version = "1.2.5"
 
   name            = var.topic_name
   create          = var.create_topic
   delivery_policy = var.delivery_policy
-
+  policy          = var.policy
   # email/sms/endpoint(https) subscriptions
   subscriptions = local.subscriptions
 }
@@ -22,7 +22,7 @@ module "dead_letter_queue" {
 
 module "fallback-topic" {
   source  = "dasmeta/sns/aws//modules/topic"
-  version = "1.1.1"
+  version = "1.2.5"
 
   name            = "fallback-${var.topic_name}"
   delivery_policy = var.delivery_policy

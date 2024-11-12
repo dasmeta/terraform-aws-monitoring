@@ -29,12 +29,12 @@ module "monitoring_cloudwatch_alarm_actions" {
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
-| <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.1.1 |
+| <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.2.5 |
 | <a name="module_notify_jira"></a> [notify\_jira](#module\_notify\_jira) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
-| <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.1.1 |
+| <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.2.5 |
 
 ## Resources
 
@@ -58,6 +58,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
 | <a name="input_log_level"></a> [log\_level](#input\_log\_level) | log level for python code | `string` | `"INFO"` | no |
 | <a name="input_phone_numbers"></a> [phone\_numbers](#input\_phone\_numbers) | List of international formatted phone number to send notification to | `list(string)` | `[]` | no |
+| <a name="input_policy"></a> [policy](#input\_policy) | The SNS topic policy | `any` | `null` | no |
 | <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
 | <a name="input_servicenow_webhooks"></a> [servicenow\_webhooks](#input\_servicenow\_webhooks) | List of servicenow webhook configs to send notification to | <pre>list(object({<br>    domain = string<br>    path   = string<br>    user   = string<br>    pass   = string<br>  }))</pre> | `[]` | no |
 | <a name="input_slack_webhooks"></a> [slack\_webhooks](#input\_slack\_webhooks) | List of slack webhook configs to send notification to | <pre>list(object({<br>    hook_url = string<br>    channel  = string<br>    username = string<br>  }))</pre> | `[]` | no |
