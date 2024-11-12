@@ -29,12 +29,12 @@ module "monitoring_cloudwatch_alarm_actions" {
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
-| <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.2.5 |
+| <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic | DMVP-5761 |
 | <a name="module_notify_jira"></a> [notify\_jira](#module\_notify\_jira) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 5.4.1 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
-| <a name="module_topic"></a> [topic](#module\_topic) | dasmeta/sns/aws//modules/topic | 1.2.5 |
+| <a name="module_topic"></a> [topic](#module\_topic) | git::https://github.com/dasmeta/terraform-aws-sns.git//modules/topic | DMVP-5761 |
 
 ## Resources
 
