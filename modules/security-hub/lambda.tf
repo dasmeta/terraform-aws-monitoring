@@ -39,7 +39,7 @@ module "lambda-slack" {
   create        = true
   function_name = var.name
   handler       = "lambda.handler"
-  runtime       = "python3.7"
+  runtime       = "python3.13"
 
   create_package          = false
   ignore_source_code_hash = true
