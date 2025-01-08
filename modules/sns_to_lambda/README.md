@@ -88,7 +88,7 @@ module "sns_to_servicenow" {
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_lambda_envs"></a> [lambda\_envs](#input\_lambda\_envs) | n/a | `any` | <pre>{<br>  "SERVICENOW_AUTH": "",<br>  "SERVICENOW_DOMAIN": "",<br>  "SERVICENOW_PATH": ""<br>}</pre> | no |
+| <a name="input_lambda_envs"></a> [lambda\_envs](#input\_lambda\_envs) | n/a | `any` | <pre>{<br/>  "SERVICENOW_AUTH": "",<br/>  "SERVICENOW_DOMAIN": "",<br/>  "SERVICENOW_PATH": ""<br/>}</pre> | no |
 | <a name="input_name"></a> [name](#input\_name) | n/a | `string` | `"test"` | no |
 | <a name="input_topic_name"></a> [topic\_name](#input\_topic\_name) | n/a | `string` | `"test_topic"` | no |
 

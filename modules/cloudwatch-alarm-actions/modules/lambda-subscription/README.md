@@ -37,7 +37,7 @@ No requirements.
 | <a name="input_dead_letter_queue_arn"></a> [dead\_letter\_queue\_arn](#input\_dead\_letter\_queue\_arn) | The SQS queue arn for using as dead letter | `string` | `null` | no |
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Environment variables to pass to function | `map(any)` | `{}` | no |
 | <a name="input_fallback_sns_topic_name"></a> [fallback\_sns\_topic\_name](#input\_fallback\_sns\_topic\_name) | The fallback sns topic name to attach/create subscription | `string` | n/a | yes |
-| <a name="input_lambda_failed_alert"></a> [lambda\_failed\_alert](#input\_lambda\_failed\_alert) | Alert for lambda failed | `any` | <pre>{<br>  "equation": "gte",<br>  "fill_insufficient_data": true,<br>  "period": 60,<br>  "statistic": "sum",<br>  "threshold": 1<br>}</pre> | no |
+| <a name="input_lambda_failed_alert"></a> [lambda\_failed\_alert](#input\_lambda\_failed\_alert) | Alert for lambda failed | `any` | <pre>{<br/>  "equation": "gte",<br/>  "fill_insufficient_data": true,<br/>  "period": 60,<br/>  "statistic": "sum",<br/>  "threshold": 1<br/>}</pre> | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The retention days for cloudwatch log group | `number` | `7` | no |
 | <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Memory size for Lambda function | `number` | `null` | no |
 | <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |

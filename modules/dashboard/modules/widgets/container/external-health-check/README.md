@@ -60,7 +60,7 @@ No resources.
 |------|-------------|------|---------|:--------:|
 | <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Allow to enable anomaly detection on widget metrics | `bool` | `false` | no |
 | <a name="input_anomaly_deviation"></a> [anomaly\_deviation](#input\_anomaly\_deviation) | Deviation of the anomaly band | `number` | `6` | no |
-| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
+| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br/>    x : number<br/>    y : number<br/>    width : number<br/>    height : number<br/>  })</pre> | n/a | yes |
 | <a name="input_healthcheck_id"></a> [healthcheck\_id](#input\_healthcheck\_id) | n/a | `string` | `""` | no |
 | <a name="input_period"></a> [period](#input\_period) | stats | `number` | `300` | no |
 

@@ -29,7 +29,7 @@ No requirements.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_bucket_name"></a> [bucket\_name](#input\_bucket\_name) | S3 bucket for s3 subscription | `list(string)` | n/a | yes |
-| <a name="input_lambda_configs"></a> [lambda\_configs](#input\_lambda\_configs) | Lambda Configs | <pre>object({<br>    environment_variables = optional(object({<br>      url = optional(string, "")<br>    }), {})<br>  })</pre> | `{}` | no |
+| <a name="input_lambda_configs"></a> [lambda\_configs](#input\_lambda\_configs) | Lambda Configs | <pre>object({<br/>    environment_variables = optional(object({<br/>      url = optional(string, "")<br/>    }), {})<br/>  })</pre> | `{}` | no |
 | <a name="input_name"></a> [name](#input\_name) | Lambda name | `string` | n/a | yes |
 
 ## Outputs

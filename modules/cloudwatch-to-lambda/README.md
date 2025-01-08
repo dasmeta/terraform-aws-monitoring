@@ -31,7 +31,7 @@ No requirements.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_cloudwatch_log_group_names"></a> [cloudwatch\_log\_group\_names](#input\_cloudwatch\_log\_group\_names) | Cloudwatch Log group name | `list(string)` | n/a | yes |
-| <a name="input_lambda_configs"></a> [lambda\_configs](#input\_lambda\_configs) | Lambda Configs | <pre>object({<br>    environment_variables = optional(object({<br>      url = optional(string, "")<br>    }), {})<br>  })</pre> | `{}` | no |
+| <a name="input_lambda_configs"></a> [lambda\_configs](#input\_lambda\_configs) | Lambda Configs | <pre>object({<br/>    environment_variables = optional(object({<br/>      url = optional(string, "")<br/>    }), {})<br/>  })</pre> | `{}` | no |
 | <a name="input_name"></a> [name](#input\_name) | Lambda name | `string` | n/a | yes |
 
 ## Outputs

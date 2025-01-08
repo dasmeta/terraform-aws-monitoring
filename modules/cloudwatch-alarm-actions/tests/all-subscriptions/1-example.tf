@@ -31,9 +31,10 @@ module "this" {
   fallback_phone_numbers   = ["+000000000"]
   fallback_web_endpoints   = ["https://example.com/"]
   lambda_failed_alert = {
-    period    = 60
-    threshold = 1
-    equation  = "gte"
-    statistic = "sum"
+    period                 = 60
+    threshold              = 1
+    equation               = "gte"
+    statistic              = "sum"
+    fill_insufficient_data = true
   }
 }
