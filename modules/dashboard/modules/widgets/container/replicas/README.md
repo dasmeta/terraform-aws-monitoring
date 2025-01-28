@@ -27,7 +27,7 @@ No resources.
 | <a name="input_anomaly_deviation"></a> [anomaly\_deviation](#input\_anomaly\_deviation) | Deviation of the anomaly band | `number` | `6` | no |
 | <a name="input_cluster"></a> [cluster](#input\_cluster) | n/a | `string` | n/a | yes |
 | <a name="input_container"></a> [container](#input\_container) | n/a | `string` | n/a | yes |
-| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
+| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br/>    x : number<br/>    y : number<br/>    width : number<br/>    height : number<br/>  })</pre> | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | n/a | `string` | `"default"` | no |
 | <a name="input_period"></a> [period](#input\_period) | stats | `number` | `300` | no |
 

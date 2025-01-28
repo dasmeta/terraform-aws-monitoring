@@ -201,7 +201,7 @@ No modules.
 | <a name="input_notify_email_addresses"></a> [notify\_email\_addresses](#input\_notify\_email\_addresses) | The email addresses to notify about about cost increase, either this or sns\_topic\_arns should be set | `list(string)` | `[]` | no |
 | <a name="input_sns_topic_arns"></a> [sns\_topic\_arns](#input\_sns\_topic\_arns) | The arns of aws sns topic use as target for notifying about cost increase, either this or notify\_email\_addresses should be set | `list(string)` | `[]` | no |
 | <a name="input_threshold_type"></a> [threshold\_type](#input\_threshold\_type) | n/a | `string` | `"PERCENTAGE"` | no |
-| <a name="input_thresholds"></a> [thresholds](#input\_thresholds) | List of percentage thresholds that trigger notifications based on the limit amount. Example: ['90'] means notify when 90% of the budget is reached. | `list(string)` | <pre>[<br>  "40",<br>  "60",<br>  "80",<br>  "90",<br>  "100",<br>  "110"<br>]</pre> | no |
+| <a name="input_thresholds"></a> [thresholds](#input\_thresholds) | List of percentage thresholds that trigger notifications based on the limit amount. Example: ['90'] means notify when 90% of the budget is reached. | `list(string)` | <pre>[<br/>  "40",<br/>  "60",<br/>  "80",<br/>  "90",<br/>  "100",<br/>  "110"<br/>]</pre> | no |
 | <a name="input_time_period_end"></a> [time\_period\_end](#input\_time\_period\_end) | n/a | `string` | `"2087-06-15_00:00"` | no |
 | <a name="input_time_period_start"></a> [time\_period\_start](#input\_time\_period\_start) | n/a | `string` | `"2022-01-01_00:00"` | no |
 | <a name="input_time_unit"></a> [time\_unit](#input\_time\_unit) | n/a | `string` | `"MONTHLY"` | no |

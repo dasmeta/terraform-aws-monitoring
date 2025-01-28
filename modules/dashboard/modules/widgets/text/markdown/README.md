@@ -64,7 +64,7 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | n/a | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
+| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | n/a | <pre>object({<br/>    x : number<br/>    y : number<br/>    width : number<br/>    height : number<br/>  })</pre> | n/a | yes |
 | <a name="input_text"></a> [text](#input\_text) | n/a | `string` | n/a | yes |
 | <a name="input_transparent-background"></a> [transparent-background](#input\_transparent-background) | n/a | `bool` | `true` | no |
 

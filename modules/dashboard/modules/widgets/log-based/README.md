@@ -60,7 +60,7 @@ No resources.
 | <a name="input_account_id"></a> [account\_id](#input\_account\_id) | n/a | `string` | `null` | no |
 | <a name="input_anomaly_detection"></a> [anomaly\_detection](#input\_anomaly\_detection) | Enables anomaly detection on widget metrics | `bool` | `false` | no |
 | <a name="input_anomaly_deviation"></a> [anomaly\_deviation](#input\_anomaly\_deviation) | Deviation of the anomaly band | `number` | `4` | no |
-| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br>    x : number<br>    y : number<br>    width : number<br>    height : number<br>  })</pre> | n/a | yes |
+| <a name="input_coordinates"></a> [coordinates](#input\_coordinates) | position | <pre>object({<br/>    x : number<br/>    y : number<br/>    width : number<br/>    height : number<br/>  })</pre> | n/a | yes |
 | <a name="input_metrics"></a> [metrics](#input\_metrics) | n/a | `list(any)` | n/a | yes |
 | <a name="input_period"></a> [period](#input\_period) | n/a | `number` | `300` | no |
 | <a name="input_region"></a> [region](#input\_region) | region | `string` | `""` | no |
