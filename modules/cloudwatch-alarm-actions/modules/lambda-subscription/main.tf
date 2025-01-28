@@ -25,7 +25,7 @@ data "archive_file" "lambda_code_zip" {
 
 module "lambda" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = "4.7.1"
+  version = "6.8"
 
   create        = true
   function_name = local.lambda_name
