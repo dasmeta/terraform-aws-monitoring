@@ -73,6 +73,18 @@ variable "fallback_web_endpoints" {
   description = "List of web webhooks endpoints (like opsgenie) to send notification when lambda failed"
 }
 
+variable "lambda_arns" {
+  type        = list(string)
+  default     = []
+  description = "List of lambda function arns to send notification to. NOTE: the lambda should be in same region where SNS topic being created."
+}
+
+variable "fallback_lambda_arns" {
+  type        = list(string)
+  default     = []
+  description = "List of lambda function arns to send notification to when main channels delivery fail. NOTE: the lambda should be in same region where SNS topic being created."
+}
+
 variable "slack_webhooks" {
   type = list(object({
     hook_url = string

@@ -6,7 +6,8 @@ module "topic" {
   create          = var.create_topic
   delivery_policy = var.delivery_policy
   policy          = var.policy
-  # email/sms/endpoint(https) subscriptions
+
+  # email/sms/endpoint(https)/lambda subscriptions
   subscriptions = local.subscriptions
 }
 
@@ -27,6 +28,6 @@ module "fallback-topic" {
   name            = "fallback-${var.topic_name}"
   delivery_policy = var.delivery_policy
 
-  # email/sms/endpoint(https) subscriptions
+  # email/sms/endpoint(https)/lambda subscriptions
   subscriptions = local.fallback_subscriptions
 }
