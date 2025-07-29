@@ -14,6 +14,11 @@ locals {
       endpoint              = endpoint,
       protocol              = "https",
       dead_letter_queue_arn = try(module.dead_letter_queue[0].queue_arn, null)
+    }],
+    [for lambda_arn in var.lambda_arns : { # lambda function targets
+      endpoint              = lambda_arn,
+      protocol              = "lambda",
+      dead_letter_queue_arn = try(module.dead_letter_queue[0].queue_arn, null)
     }]
   )
 
@@ -29,6 +34,10 @@ locals {
     [for endpoint in var.fallback_web_endpoints : { # https webhook endpoints
       endpoint = endpoint,
       protocol = "https",
+    }],
+    [for endpoint in var.fallback_lambda_arns : { # lambda function target
+      endpoint = endpoint,
+      protocol = "lambda",
     }]
   )
 }

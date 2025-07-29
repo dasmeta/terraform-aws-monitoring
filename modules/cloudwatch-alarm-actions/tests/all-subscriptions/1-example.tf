@@ -5,6 +5,7 @@ module "this" {
   email_addresses = ["alarms-test@example.com"]
   phone_numbers   = ["+000000000"]
   web_endpoints   = [sensitive("https://example.com/")]
+  lambda_arns     = ["arn:aws:lambda:eu-central-1:{account-id}:function:{lambda-name}"] # lambda functions arns list
 
   teams_webhooks = ["webhook"]
 
