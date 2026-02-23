@@ -5,13 +5,11 @@
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 4.33 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
 ## Providers
 
-| Name | Version |
-|------|---------|
-| <a name="provider_test"></a> [test](#provider\_test) | n/a |
+No providers.
 
 ## Modules
 
@@ -21,13 +19,14 @@
 
 ## Resources
 
-| Name | Type |
-|------|------|
-| [test_assertions.dummy](https://registry.terraform.io/providers/hashicorp/test/latest/docs/resources/assertions) | resource |
+No resources.
 
 ## Inputs
 
-No inputs.
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_slack_channel_name"></a> [slack\_channel\_name](#input\_slack\_channel\_name) | Slack channel name | `string` | `"test-webhooks-channel"` | no |
+| <a name="input_slack_webhook_url"></a> [slack\_webhook\_url](#input\_slack\_webhook\_url) | Slack webhook URL | `string` | `"https://hooks.slack.com/services/xyz/xyzop/xyzopqrst"` | no |
 
 ## Outputs
 

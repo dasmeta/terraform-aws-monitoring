@@ -1,19 +1,82 @@
-## this module allows to send aws security-hib notifications to opsgenie
+## AWS Security Hub Terraform Module
 
-# TODO: improve this module(we had several notification channels support including opsgenie) and if possible have it integrated into terraform-aws-account module
+This module enables AWS Security Hub with comprehensive security monitoring and alerting capabilities.
+
+### ⚠️ Important Dependencies
+
+**AWS Config is REQUIRED** for Security Hub standards to work properly. Without AWS Config:
+- Security Hub standards cannot evaluate resource configurations
+- You won't get accurate findings for networking, IAM, and EC2/EKS misconfigurations
+- Security scores won't appear in Security Hub
+
+**AWS Inspector v2 is RECOMMENDED** for EC2/EKS/Lambda vulnerability scanning:
+- Scans EC2 instances and container images for vulnerabilities
+- Findings are automatically sent to Security Hub
+- Essential for comprehensive EC2/EKS/Lambda security coverage
+
+**AWS GuardDuty is OPTIONAL** for threat detection:
+- Monitors for malicious activity and unauthorized behavior
+- Provides intelligent threat detection for your AWS infrastructure
+- Findings are automatically sent to Security Hub
+- Disabled by default (`guardduty.enabled = false`)
+
+**Amazon Macie v2 is OPTIONAL** for data security and privacy:
+- Discovers, classifies, and protects sensitive data in S3 buckets
+- Uses machine learning to identify sensitive data
+- Findings are automatically sent to Security Hub
+- Disabled by default (`macie.enabled = false`)
+
+By default, Config and Inspector are enabled (`config.enabled = true`, `inspector.enabled = true`), while GuardDuty and Macie are disabled (`guardduty.enabled = false`, `macie.enabled = false`).
+
+## 🌍 Multi-Region Support and Finding Aggregation
+
+### Region-Specific Services
+
+**AWS Config, GuardDuty, and Macie are region-specific services.** When you deploy this Security Hub module, these submodules create resources only in the AWS provider's current region:
+
+- **Config**: Records resource configurations in the current region only
+- **GuardDuty**: Creates a detector in the current region only
+- **Macie**: Enables Macie in the current region only
+
+**To enable these services in multiple regions**, you have two options:
+
+1. **Deploy the Security Hub module separately in each region** (using provider aliases or separate Terraform workspaces)
+2. **Deploy only the submodules** (config, guardduty, macie) in additional regions while keeping Security Hub in one central region
+
+### Inspector - Automatic Multi-Region
+
+**AWS Inspector v2 is different** - it automatically scans resources across **ALL regions** in your account when enabled. You only need to deploy it once per account, and it handles all regions automatically.
+
+### Security Hub Finding Aggregation
+
+**Security Hub aggregates findings from all regions** via the finding aggregator:
+
+- **`link_mode = "ALL_REGIONS"`** (default): Aggregates findings from all regions automatically
+- **`link_mode = "SPECIFIED_REGIONS"`**: Aggregates findings only from regions listed in `specified_regions`
+
+When you enable Config, GuardDuty, or Macie in multiple regions, their findings are automatically aggregated into your central Security Hub instance, giving you a unified view of security findings across all regions.
+
+### Recommended Multi-Region Setup
+
+1. **Deploy Security Hub once** in your primary/central region (e.g., `us-east-1`)
+2. **Deploy Config, GuardDuty, and Macie submodules** in each region where you have resources
+3. **Deploy Inspector once** (it automatically handles all regions)
+4. **Configure Security Hub finding aggregator** with `link_mode = "ALL_REGIONS"` to aggregate all findings
+
+This setup provides comprehensive security coverage across all regions while maintaining a centralized Security Hub dashboard.
 
 ## Requirements
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 3.0 |
-| <a name="requirement_opsgenie"></a> [opsgenie](#requirement\_opsgenie) | ~> 3.0 |
+| Name                                                                   | Version |
+| ---------------------------------------------------------------------- | ------- |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws)                | ~> 3.0  |
+| <a name="requirement_opsgenie"></a> [opsgenie](#requirement\_opsgenie) | ~> 3.0  |
 
 ## Providers
 
-| Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 3.0 |
+| Name                                              | Version |
+| ------------------------------------------------- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 3.0  |
 
 ## Modules
 
@@ -21,23 +84,23 @@ No modules.
 
 ## Resources
 
-| Name | Type |
-|------|------|
-| [aws_securityhub_account.sec-hub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_account) | resource |
-| [aws_securityhub_action_target.sec-hub-target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_action_target) | resource |
+| Name                                                                                                                                                                | Type     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| [aws_securityhub_account.sec-hub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_account)                                  | resource |
+| [aws_securityhub_action_target.sec-hub-target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_action_target)               | resource |
 | [aws_securityhub_finding_aggregator.sec-hub-aggregator](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_finding_aggregator) | resource |
-| [aws_sns_topic.sns-sec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
-| [aws_sns_topic_subscription.sns-sec-sub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [aws_sns_topic.sns-sec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic)                                                      | resource |
+| [aws_sns_topic_subscription.sns-sec-sub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription)                        | resource |
 
 ## Inputs
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| <a name="input_link-mode"></a> [link-mode](#input\_link-mode) | n/a | `string` | `"ALL_REGIONS"` | no |
-| <a name="input_opsgenie-webhook"></a> [opsgenie-webhook](#input\_opsgenie-webhook) | Webhook for sending notification to opsgenie | `string` | n/a | yes |
-| <a name="input_protocol"></a> [protocol](#input\_protocol) | n/a | `string` | `"https"` | no |
-| <a name="input_securityhub-name"></a> [securityhub-name](#input\_securityhub-name) | n/a | `string` | `"Send-to-SNS"` | no |
-| <a name="input_sns-topic-name"></a> [sns-topic-name](#input\_sns-topic-name) | Topic name | `string` | `"Send-to-Opsgenie"` | no |
+| Name                                                                               | Description                                  | Type     | Default              | Required |
+| ---------------------------------------------------------------------------------- | -------------------------------------------- | -------- | -------------------- | :------: |
+| <a name="input_link-mode"></a> [link-mode](#input\_link-mode)                      | n/a                                          | `string` | `"ALL_REGIONS"`      |    no    |
+| <a name="input_opsgenie-webhook"></a> [opsgenie-webhook](#input\_opsgenie-webhook) | Webhook for sending notification to opsgenie | `string` | n/a                  |   yes    |
+| <a name="input_protocol"></a> [protocol](#input\_protocol)                         | n/a                                          | `string` | `"https"`            |    no    |
+| <a name="input_securityhub-name"></a> [securityhub-name](#input\_securityhub-name) | n/a                                          | `string` | `"Send-to-SNS"`      |    no    |
+| <a name="input_sns-topic-name"></a> [sns-topic-name](#input\_sns-topic-name)       | Topic name                                   | `string` | `"Send-to-Opsgenie"` |    no    |
 
 ## Outputs
 
@@ -47,62 +110,77 @@ No outputs.
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
+| <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_archive"></a> [archive](#provider\_archive) | n/a |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_lambda"></a> [lambda](#module\_lambda) | terraform-aws-modules/lambda/aws | 5.2.0 |
-| <a name="module_lambda-slack"></a> [lambda-slack](#module\_lambda-slack) | terraform-aws-modules/lambda/aws | 5.2.0 |
+| <a name="module_alarm_actions"></a> [alarm\_actions](#module\_alarm\_actions) | ../cloudwatch-alarm-actions | n/a |
+| <a name="module_config"></a> [config](#module\_config) | ../config | n/a |
+| <a name="module_guardduty"></a> [guardduty](#module\_guardduty) | ../guardduty | n/a |
+| <a name="module_inspector"></a> [inspector](#module\_inspector) | ../inspector | n/a |
+| <a name="module_macie"></a> [macie](#module\_macie) | ../macie | n/a |
 
 ## Resources
 
 | Name | Type |
 |------|------|
-| [aws_cloudwatch_event_rule.securityhub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
-| [aws_cloudwatch_event_target.lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
-| [aws_cloudwatch_event_target.slack](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
-| [aws_cloudwatch_event_target.sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_event_rule.automated_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_rule.manual_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_target.automated_alerts_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_event_target.manual_alerts_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_securityhub_account.sec-hub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_account) | resource |
 | [aws_securityhub_action_target.sec-hub-target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_action_target) | resource |
 | [aws_securityhub_finding_aggregator.sec-hub-aggregator](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_finding_aggregator) | resource |
 | [aws_securityhub_member.account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_member) | resource |
-| [aws_sns_topic.sns-sec](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
-| [aws_sns_topic_policy.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
-| [aws_sns_topic_subscription.sns-to-email](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
-| [aws_sns_topic_subscription.sns-to-opsgenie](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
-| [archive_file.lambda_code_zip_slack](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
-| [archive_file.lambda_code_zip_teams](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
+| [aws_securityhub_standards_subscription.standards](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_standards_subscription) | resource |
+| [aws_sns_topic_policy.eventbridge_publish](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
-| [aws_iam_policy_document.sns_topic_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.eventbridge_publish_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.sns_topic_policy_custom_merged](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.sns_topic_policy_merged](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_create_slack_target"></a> [create\_slack\_target](#input\_create\_slack\_target) | Create Target for send notification to Slack | `bool` | `false` | no |
-| <a name="input_create_sns_target"></a> [create\_sns\_target](#input\_create\_sns\_target) | Create Target for send notification to SNS | `bool` | `false` | no |
-| <a name="input_create_teams_target"></a> [create\_teams\_target](#input\_create\_teams\_target) | Create Target for send notification to Teams | `bool` | `false` | no |
+| <a name="input_action_target_name"></a> [action\_target\_name](#input\_action\_target\_name) | Name of the Security Hub action target. This name is used in EventBridge event patterns to filter manual trigger events. | `string` | `"SendNotification"` | no |
+| <a name="input_alarm_actions"></a> [alarm\_actions](#input\_alarm\_actions) | CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.). | <pre>object({<br/>    enabled                          = optional(bool, false)      # Enable/disable alarm actions module for Security Hub findings notifications<br/>    topic_name                       = optional(string, "")       # SNS topic name for Security Hub findings. If empty, defaults to "${var.name}-security-hub-findings"<br/>    create_topic                     = optional(bool, true)       # Whether to create a new SNS topic or use an existing one (specified by topic_name)<br/>    topic_assign_security_hub_policy = optional(bool, true)       # Whether to assign the default security hub policy to the SNS topic<br/>    email_addresses                  = optional(list(string), []) # List of email addresses to receive Security Hub findings notifications<br/>    fallback_email_addresses         = optional(list(string), []) # List of fallback email addresses to receive notifications when primary channels fail<br/>    phone_numbers                    = optional(list(string), []) # List of international formatted phone numbers (e.g., "+1234567890") to receive SMS notifications<br/>    fallback_phone_numbers           = optional(list(string), []) # List of fallback phone numbers for SMS notifications when primary channels fail<br/>    web_endpoints                    = optional(list(string), []) # List of webhook endpoints (e.g., Opsgenie, PagerDuty) to receive HTTP POST notifications<br/>    fallback_web_endpoints           = optional(list(string), []) # List of fallback webhook endpoints when primary channels fail<br/>    lambda_arns                      = optional(list(string), []) # List of Lambda function ARNs to invoke when Security Hub findings are received. Note: Lambda functions must be in the same region as the SNS topic<br/>    fallback_lambda_arns             = optional(list(string), []) # List of fallback Lambda function ARNs when primary channels fail<br/>    slack_webhooks = optional(list(object({<br/>      hook_url = string # Slack webhook URL<br/>      channel  = string # Slack channel name (e.g., "#security-alerts")<br/>      username = string # Bot username for Slack messages<br/>    })), [])            # List of Slack webhook configurations for sending notifications to Slack channels<br/>    servicenow_webhooks = optional(list(object({<br/>      domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")<br/>      path   = string                           # API endpoint path<br/>      user   = string                           # ServiceNow username<br/>      pass   = string                           # ServiceNow password or API token<br/>    })), [])                                    # List of ServiceNow webhook configurations for creating incidents in ServiceNow<br/>    teams_webhooks = optional(list(string), []) # List of Microsoft Teams webhook URLs for sending notifications to Teams channels<br/>    jira_config = optional(list(object({<br/>      url            = string         # Jira instance URL (e.g., "https://yourcompany.atlassian.net")<br/>      key            = string         # Jira project key<br/>      user_username  = string         # Jira username<br/>      user_api_token = string         # Jira API token<br/>    })), [])                          # List of Jira configurations for creating tickets for Security Hub findings<br/>    delivery_policy = optional(any, { # SNS topic delivery policy for retry and throttling configuration. Controls how SNS retries message delivery to endpoints<br/>      "http" : {<br/>        "defaultHealthyRetryPolicy" : {<br/>          "minDelayTarget" : 20,<br/>          "maxDelayTarget" : 20,<br/>          "numRetries" : 3,<br/>          "numMaxDelayRetries" : 0,<br/>          "numNoDelayRetries" : 0,<br/>          "numMinDelayRetries" : 0,<br/>          "backoffFunction" : "linear"<br/>        },<br/>        "disableSubscriptionOverrides" : false,<br/>        "defaultThrottlePolicy" : {<br/>          "maxReceivesPerSecond" : 1<br/>        }<br/>      }<br/>    })<br/>    policy                   = optional(any, null)      # SNS topic policy (IAM policy document) for controlling access to the topic. If null, uses default policy allowing EventBridge to publish<br/>    log_group_retention_days = optional(number, 7)      # Number of days to retain CloudWatch Logs for Lambda functions (default: 7 days)<br/>    enable_dead_letter_queue = optional(bool, true)     # Whether to enable dead letter queue (SQS) for failed Lambda invocations<br/>    recreate_missing_package = optional(bool, true)     # Whether to recreate missing Lambda deployment packages if they are missing locally<br/>    log_level                = optional(string, "INFO") # Log level for Lambda functions ("DEBUG", "INFO", "WARNING", "ERROR")<br/>    lambda_failed_alert = optional(any, {               # CloudWatch alarm configuration for monitoring Lambda function failures. Triggers when Lambda functions fail to process notifications<br/>      period    = 60                                    # Evaluation period in seconds<br/>      threshold = 1                                     # Number of failures to trigger alarm<br/>      equation  = "gte"                                 # Comparison operator (greater than or equal)<br/>      statistic = "sum"                                 # Statistic type (sum, average, etc.)<br/>    })<br/>  })</pre> | `{}` | no |
+| <a name="input_config"></a> [config](#input\_config) | AWS Config configuration. REQUIRED for Security Hub standards to evaluate resources. Without Config, Security Hub won't detect misconfigurations properly. Config can be enabled independently of Security Hub. | <pre>object({<br/>    enabled                    = optional(bool, true)                 # Enable/disable AWS Config. REQUIRED for Security Hub standards to work properly. Can be enabled independently of Security Hub.<br/>    create_service_linked_role = optional(bool, true)                 # Whether to create the AWS Config service-linked role. Set to false if the role already exists in your account. If set to true and the role already exists, Terraform will fail with EntityAlreadyExists - in that case, set this to false and import the existing role<br/>    record_all_resources       = optional(bool, true)                 # Record all supported resource types in AWS Config. If false, use included_resource_types to specify which resources to record<br/>    include_global_resources   = optional(bool, true)                 # Include global resources (IAM, etc.) in AWS Config recording<br/>    s3_bucket_name             = optional(string, "")                 # S3 bucket name for AWS Config. If empty, a bucket will be created automatically<br/>    s3_bucket_force_destroy    = optional(bool, false)                # Force destroy S3 bucket for Config when deleting the module<br/>    delivery_frequency         = optional(string, "TwentyFour_Hours") # Frequency for Config snapshot delivery. Valid values: One_Hour, Three_Hours, Six_Hours, Twelve_Hours, TwentyFour_Hours<br/>    included_resource_types    = optional(list(string), [])           # List of resource types to include when record_all_resources is false. If empty and record_all_resources is false, all resources are excluded<br/>    excluded_resource_types    = optional(list(string), [])           # List of resource types to exclude when record_all_resources is true<br/>    rules = optional(map(object({                                     # Map of Config rules to create. Key is the rule name. If empty, no rules will be created<br/>      description = optional(string)                                  # Rule description<br/>      source = optional(object({                                      # Rule source configuration<br/>        owner             = string                                    # Source owner (AWS or CUSTOM_LAMBDA)<br/>        source_identifier = string                                    # Source identifier (e.g., "S3_BUCKET_PUBLIC_READ_PROHIBITED" for AWS managed rules)<br/>        source_detail = optional(list(object({                        # Additional source details for event-based rules<br/>          event_source                = optional(string)              # Event source (e.g., "aws.config")<br/>          maximum_execution_frequency = optional(string)              # Maximum execution frequency<br/>          message_type                = optional(string)              # Message type<br/>        })))<br/>      }))<br/>      scope = optional(object({                            # Rule scope - defines which resources the rule evaluates<br/>        compliance_resource_types = optional(list(string)) # Resource types to evaluate<br/>        compliance_resource_id    = optional(string)       # Specific resource ID to evaluate<br/>        tag_key                   = optional(string)       # Tag key for tag-based scoping<br/>        tag_value                 = optional(string)       # Tag value for tag-based scoping<br/>      }))<br/>      input_parameters = optional(string)      # JSON string of input parameters for the rule<br/>      tags             = optional(map(string)) # Tags to apply to the rule<br/>    })), {})<br/>  })</pre> | `{}` | no |
 | <a name="input_enable_security_hub"></a> [enable\_security\_hub](#input\_enable\_security\_hub) | Whether to enable/activate security hub and its finding aggregator for aws account, this is useful in case the security hub is already enabled (for example when we test, or account have it enable by default) | `bool` | `true` | no |
 | <a name="input_enable_security_hub_finding_aggregator"></a> [enable\_security\_hub\_finding\_aggregator](#input\_enable\_security\_hub\_finding\_aggregator) | Whether to enable/create security hub and its finding aggregator for aws account, this is useful in case there is already created security hub finding aggregator | `bool` | `true` | no |
-| <a name="input_lambda_environment_variables"></a> [lambda\_environment\_variables](#input\_lambda\_environment\_variables) | Environment variables to pass to Lambda function | `map(any)` | `{}` | no |
-| <a name="input_link_mode"></a> [link\_mode](#input\_link\_mode) | n/a | `string` | `"ALL_REGIONS"` | no |
+| <a name="input_enabled_standards"></a> [enabled\_standards](#input\_enabled\_standards) | Set of Security Hub standards to enable. Available standards:<br/>- "aws-foundational-security-best-practices/v/1.0.0" (default)<br/>- "cis-aws-foundations-benchmark/v/1.2.0" (default)<br/>- "aws-resource-tagging-standard/v/1.0.0"<br/>- "cis-aws-foundations-benchmark/v/1.4.0"<br/>- "cis-aws-foundations-benchmark/v/3.0.0"<br/>- "cis-aws-foundations-benchmark/v/5.0.0"<br/>- "nist-800-171-rev2/v/1.0.0"<br/>- "nist-800-53-rev5/v/1.0.0"<br/>- "pci-dss/v/3.2.1"<br/>- "pci-dss/v/4.0.1"<br/><br/>Default: ["aws-foundational-security-best-practices/v/1.0.0", "cis-aws-foundations-benchmark/v/1.2.0"]<br/><br/>Example to enable all standards:<br/>enabled\_standards = [<br/>  "aws-foundational-security-best-practices/v/1.0.0",<br/>  "cis-aws-foundations-benchmark/v/1.2.0",<br/>  "aws-resource-tagging-standard/v/1.0.0",<br/>  "cis-aws-foundations-benchmark/v/1.4.0",<br/>  "cis-aws-foundations-benchmark/v/3.0.0",<br/>  "cis-aws-foundations-benchmark/v/5.0.0",<br/>  "nist-800-171-rev2/v/1.0.0",<br/>  "nist-800-53-rev5/v/1.0.0",<br/>  "pci-dss/v/3.2.1",<br/>  "pci-dss/v/4.0.1"<br/>] | `set(string)` | <pre>[<br/>  "aws-foundational-security-best-practices/v/1.0.0",<br/>  "cis-aws-foundations-benchmark/v/1.2.0"<br/>]</pre> | no |
+| <a name="input_guardduty"></a> [guardduty](#input\_guardduty) | AWS GuardDuty configuration. OPTIONAL threat detection service. GuardDuty findings are automatically sent to Security Hub when both are enabled. GuardDuty can be enabled independently of Security Hub. | <pre>object({<br/>    enabled                      = optional(bool, false)               # Enable/disable AWS GuardDuty. OPTIONAL threat detection service. Can be enabled independently of Security Hub.<br/>    finding_publishing_frequency = optional(string, "FIFTEEN_MINUTES") # Frequency of notifications sent for finding occurrences. Valid values: FIFTEEN_MINUTES, ONE_HOUR, SIX_HOURS<br/>    enable_s3_protection         = optional(bool, true)                # Enable S3 protection in GuardDuty (detects threats to S3 buckets)<br/>    enable_kubernetes_protection = optional(bool, true)                # Enable Kubernetes audit log protection in GuardDuty<br/>    enable_malware_protection    = optional(bool, true)                # Enable malware protection for EC2 instances in GuardDuty<br/>    filters = optional(map(object({                                    # Map of findings filters to create. Key is the filter name. If empty, no filters will be created<br/>      description = optional(string)                                   # Filter description<br/>      action      = string                                             # Filter action. Valid values: ARCHIVE (suppress findings), NOOP (no action)<br/>      rank        = optional(number)                                   # Filter rank (determines filter evaluation order)<br/>      finding_criteria = optional(object({                             # Filter criteria for matching findings<br/>        criterion = optional(map(object({                              # Map of criterion fields. Key is the finding field name (e.g., "severity", "type")<br/>          equals                = optional(list(string))               # Match if field equals any value in list<br/>          not_equals            = optional(list(string))               # Match if field does not equal any value in list<br/>          greater_than          = optional(number)                     # Match if field is greater than value<br/>          greater_than_or_equal = optional(number)                     # Match if field is greater than or equal to value<br/>          less_than             = optional(number)                     # Match if field is less than value<br/>          less_than_or_equal    = optional(number)                     # Match if field is less than or equal to value<br/>        })))<br/>      }))<br/>      tags = optional(map(string)) # Tags to apply to the filter<br/>    })), {})<br/>  })</pre> | `{}` | no |
+| <a name="input_inspector"></a> [inspector](#input\_inspector) | AWS Inspector v2 configuration. RECOMMENDED for EC2/EKS vulnerability scanning. Inspector findings are automatically sent to Security Hub when both are enabled. Inspector can be enabled independently of Security Hub. | <pre>object({<br/>    enabled        = optional(bool, true)                                            # Enable/disable AWS Inspector v2. RECOMMENDED for EC2/EKS vulnerability scanning. Can be enabled independently of Security Hub.<br/>    resource_types = optional(list(string), ["EC2", "ECR", "LAMBDA", "LAMBDA_CODE"]) # Resource types to enable Inspector for. Valid values: EC2, ECR, LAMBDA, LAMBDA_CODE, CODE_REPOSITORY. LAMBDA scans Lambda function configuration (runtime, permissions). LAMBDA_CODE scans Lambda function code (dependencies, vulnerabilities). Both are recommended for comprehensive Lambda scanning<br/>    filters = optional(map(object({                                                  # Map of findings filters to create. Key is the filter name. If empty, no filters will be created<br/>      description   = optional(string)                                               # Filter description<br/>      filter_action = string                                                         # Filter action. Valid values: ARCHIVE (suppress findings), NOOP (no action)<br/>      filter_criteria = optional(object({                                            # Filter criteria for matching findings<br/>        aws_account_id = optional(object({                                           # Filter by AWS account ID<br/>          comparison = string                                                        # Comparison operator (EQUALS, PREFIX, NOT_EQUALS)<br/>          value      = string                                                        # Account ID value<br/>        }))<br/>        component_id = optional(object({ # Filter by component ID<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        component_type = optional(object({ # Filter by component type<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        ec2_instance_image_id = optional(object({ # Filter by EC2 instance AMI ID<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        ec2_instance_subnet_id = optional(object({ # Filter by EC2 instance subnet ID<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        ec2_instance_vpc_id = optional(object({ # Filter by EC2 instance VPC ID<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        ecr_image_pushed_at = optional(object({ # Filter by ECR image push date/time<br/>          end_inclusive   = optional(string)    # End date (ISO 8601 format)<br/>          start_inclusive = optional(string)    # Start date (ISO 8601 format)<br/>        }))<br/>        ecr_image_tags = optional(object({ # Filter by ECR image tags<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        ecr_image_hash = optional(object({ # Filter by ECR image hash<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        finding_arn = optional(object({ # Filter by finding ARN<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        finding_status = optional(object({ # Filter by finding status (ACTIVE, SUPPRESSED, CLOSED)<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        finding_type = optional(object({ # Filter by finding type<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        first_observed_at = optional(object({ # Filter by first observation date/time<br/>          end_inclusive   = optional(string)  # End date (ISO 8601 format)<br/>          start_inclusive = optional(string)  # Start date (ISO 8601 format)<br/>        }))<br/>        inspector_score = optional(object({  # Filter by Inspector score range<br/>          lower_inclusive = optional(number) # Minimum score (0-10)<br/>          upper_inclusive = optional(number) # Maximum score (0-10)<br/>        }))<br/>        last_observed_at = optional(object({ # Filter by last observation date/time<br/>          end_inclusive   = optional(string) # End date (ISO 8601 format)<br/>          start_inclusive = optional(string) # Start date (ISO 8601 format)<br/>        }))<br/>        network_protocol = optional(object({ # Filter by network protocol<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        port_range = optional(object({       # Filter by port range<br/>          begin_inclusive = optional(number) # Start port number<br/>          end_inclusive   = optional(number) # End port number<br/>        }))<br/>        related_vulnerabilities = optional(object({ # Filter by related vulnerability IDs<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        resource_id = optional(object({ # Filter by resource ID<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        resource_tags = optional(object({ # Filter by resource tags<br/>          comparison = string             # Comparison operator<br/>          key        = string             # Tag key<br/>          value      = optional(string)   # Tag value (optional)<br/>        }))<br/>        resource_type = optional(object({ # Filter by resource type (EC2, ECR, LAMBDA)<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        severity = optional(object({ # Filter by severity (CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL, UNTRIAGED)<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        title = optional(object({ # Filter by finding title<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        updated_at = optional(object({       # Filter by last update date/time<br/>          end_inclusive   = optional(string) # End date (ISO 8601 format)<br/>          start_inclusive = optional(string) # Start date (ISO 8601 format)<br/>        }))<br/>        vendor_severity = optional(object({ # Filter by vendor severity<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        vulnerability_id = optional(object({ # Filter by vulnerability ID (CVE ID, etc.)<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>        vulnerability_source = optional(object({ # Filter by vulnerability source<br/>          comparison = string<br/>          value      = string<br/>        }))<br/>      }))<br/>    })), {})<br/>  })</pre> | `{}` | no |
+| <a name="input_link_mode"></a> [link\_mode](#input\_link\_mode) | Linking mode for Security Hub finding aggregator. Valid values: ALL\_REGIONS, SPECIFIED\_REGIONS. When set to ALL\_REGIONS, Security Hub aggregates findings from all regions. When set to SPECIFIED\_REGIONS, only aggregates from regions listed in specified\_regions. | `string` | `"ALL_REGIONS"` | no |
+| <a name="input_macie"></a> [macie](#input\_macie) | Amazon Macie v2 configuration. OPTIONAL data security and privacy service. Macie discovers and protects sensitive data in S3. Findings are automatically sent to Security Hub when both are enabled. Macie can be enabled independently of Security Hub. | <pre>object({<br/>    enabled                      = optional(bool, false)               # Enable/disable Amazon Macie v2. OPTIONAL data security and privacy service. Can be enabled independently of Security Hub.<br/>    finding_publishing_frequency = optional(string, "FIFTEEN_MINUTES") # Frequency of policy findings updates. Valid values: FIFTEEN_MINUTES, ONE_HOUR, SIX_HOURS<br/>    status                       = optional(string, "ENABLED")         # Macie account status. Valid values: ENABLED, PAUSED<br/>    findings_filters = optional(map(object({                           # Map of findings filters to create. Key is the filter name (which becomes the field name in criterion). If empty, no filters will be created<br/>      description = optional(string)                                   # Filter description<br/>      action      = string                                             # Filter action. Valid values: ARCHIVE (suppress findings), NOOP (no action)<br/>      position    = optional(number)                                   # Filter position (determines filter evaluation order)<br/>      finding_criteria = optional(object({                             # Filter criteria for matching findings<br/>        criterion = optional(map(object({                              # Map of criterion fields. Key is the finding field name (e.g., "severity", "type")<br/>          eq  = optional(list(string))                                 # Match if field equals any value in list<br/>          gt  = optional(number)                                       # Match if field is greater than value<br/>          gte = optional(number)                                       # Match if field is greater than or equal to value<br/>          lt  = optional(number)                                       # Match if field is less than value<br/>          lte = optional(number)                                       # Match if field is less than or equal to value<br/>          neq = optional(list(string))                                 # Match if field does not equal any value in list<br/>        })))<br/>      }))<br/>      tags = optional(map(string)) # Tags to apply to the filter<br/>    })), {})<br/>  })</pre> | `{}` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name | `string` | n/a | yes |
 | <a name="input_securityhub_members"></a> [securityhub\_members](#input\_securityhub\_members) | Security Hub Member Accounts (Email and Account Id) | `map(any)` | `{}` | no |
-| <a name="input_sns_email_subscription"></a> [sns\_email\_subscription](#input\_sns\_email\_subscription) | Webhook for sending notification to Email | `string` | `""` | no |
-| <a name="input_sns_opsgenie_subscription"></a> [sns\_opsgenie\_subscription](#input\_sns\_opsgenie\_subscription) | Webhook for sending notification to opsgenie | `string` | `""` | no |
+| <a name="input_specified_regions"></a> [specified\_regions](#input\_specified\_regions) | List of regions to aggregate findings from when link\_mode is SPECIFIED\_REGIONS. Required when link\_mode = SPECIFIED\_REGIONS. If empty and link\_mode is ALL\_REGIONS, findings from all regions are aggregated. | `list(string)` | `[]` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources | `map(string)` | `{}` | no |
 
 ## Outputs
 
-No outputs.
+| Name | Description |
+|------|-------------|
+| <a name="output_alarm_actions"></a> [alarm\_actions](#output\_alarm\_actions) | CloudWatch Alarm Actions module outputs for Security Hub findings notifications. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
+| <a name="output_config"></a> [config](#output\_config) | AWS Config module outputs. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
+| <a name="output_eventbridge_rule_arn"></a> [eventbridge\_rule\_arn](#output\_eventbridge\_rule\_arn) | The ARN of the EventBridge rule for Security Hub findings |
+| <a name="output_guardduty"></a> [guardduty](#output\_guardduty) | AWS GuardDuty module outputs. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
+| <a name="output_inspector"></a> [inspector](#output\_inspector) | AWS Inspector module outputs. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
+| <a name="output_macie"></a> [macie](#output\_macie) | Amazon Macie module outputs. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
+| <a name="output_security_hub_account_id"></a> [security\_hub\_account\_id](#output\_security\_hub\_account\_id) | The ID of the Security Hub account |
+| <a name="output_security_hub_action_target_arn"></a> [security\_hub\_action\_target\_arn](#output\_security\_hub\_action\_target\_arn) | The ARN of the Security Hub action target |
+| <a name="output_security_hub_finding_aggregator_id"></a> [security\_hub\_finding\_aggregator\_id](#output\_security\_hub\_finding\_aggregator\_id) | The ID of the Security Hub finding aggregator |
+| <a name="output_standards_subscriptions"></a> [standards\_subscriptions](#output\_standards\_subscriptions) | Map of enabled Security Hub standards subscriptions (key is standard identifier, value is the subscription resource) |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->

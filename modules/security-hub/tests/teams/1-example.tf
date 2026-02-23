@@ -4,8 +4,8 @@ module "this" {
 
   name = "test-teams"
 
-  create_teams_target = true
-  lambda_environment_variables = {
-    WEBHOOK_URL = "https://hypoportsystems.webhook.office.com/webhookb2//IncomingWebhook/"
+  alarm_actions = {
+    enabled        = true
+    teams_webhooks = [var.teams_webhook_url]
   }
 }

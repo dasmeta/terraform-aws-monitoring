@@ -1,12 +1,16 @@
-# Security Hub alerts send to Teams
 module "this" {
   source = "../../"
 
-  name = "test-slack"
+  name = "sh-slack-test"
 
-  create_slack_target = true
-
-  lambda_environment_variables = {
-    SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/"
+  alarm_actions = {
+    enabled = true
+    slack_webhooks = [
+      {
+        hook_url = var.slack_webhook_url
+        channel  = var.slack_channel_name
+        username = "reporter"
+      }
+    ]
   }
 }
