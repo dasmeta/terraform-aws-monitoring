@@ -180,6 +180,14 @@ resource "aws_securityhub_standards_subscription" "standards" {
 
   standards_arn = each.value
 
+  # Increase timeout for standards subscription creation
+  # Security Hub standards can take several minutes to initialize, especially when AWS Config is being set up
+  # The default timeout is 3 minutes, which may not be sufficient in all cases
+  # This timeout issue is more common with AWS provider 6.0+ which has stricter timeout handling
+  timeouts {
+    create = var.standards_subscription_timeout
+  }
+
   depends_on = [
     aws_securityhub_account.sec-hub,
     module.config

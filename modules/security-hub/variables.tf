@@ -100,6 +100,11 @@ variable "enable_security_hub_finding_aggregator" {
   description = "Whether to enable/create security hub and its finding aggregator for aws account, this is useful in case there is already created security hub finding aggregator"
 }
 
+variable "standards_subscription_timeout" {
+  type        = string
+  default     = "10m"
+  description = "Timeout for Security Hub standards subscription creation. Default is 10 minutes. Security Hub standards can take several minutes to initialize, especially when AWS Config is being set up. Increase this value if you experience timeout errors."
+}
 
 variable "securityhub_members" {
   description = "Security Hub Member Accounts (Email and Account Id)"

@@ -112,13 +112,13 @@ No outputs.
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
 | <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0, < 7.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0, < 7.0 |
 
 ## Modules
 
@@ -167,6 +167,7 @@ No outputs.
 | <a name="input_name"></a> [name](#input\_name) | Name | `string` | n/a | yes |
 | <a name="input_securityhub_members"></a> [securityhub\_members](#input\_securityhub\_members) | Security Hub Member Accounts (Email and Account Id) | `map(any)` | `{}` | no |
 | <a name="input_specified_regions"></a> [specified\_regions](#input\_specified\_regions) | List of regions to aggregate findings from when link\_mode is SPECIFIED\_REGIONS. Required when link\_mode = SPECIFIED\_REGIONS. If empty and link\_mode is ALL\_REGIONS, findings from all regions are aggregated. | `list(string)` | `[]` | no |
+| <a name="input_standards_subscription_timeout"></a> [standards\_subscription\_timeout](#input\_standards\_subscription\_timeout) | Timeout for Security Hub standards subscription creation. Default is 10 minutes. Security Hub standards can take several minutes to initialize, especially when AWS Config is being set up. Increase this value if you experience timeout errors. | `string` | `"10m"` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources | `map(string)` | `{}` | no |
 
 ## Outputs
