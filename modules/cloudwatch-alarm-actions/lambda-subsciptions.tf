@@ -3,7 +3,7 @@ data "aws_region" "current" {}
 # slack notify subscription
 module "notify_slack" {
   source  = "terraform-aws-modules/notify-slack/aws"
-  version = "5.4.1"
+  version = "6.7.0"
 
   for_each = { for webhook in var.slack_webhooks : "${webhook.channel}-${webhook.username}" => webhook }
 
@@ -13,7 +13,7 @@ module "notify_slack" {
   lambda_function_name = substr(replace("${each.value.channel}-${each.value.username}-slack", ".", "-"), 0, 63)
 
   # lambda configs
-  slack_webhook_url = each.value.hook_url
+  slack_webhook_url = sensitive(each.value.hook_url)
   slack_channel     = each.value.channel
   slack_username    = each.value.username
 
@@ -31,7 +31,7 @@ module "notify_servicenow" {
 
   # sns/subscription configs
   sns_topic_name          = module.topic.name
-  fallback_sns_topic_name = module.fallback-topic.name
+  fallback_sns_topic_name = module.fallback-topic[0].name
 
   # lambda configs
   uniq_id = "${each.value.domain}-${each.value.path}}"
@@ -40,7 +40,7 @@ module "notify_servicenow" {
     SERVICENOW_DOMAIN = each.value.domain
     SERVICENOW_PATH   = each.value.path
     SERVICENOW_USER   = each.value.user
-    SERVICENOW_PASS   = each.value.pass
+    SERVICENOW_PASS   = sensitive(each.value.pass)
   }
 
   recreate_missing_package  = var.recreate_missing_package
@@ -63,7 +63,7 @@ module "notify_teams" {
 
   # sns/subscription configs
   sns_topic_name          = module.topic.name
-  fallback_sns_topic_name = module.fallback-topic.name
+  fallback_sns_topic_name = module.fallback-topic[0].name
 
   # lambda configs
   uniq_id = each.key
@@ -75,7 +75,7 @@ module "notify_teams" {
   ]
 
   environment_variables = {
-    WEBHOOK_URL = each.value
+    WEBHOOK_URL = sensitive(each.value)
     REGION      = data.aws_region.current.name
     LOG_LEVEL   = var.log_level
   }
@@ -97,7 +97,7 @@ module "notify_jira" {
 
   # sns/subscription configs
   sns_topic_name          = module.topic.name
-  fallback_sns_topic_name = module.fallback-topic.name
+  fallback_sns_topic_name = module.fallback-topic[0].name
 
   # lambda configs
   uniq_id = "jira_integration"
@@ -110,8 +110,8 @@ module "notify_jira" {
 
   environment_variables = {
     JIRA_URL      = each.value.url
-    JIRA_KEY      = each.value.key
-    JIRA_PASSWORD = each.value.user_api_token
+    JIRA_KEY      = sensitive(each.value.key)
+    JIRA_PASSWORD = sensitive(each.value.user_api_token)
     JIRA_USERNAME = each.value.user_username
     REGION        = data.aws_region.current.name
   }

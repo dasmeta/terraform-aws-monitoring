@@ -3,7 +3,6 @@
 module "this" {
   source = "../../"
 
-  name                   = "test-email"
-  sns_email_subscription = "devops@dasmeta.com"
-  create_sns_target      = true
+  name = "sh-basic-test"
+  # alarm actions are disabled
 }
