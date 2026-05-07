@@ -10,7 +10,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 - Propagate the resolved client value into all alert-producing submodule calls.
 - Generate enriched alarm descriptions for standard, expression, and health-check alarm variants.
 - Update README documentation for root and alerts submodule inputs.
-- Add representative base-test configuration for metadata-related alarm paths.
+- Add a dedicated test scenario for metadata-related alarm paths without changing the base test.
 
 ## Design Decisions
 
@@ -25,7 +25,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 - Language: Terraform
 - Primary files: `vaiables.tf`, `health-checks-and-alerts.tf`, `modules/alerts/main.tf`, `modules/alerts/health-checks.tf`
 - Documentation files: `README.md`, `modules/alerts/README.md`
-- Test file: `tests/base/1-example.tf`
+- Test files: `tests/with-client-name/*`
 - External dependency: `terraform-aws-modules/cloudwatch/aws//modules/metric-alarm` version `4.3.0`
 
 ## Risks and Mitigations
@@ -43,7 +43,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 - Confirm the resolved client value is passed to `health-check`, `alerts`, and `alerts_slo_sli_sla` module calls.
 - Confirm all alarm modules now consume generated `alarm_description` fields.
 - Confirm README inputs tables include `client_name` with the intended descriptions.
-- Confirm `tests/base/1-example.tf` exercises `client_name`, preserved description text, and expression-alert configuration.
+- Confirm `tests/with-client-name/1-example.tf` exercises `client_name` and expected account/source metadata without changing `tests/base`.
 
 ## Files in Scope
 
@@ -53,5 +53,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 - `modules/alerts/health-checks.tf`
 - `modules/alerts/main.tf`
 - `modules/alerts/variables.tf`
-- `tests/base/1-example.tf`
+- `tests/with-client-name/0-setup.tf`
+- `tests/with-client-name/1-example.tf`
+- `tests/with-client-name/README.md`
 - `vaiables.tf`
