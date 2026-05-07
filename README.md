@@ -57,6 +57,7 @@ No resources.
 | <a name="input_alerts"></a> [alerts](#input\_alerts) | Alerts | `any` | `[]` | no |
 | <a name="input_application_channel_alerts"></a> [application\_channel\_alerts](#input\_application\_channel\_alerts) | Application channel alerts | `any` | `[]` | no |
 | <a name="input_application_monitroing_dashboard"></a> [application\_monitroing\_dashboard](#input\_application\_monitroing\_dashboard) | Application for monitoring EKS cluster | `any` | `[]` | no |
+| <a name="input_client_name"></a> [client\_name](#input\_client\_name) | Client name to include in generated CloudWatch alarm descriptions. Defaults to name when unset. | `string` | `null` | no |
 | <a name="input_create_alerts"></a> [create\_alerts](#input\_create\_alerts) | Create Alert | `bool` | `true` | no |
 | <a name="input_eks_monitroing_dashboard"></a> [eks\_monitroing\_dashboard](#input\_eks\_monitroing\_dashboard) | Dashboard for monitoring EKS cluster | `any` | `[]` | no |
 | <a name="input_enable_log_base_metrics"></a> [enable\_log\_base\_metrics](#input\_enable\_log\_base\_metrics) | n/a | `bool` | `true` | no |

@@ -17,9 +17,34 @@ locals {
     count : "SampleCount"
   }
 
-  alert                = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection == false]
-  alert_w_anomalydetec = [for alert in var.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection != false]
-  log_based_alert      = [for alert in var.alerts : alert if alert.log_based_metric == true]
+  client_name    = trimspace(var.client_name != null ? var.client_name : "") != "" ? var.client_name : "unknown"
+  alarm_url_base = "https://${data.aws_region.project.name}.console.aws.amazon.com/cloudwatch/home?region=${data.aws_region.project.name}#alarmsV2:alarm/"
+
+  alerts = [
+    for alert in var.alerts : merge(alert, {
+      alarm_description = join("\n", compact([
+        try(trimspace(alert.description), "") != "" ? alert.description : "",
+        "client - \"${local.client_name}\"",
+        "account - \"${data.aws_caller_identity.project.account_id}\"",
+        "source - \"${local.alarm_url_base}${replace(urlencode(alert.name), "+", "%20")}\""
+      ]))
+    })
+  ]
+
+  expression_alerts = {
+    for name, alert in var.expression_alert : name => merge(alert, {
+      alarm_description = join("\n", compact([
+        try(trimspace(alert.description), "") != "" ? alert.description : "",
+        "client - \"${local.client_name}\"",
+        "account - \"${data.aws_caller_identity.project.account_id}\"",
+        "source - \"${local.alarm_url_base}${replace(urlencode(name), "+", "%20")}\""
+      ]))
+    })
+  }
+
+  alert                = [for alert in local.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection == false]
+  alert_w_anomalydetec = [for alert in local.alerts : alert if alert.log_based_metric != true && alert.anomaly_detection != false]
+  log_based_alert      = [for alert in local.alerts : alert if alert.log_based_metric == true]
 
   alarm_actions = [
     "arn:aws:sns:${data.aws_region.project.name}:${data.aws_caller_identity.project.account_id}:${var.sns_topic}"
@@ -36,7 +61,7 @@ module "cloudwatch_metric-alarm" {
   for_each = { for alert in local.alert : "${alert.name}-${alert.source}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
+  alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = each.value.evaluation_periods
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -80,7 +105,7 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
   for_each = { for alert in local.alert_w_anomalydetec : "${alert.name}-${alert.source}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
+  alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -120,7 +145,7 @@ module "cloudwatch_log-based-metric-alarm" {
   for_each = { for alert in local.log_based_alert : "${alert.source}-${alert.name}" => alert }
 
   alarm_name          = each.value.name // replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
+  alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold_metric_id = each.value.anomaly_detection ? "e1" : null
@@ -163,7 +188,7 @@ module "external_health_check-alarms" {
   }
 
   alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
-  alarm_description   = each.value.description
+  alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
   evaluation_periods  = 1
   threshold           = each.value.threshold
@@ -183,10 +208,10 @@ module "cloudwatch_expression-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
   version = "4.3.0"
 
-  for_each = var.expression_alert
+  for_each = local.expression_alerts
 
   alarm_name          = each.key
-  alarm_description   = lookup(each.value, "description", null)
+  alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
   threshold           = each.value.threshold
   evaluation_periods  = 1
