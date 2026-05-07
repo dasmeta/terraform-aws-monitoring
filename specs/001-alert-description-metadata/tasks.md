@@ -13,9 +13,11 @@
 - [x] Generate enriched health-check alarm descriptions for main and percentage alarms in `modules/alerts/health-checks.tf`.
 - [x] Update root module inputs documentation in `README.md`.
 - [x] Update alerts submodule inputs documentation in `modules/alerts/README.md`.
+- [x] Add representative metadata coverage to `tests/base/1-example.tf`.
 
 ## Verification
 
 - [ ] Run `terraform validate` for the module or a representative test configuration.
 - [ ] Confirm rendered alarm descriptions preserve existing user description text when present.
 - [ ] Confirm `client_name` fallback behavior is documented consistently between Terraform variables and README tables.
+- [ ] Confirm `tests/base/1-example.tf` still plans successfully with the added expression-alert example.

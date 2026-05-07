@@ -51,6 +51,22 @@ As an operator, I want module documentation to reflect the new `client_name` inp
 1. **Given** a user reads the root module README, **When** they inspect the inputs table, **Then** `client_name` is listed with its fallback behavior.
 2. **Given** a user reads the alerts submodule README, **When** they inspect the inputs table, **Then** `client_name` is listed as a supported input.
 
+---
+
+### User Story 4 - Cover Metadata Behavior in Example Tests (Priority: P2)
+
+As an operator, I want the repository example test configuration to exercise the new alarm metadata behavior so future changes can be validated from a representative Terraform example.
+
+**Why this priority**: Example coverage makes the new metadata behavior visible and reduces the chance of regressions in root-module wiring.
+
+**Independent Test**: Review `tests/base/1-example.tf` and confirm it sets `client_name` and covers health-check, standard alert, log-based alert, and expression-alert inputs that rely on generated descriptions.
+
+**Acceptance Scenarios**:
+
+1. **Given** the base test module configuration, **When** a maintainer reviews it, **Then** `client_name` is explicitly configured.
+2. **Given** the base test module configuration, **When** a maintainer reviews alert examples, **Then** at least one standard alert and one log-based alert include user description text that should be preserved in generated metadata.
+3. **Given** the base test module configuration, **When** a maintainer reviews the example inputs, **Then** an expression alert is present to exercise that metadata path.
+
 ### Edge Cases
 
 - `client_name` is unset or only whitespace.
@@ -70,6 +86,8 @@ As an operator, I want module documentation to reflect the new `client_name` inp
 - **FR-009**: Health-check alarms MUST use a generated multiline `alarm_description` for both main and percentage alarms that includes client, account, and source metadata.
 - **FR-010**: Existing user-provided alert descriptions MUST be preserved as the first line of generated descriptions when present.
 - **FR-011**: Root and alerts-module README documentation MUST describe the `client_name` input.
+- **FR-012**: The repository MUST provide representative test configuration in `tests/base/1-example.tf` that exercises the metadata feature through root-module inputs.
+- **FR-013**: The representative test configuration MUST set `client_name` explicitly and include example alert inputs that cover standard, log-based, health-check, and expression alarm flows.
 
 ## Key Entities
 
@@ -90,3 +108,4 @@ As an operator, I want module documentation to reflect the new `client_name` inp
 - **SC-002**: All alarm variants supported by `modules/alerts` produce descriptions containing client, account, and source metadata.
 - **SC-003**: Existing descriptive text for alerts remains present in generated alarm descriptions when originally supplied.
 - **SC-004**: Module README inputs tables document `client_name` in both the root module and the alerts submodule.
+- **SC-005**: Maintainers can inspect `tests/base/1-example.tf` and see concrete example coverage for `client_name` plus representative alert metadata flows.
