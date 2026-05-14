@@ -9,6 +9,12 @@ variable "name" {
   description = "Dashboard name"
 }
 
+variable "client_name" {
+  type        = string
+  default     = null
+  description = "Client name to include in generated CloudWatch alarm descriptions."
+}
+
 variable "health_checks" {
   type        = any
   default     = []

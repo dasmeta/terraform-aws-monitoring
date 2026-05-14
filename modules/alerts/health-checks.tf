@@ -5,6 +5,12 @@ locals {
       {
         name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
         description        = "Main monitoring for ${health_check.host}"
+        alarm_description  = join("\n", [
+          "Main monitoring for ${health_check.host}",
+          "client - \"${local.client_name}\"",
+          "account - \"${data.aws_caller_identity.project.account_id}\"",
+          "source - \"${local.alarm_url_base}${replace(urlencode(format("%s:%s%s-Main", health_check.host, tostring(health_check.port), health_check.path)), "+", "%20")}\""
+        ])
         source             = "AWS/Route53/HealthCheckStatus"
         filters            = { HealthCheckId = aws_route53_health_check.health_checks["${health_check.host}:${health_check.port}${health_check.path}"].id }
         statistic          = try(health_check.main.statistic, "min")
@@ -16,6 +22,12 @@ locals {
       {
         name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
         description        = "Percentage monitoring for ${health_check.host}"
+        alarm_description  = join("\n", [
+          "Percentage monitoring for ${health_check.host}",
+          "client - \"${local.client_name}\"",
+          "account - \"${data.aws_caller_identity.project.account_id}\"",
+          "source - \"${local.alarm_url_base}${replace(urlencode(format("%s:%s%s-Percentage", health_check.host, tostring(health_check.port), health_check.path)), "+", "%20")}\""
+        ])
         source             = "AWS/Route53/HealthCheckPercentageHealthy"
         filters            = { HealthCheckId = aws_route53_health_check.health_checks["${health_check.host}:${health_check.port}${health_check.path}"].id }
         statistic          = try(health_check.percentage.statistic, "avg")
