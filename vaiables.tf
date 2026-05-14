@@ -12,7 +12,7 @@ variable "name" {
 variable "client_name" {
   type        = string
   default     = null
-  description = "Client name to include in generated CloudWatch alarm descriptions. Defaults to name when unset."
+  description = "Client name to include in generated CloudWatch alarm descriptions."
 }
 
 variable "health_checks" {

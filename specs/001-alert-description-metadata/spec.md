@@ -18,7 +18,7 @@ As an operator, I want the monitoring module to accept a `client_name` input so 
 **Acceptance Scenarios**:
 
 1. **Given** an operator sets `client_name`, **When** the monitoring module renders alarm configuration, **Then** that value is available to health-check, metric, and expression alert flows.
-2. **Given** an operator leaves `client_name` unset or blank, **When** the root module resolves alarm context, **Then** it falls back to the module `name`.
+2. **Given** an operator leaves `client_name` unset or blank, **When** the root module resolves alarm context, **Then** it leaves the client value unset instead of deriving it from the dashboard name.
 
 ---
 
@@ -40,7 +40,7 @@ As an operator, I want generated CloudWatch alarm descriptions to include client
 
 ### User Story 3 - Keep Module Documentation Aligned (Priority: P2)
 
-As an operator, I want module documentation to reflect the new `client_name` input so the feature is discoverable and the expected fallback behavior is documented.
+As an operator, I want module documentation to reflect the new `client_name` input so the feature is discoverable and its unset behavior is documented.
 
 **Why this priority**: Undocumented module inputs make the feature easy to miss and harder to use correctly.
 
@@ -48,7 +48,7 @@ As an operator, I want module documentation to reflect the new `client_name` inp
 
 **Acceptance Scenarios**:
 
-1. **Given** a user reads the root module README, **When** they inspect the inputs table, **Then** `client_name` is listed with its fallback behavior.
+1. **Given** a user reads the root module README, **When** they inspect the inputs table, **Then** `client_name` is listed without implying it falls back to the dashboard name.
 2. **Given** a user reads the alerts submodule README, **When** they inspect the inputs table, **Then** `client_name` is listed as a supported input.
 
 ---
@@ -92,7 +92,7 @@ As a maintainer, I want all direct usages of the `terraform-aws-modules/cloudwat
 ## Functional Requirements
 
 - **FR-001**: The root monitoring module MUST expose an optional `client_name` input.
-- **FR-002**: The root monitoring module MUST resolve a non-empty alarm client value by using `client_name` when set, otherwise `name`.
+- **FR-002**: The root monitoring module MUST pass `client_name` only when it is explicitly set to a non-empty value.
 - **FR-003**: The root monitoring module MUST pass the resolved client value to the health-check alerts submodule.
 - **FR-004**: The root monitoring module MUST pass the resolved client value to the standard alerts submodule invocation.
 - **FR-005**: The root monitoring module MUST pass the resolved client value to the expression-alert submodule invocation.
@@ -122,6 +122,7 @@ As a maintainer, I want all direct usages of the `terraform-aws-modules/cloudwat
 - `data.aws_region.project` and `data.aws_caller_identity.project` are available in the alerts module wherever descriptions are built.
 - README updates are maintained through the repository’s existing docs generation flow.
 - The direct version-upgrade request concerns explicit `metric-alarm` module references and their visible documentation, not unrelated infrastructure version changes by default.
+- `client_name` should represent real client context and must not be inferred from the dashboard name.
 
 ## Success Criteria
 

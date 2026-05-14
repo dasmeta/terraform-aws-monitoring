@@ -6,7 +6,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 
 ## Scope
 
-- Add a root-module `client_name` input with fallback behavior.
+- Add a root-module `client_name` input without inferring it from the dashboard name.
 - Propagate the resolved client value into all alert-producing submodule calls.
 - Generate enriched alarm descriptions for standard, expression, and health-check alarm variants.
 - Update README documentation for root and alerts submodule inputs.
@@ -14,7 +14,7 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 
 ## Design Decisions
 
-- Resolve `client_name` once in the root module and reuse that value across submodules.
+- Resolve `client_name` once in the root module and reuse it across submodules only when it is explicitly provided.
 - Use newline-separated description metadata for readability in CloudWatch.
 - Preserve existing per-alert description text before appended metadata.
 - Build CloudWatch console source links from current region and alarm name, URL-encoding alarm identifiers.
@@ -32,8 +32,8 @@ Document the completed monitoring-module changes that add client-aware CloudWatc
 
 - Risk: Alarm source URLs could break for names containing spaces or special characters.
   - Mitigation: URL-encode alarm names before concatenating console links.
-- Risk: Blank `client_name` values could create empty metadata lines.
-  - Mitigation: Trim input and fall back to `name` in the root module.
+- Risk: Blank `client_name` values could create misleading metadata if inferred from unrelated fields.
+  - Mitigation: Trim input and leave it unset when not explicitly provided.
 - Risk: Documentation drift could hide the new input from consumers.
   - Mitigation: Update both README input tables alongside Terraform variable declarations.
 

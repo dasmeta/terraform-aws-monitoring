@@ -1,7 +1,7 @@
 locals {
   sns_topic_name          = var.sns_topic_name
   sns_topic_name_virginia = "${var.sns_topic_name}-virginia"
-  alarm_client_name       = trimspace(var.client_name != null ? var.client_name : "") != "" ? var.client_name : var.name
+  alarm_client_name       = trimspace(var.client_name != null ? var.client_name : "") != "" ? var.client_name : null
 }
 
 module "health-check" {
