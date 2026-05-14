@@ -56,7 +56,7 @@ locals {
 
 module "cloudwatch_metric-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
+  version = "5.7.2"
 
   for_each = { for alert in local.alert : "${alert.name}-${alert.source}" => alert }
 
@@ -100,7 +100,7 @@ module "cloudwatch_metric-alarm" {
 # account where the metrics are. This will probably lead to confusion, but a technical limitation.
 module "cloudwatch_metric-alarm_with_anomalydetection" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
+  version = "5.7.2"
 
   for_each = { for alert in local.alert_w_anomalydetec : "${alert.name}-${alert.source}" => alert }
 
@@ -140,7 +140,7 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
 
 module "cloudwatch_log-based-metric-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
+  version = "5.7.2"
 
   for_each = { for alert in local.log_based_alert : "${alert.source}-${alert.name}" => alert }
 
@@ -180,7 +180,7 @@ module "cloudwatch_log-based-metric-alarm" {
 
 module "external_health_check-alarms" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
+  version = "5.7.2"
 
   for_each = {
     for alert in local.health_check_alerts :
@@ -206,7 +206,7 @@ module "external_health_check-alarms" {
 
 module "cloudwatch_expression-alarm" {
   source  = "terraform-aws-modules/cloudwatch/aws//modules/metric-alarm"
-  version = "4.3.0"
+  version = "5.7.2"
 
   for_each = local.expression_alerts
 

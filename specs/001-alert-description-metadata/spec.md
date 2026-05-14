@@ -67,6 +67,22 @@ As an operator, I want a dedicated test scenario for alarm metadata behavior so 
 2. **Given** the dedicated metadata test scenario, **When** a maintainer reviews its outputs, **Then** expected metadata includes account and source values derived from the active AWS account and region.
 3. **Given** the repository test suite, **When** a maintainer compares scenarios, **Then** `tests/base` remains unchanged and metadata coverage lives in the dedicated folder.
 
+---
+
+### User Story 5 - Align Direct Metric-Alarm Module Versions (Priority: P2)
+
+As a maintainer, I want all direct usages of the `terraform-aws-modules/cloudwatch/aws//modules/metric-alarm` module in this repository area to use the same latest version so the alerts implementation is consistent and easier to maintain.
+
+**Why this priority**: Mixed direct module versions create confusion between the code and documentation and make future maintenance riskier.
+
+**Independent Test**: Review direct `metric-alarm` usages in `modules/alerts/main.tf` and the related documentation references in `modules/alerts/README.md` and confirm they point to the same latest version.
+
+**Acceptance Scenarios**:
+
+1. **Given** a maintainer reviews direct `metric-alarm` module blocks in `modules/alerts/main.tf`, **When** checking their version arguments, **Then** all direct usages point to the same latest version.
+2. **Given** a maintainer reviews `modules/alerts/README.md`, **When** checking module version references for `metric-alarm`, **Then** the documented version matches the direct code usages.
+3. **Given** the upgrade request is scoped to direct `metric-alarm` usages, **When** the change is prepared, **Then** any broader compatibility updates are identified separately instead of being silently folded into the request.
+
 ### Edge Cases
 
 - `client_name` is unset or only whitespace.
@@ -89,6 +105,9 @@ As an operator, I want a dedicated test scenario for alarm metadata behavior so 
 - **FR-012**: The repository MUST provide a dedicated test scenario under `tests/with-client-name/` that exercises the metadata feature through root-module inputs.
 - **FR-013**: The dedicated test scenario MUST set `client_name` explicitly and expose expected metadata for account and source values.
 - **FR-014**: The metadata test scenario MUST not require changes to the existing `tests/base` example.
+- **FR-015**: All direct usages of `terraform-aws-modules/cloudwatch/aws//modules/metric-alarm` in `modules/alerts/main.tf` MUST use the same latest version.
+- **FR-016**: Documentation references to direct `metric-alarm` usages in `modules/alerts/README.md` MUST match the version used in `modules/alerts/main.tf`.
+- **FR-017**: The direct module-version upgrade request MUST remain scoped to direct `metric-alarm` usages unless additional compatibility changes are explicitly approved.
 
 ## Key Entities
 
@@ -102,6 +121,7 @@ As an operator, I want a dedicated test scenario for alarm metadata behavior so 
 - Alarm descriptions are consumed in the AWS CloudWatch console and can safely include newline-separated metadata.
 - `data.aws_region.project` and `data.aws_caller_identity.project` are available in the alerts module wherever descriptions are built.
 - README updates are maintained through the repository’s existing docs generation flow.
+- The direct version-upgrade request concerns explicit `metric-alarm` module references and their visible documentation, not unrelated infrastructure version changes by default.
 
 ## Success Criteria
 
@@ -110,3 +130,4 @@ As an operator, I want a dedicated test scenario for alarm metadata behavior so 
 - **SC-003**: Existing descriptive text for alerts remains present in generated alarm descriptions when originally supplied.
 - **SC-004**: Module README inputs tables document `client_name` in both the root module and the alerts submodule.
 - **SC-005**: Maintainers can inspect `tests/with-client-name/1-example.tf` and see concrete example coverage for `client_name` plus expected account and source metadata.
+- **SC-006**: Maintainers can inspect direct `metric-alarm` usages in code and README and find one consistent latest version across those references.

@@ -13,7 +13,7 @@ module "this" {
     {
       name           = "container_exception_error_fail_crash_critical"
       pattern        = "{$.log = *error* || $.log = *fail* || $.log = *crash* || $.log = *critical* || $.log = *exception*}"
-      log_group_name = aws_cloudwatczh_log_group.test.name
+      log_group_name = aws_cloudwatch_log_group.test.name
     },
   ]
   application_channel_alerts = [

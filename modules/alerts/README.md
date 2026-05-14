@@ -51,10 +51,10 @@ module "alerts" {
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_cloudwatch_log-based-metric-alarm"></a> [cloudwatch\_log-based-metric-alarm](#module\_cloudwatch\_log-based-metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 3.3.0 |
-| <a name="module_cloudwatch_metric-alarm"></a> [cloudwatch\_metric-alarm](#module\_cloudwatch\_metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 3.3.0 |
-| <a name="module_cloudwatch_metric-alarm_with_anomalydetection"></a> [cloudwatch\_metric-alarm\_with\_anomalydetection](#module\_cloudwatch\_metric-alarm\_with\_anomalydetection) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 3.3.0 |
-| <a name="module_external_health_check-alarms"></a> [external\_health\_check-alarms](#module\_external\_health\_check-alarms) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 3.3.0 |
+| <a name="module_cloudwatch_log-based-metric-alarm"></a> [cloudwatch\_log-based-metric-alarm](#module\_cloudwatch\_log-based-metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_cloudwatch_metric-alarm"></a> [cloudwatch\_metric-alarm](#module\_cloudwatch\_metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_cloudwatch_metric-alarm_with_anomalydetection"></a> [cloudwatch\_metric-alarm\_with\_anomalydetection](#module\_cloudwatch\_metric-alarm\_with\_anomalydetection) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_external_health_check-alarms"></a> [external\_health\_check-alarms](#module\_external\_health\_check-alarms) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
 
 ## Resources
 
@@ -99,11 +99,11 @@ module "alerts" {
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_cloudwatch_expression-alarm"></a> [cloudwatch\_expression-alarm](#module\_cloudwatch\_expression-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
-| <a name="module_cloudwatch_log-based-metric-alarm"></a> [cloudwatch\_log-based-metric-alarm](#module\_cloudwatch\_log-based-metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
-| <a name="module_cloudwatch_metric-alarm"></a> [cloudwatch\_metric-alarm](#module\_cloudwatch\_metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
-| <a name="module_cloudwatch_metric-alarm_with_anomalydetection"></a> [cloudwatch\_metric-alarm\_with\_anomalydetection](#module\_cloudwatch\_metric-alarm\_with\_anomalydetection) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
-| <a name="module_external_health_check-alarms"></a> [external\_health\_check-alarms](#module\_external\_health\_check-alarms) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 4.3.0 |
+| <a name="module_cloudwatch_expression-alarm"></a> [cloudwatch\_expression-alarm](#module\_cloudwatch\_expression-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_cloudwatch_log-based-metric-alarm"></a> [cloudwatch\_log-based-metric-alarm](#module\_cloudwatch\_log-based-metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_cloudwatch_metric-alarm"></a> [cloudwatch\_metric-alarm](#module\_cloudwatch\_metric-alarm) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_cloudwatch_metric-alarm_with_anomalydetection"></a> [cloudwatch\_metric-alarm\_with\_anomalydetection](#module\_cloudwatch\_metric-alarm\_with\_anomalydetection) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
+| <a name="module_external_health_check-alarms"></a> [external\_health\_check-alarms](#module\_external\_health\_check-alarms) | terraform-aws-modules/cloudwatch/aws//modules/metric-alarm | 5.7.2 |
 
 ## Resources
 

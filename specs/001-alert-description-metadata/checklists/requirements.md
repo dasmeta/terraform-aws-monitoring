@@ -32,3 +32,4 @@
 ## Notes
 
 - This repository does not currently contain a `.specify/` scaffold, so these artifacts were created manually in the existing `specs/001-alert-description-metadata` directory using Speckit structure and conventions.
+- The specification now also captures the scoped follow-up request to align direct `metric-alarm` module usages to the latest version while treating broader compatibility work as separate unless explicitly approved.
