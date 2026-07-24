@@ -3,9 +3,9 @@ locals {
   health_check_alerts = flatten([
     for health_check in var.health_checks : [
       {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
-        description        = "Main monitoring for ${health_check.host}"
-        alarm_description  = join("\n", [
+        name        = "${health_check.host}:${health_check.port}${health_check.path}-Main"
+        description = "Main monitoring for ${health_check.host}"
+        alarm_description = join("\n", [
           "Main monitoring for ${health_check.host}",
           "client - \"${local.client_name}\"",
           "account - \"${data.aws_caller_identity.project.account_id}\"",
@@ -17,12 +17,17 @@ locals {
         equation           = try(health_check.main.equation, "lt")
         threshold          = try(health_check.main.threshold, 1)
         period             = try(health_check.main.period, 60)
+        evaluation_periods = try(health_check.main.evaluation_periods, 1)
+        datapoints_to_alarm = try(
+          health_check.main.datapoints_to_alarm,
+          try(health_check.main.evaluation_periods, 1)
+        )
         treat_missing_data = "breaching"
       },
       {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
-        description        = "Percentage monitoring for ${health_check.host}"
-        alarm_description  = join("\n", [
+        name        = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
+        description = "Percentage monitoring for ${health_check.host}"
+        alarm_description = join("\n", [
           "Percentage monitoring for ${health_check.host}",
           "client - \"${local.client_name}\"",
           "account - \"${data.aws_caller_identity.project.account_id}\"",
@@ -34,6 +39,11 @@ locals {
         equation           = try(health_check.percentage.equation, "lt")
         threshold          = try(health_check.percentage.threshold, 75)
         period             = try(health_check.percentage.period, 60)
+        evaluation_periods = try(health_check.percentage.evaluation_periods, 1)
+        datapoints_to_alarm = try(
+          health_check.percentage.datapoints_to_alarm,
+          try(health_check.percentage.evaluation_periods, 1)
+        )
         treat_missing_data = "breaching"
       }
     ]

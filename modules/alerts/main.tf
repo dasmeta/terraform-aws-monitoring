@@ -190,7 +190,8 @@ module "external_health_check-alarms" {
   alarm_name          = each.value.name //replace(lower(each.value.name), " ", "-")
   alarm_description   = each.value.alarm_description
   comparison_operator = local.comparison_operators[each.value.equation]
-  evaluation_periods  = 1
+  evaluation_periods  = each.value.evaluation_periods
+  datapoints_to_alarm = each.value.datapoints_to_alarm
   threshold           = each.value.threshold
   treat_missing_data  = each.value.treat_missing_data != null ? each.value.treat_missing_data : "missing"
   dimensions          = each.value.filters
