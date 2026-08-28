@@ -22,7 +22,7 @@ def _urlencode_form(value):
             encoded.append("+")
         else:
             encoded.append(quote(char, safe=""))
-    return "".join(encoded)
+    return "".join(encoded).lower()
 
 
 def _build_authorization(api_key, api_secret, request_url, request_body):
