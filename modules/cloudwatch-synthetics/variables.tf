@@ -64,6 +64,14 @@ variable "canaries" {
 
   validation {
     condition = alltrue([
+      for k, c in var.canaries :
+      c.check_type != "soap_cardinfo" || trimspace(lookup(c.environment, "SOAP_NAMESPACE", "")) != ""
+    ])
+    error_message = "Each soap_cardinfo canary must provide environment.SOAP_NAMESPACE."
+  }
+
+  validation {
+    condition = alltrue([
       for k, c in var.canaries : can(regex("^(rate\\([0-9]+ (minute|minutes|hour|hours|day|days)\\)|cron\\(.+\\))$", c.schedule))
     ])
     error_message = "Each canary schedule must be a valid rate(...) or cron(...) expression."

@@ -11,7 +11,7 @@ The consuming configuration supplies its own endpoint URLs and Secrets Manager A
 | check_type | Description |
 |------------|-------------|
 | `soap_wsdl` | WSDL availability check |
-| `soap_cardinfo` | SOAP CardInfo endpoint health (v0–v3 via `SOAP_VERSION`) |
+| `soap_cardinfo` | SOAP CardInfo endpoint health (requires `environment.SOAP_NAMESPACE`; if set, `SOAP_VERSION` must match that namespace's SOAP contract) |
 | `rest_cardinfo` | REST CardInfo endpoint health |
 | `blackhawk_management` | Management API health |
 
@@ -62,7 +62,10 @@ Create a JSON secret in AWS Secrets Manager for each canary and pass only its AR
 ```hcl
 environment = {
   SOAP_VERSION   = "v3"
-  SOAP_DEVICE_ID = "AWS_Monitoring"
+  SOAP_NAMESPACE = "https://service.example/soap/v3"
+  SOAP_DEVICE_ID = "service-device-id"
+  SOAP_OPERATOR_ID = "service-operator-id"
+  REQUEST_ID_PREFIX = "service-monitoring"
 }
 ```
 

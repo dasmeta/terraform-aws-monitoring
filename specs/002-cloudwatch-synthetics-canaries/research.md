@@ -108,7 +108,7 @@ statistic           = "Minimum"
 | `rest_cardinfo` | REST GET/POST to endpoint; assert HTTP 2xx and JSON field `status` present | `api_key` or `bearer_token` |
 | `blackhawk_management` | HTTPS GET management endpoint; assert HTTP 200 | `client_id`, `client_secret` |
 
-**Rationale**: Unblocks module infrastructure delivery (IAM, S3, alarms, tests) without blocking on Legacy Gateway script review. `secret_fields` mapping allows endpoint-specific key names without code changes.
+**Rationale**: Unblocks module infrastructure delivery (IAM, S3, alarms, tests) without blocking on legacy script review. `secret_fields` mapping allows endpoint-specific key names without code changes.
 
 **Alternatives considered**:
 - Wait for app team before any script code — rejected; delays entire DMVP-10322 infrastructure track.

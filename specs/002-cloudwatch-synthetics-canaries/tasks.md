@@ -67,7 +67,7 @@
 
 ---
 
-## Phase 4: User Story 2 — Run Supported Legacy Gateway Check Types (Priority: P1)
+## Phase 4: User Story 2 — Run Supported Service Check Types (Priority: P1)
 
 **Goal**: Ship four packaged Python check scripts with S3 zip deployment and runtime validation
 
@@ -251,7 +251,7 @@ Task T022: modules/cloudwatch-synthetics/src/blackhawk_management/python/canary.
 | Setup | — | T001–T003 | 3 |
 | Foundational | — | T004–T009 | 6 |
 | US1 | Configure Multiple Canaries | T010–T018 | 9 |
-| US2 | Legacy Gateway Check Types | T019–T030 | 12 |
+| US2 | Service Check Types | T019–T030 | 12 |
 | US3 | Secure Execution | T031–T041 | 11 |
 | US4 | Failure Alarms | T042–T049 | 8 |
 | US5 | Validate Before Production | T050–T053 | 4 |

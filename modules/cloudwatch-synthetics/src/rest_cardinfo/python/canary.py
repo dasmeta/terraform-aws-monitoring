@@ -12,6 +12,8 @@ from secret_config import collect_secret_values, get_setting, load_config, redac
 
 logger = get_logger(__name__)
 
+DEFAULT_DEVICE_ID = "SyntheticsMonitoring"
+
 
 def _urlencode_form(value):
     encoded = []
@@ -55,7 +57,7 @@ def handler(event, context):
         verification_code = get_setting(config, "MONITORING_VERIFICATION_CODE", default="")
 
         request_url = config["endpoint_url"]
-        device_id = get_setting(config, "REST_DEVICE_ID", default="KS_Monitoring")
+        device_id = get_setting(config, "REST_DEVICE_ID", default=DEFAULT_DEVICE_ID)
         operator_id = get_setting(config, "REST_OPERATOR_ID", default="REST_API")
 
         request_id = get_setting(config, "REQUEST_ID") or (

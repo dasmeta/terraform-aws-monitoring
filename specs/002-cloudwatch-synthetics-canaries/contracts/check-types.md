@@ -40,6 +40,8 @@ Each check type maps to a packaged Python script. All scripts:
 | Credentials | `secret_fields.username` → secret key |
 | | `secret_fields.password` → secret key |
 | SOAP action | `secret_fields.soap_action` → secret key OR `environment.SOAP_ACTION` |
+| SOAP namespace | Required non-secret `environment.SOAP_NAMESPACE` |
+| SOAP request identifiers | Optional `environment.SOAP_DEVICE_ID`, `environment.SOAP_OPERATOR_ID`, and `environment.REQUEST_ID_PREFIX` |
 
 **Stub assertions**:
 - HTTP status 200
@@ -116,6 +118,8 @@ Set by Terraform from module config (non-secret only):
 | `CANARY_NAME` | AWS canary name (for logging) |
 
 Additional per-canary keys from `environment` input merged at deploy time.
+
+`soap_cardinfo` requires `SOAP_NAMESPACE`; the module does not provide a service-specific default.
 
 ---
 

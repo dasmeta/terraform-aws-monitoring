@@ -9,20 +9,25 @@ from secret_config import collect_secret_values, get_setting, load_config, redac
 
 logger = get_logger(__name__)
 
+DEFAULT_DEVICE_ID = "SyntheticsMonitoring"
+DEFAULT_OPERATOR_ID = "SyntheticsMonitoring"
+REQUEST_ID_PREFIX = "SyntheticsMonitoring"
+
 
 def _request_id(config):
     custom = get_setting(config, "REQUEST_ID")
     if custom:
         return custom
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"KS_Monitoring_{stamp}_{os.getpid()}_{secrets.token_hex(4)}"
+    prefix = get_setting(config, "REQUEST_ID_PREFIX", default=REQUEST_ID_PREFIX)
+    return f"{prefix}_{stamp}_{os.getpid()}_{secrets.token_hex(4)}"
 
 
 def _build_v0_v1_body(config, namespace):
     merchant_id = get_setting(config, "MONITORING_MERCHANT_ID", required=True)
     card_number = get_setting(config, "MONITORING_CARD_NUMBER", required=True)
-    device_id = get_setting(config, "SOAP_DEVICE_ID", default="PRDFCAPI02")
-    operator_id = get_setting(config, "SOAP_OPERATOR_ID", default="KS_Monitoring")
+    device_id = get_setting(config, "SOAP_DEVICE_ID", default=DEFAULT_DEVICE_ID)
+    operator_id = get_setting(config, "SOAP_OPERATOR_ID", default=DEFAULT_OPERATOR_ID)
     currency = get_setting(config, "SOAP_CURRENCY", default="EUR")
 
     return f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:gif="{namespace}">
@@ -44,8 +49,8 @@ def _build_v2_v3_body(config, namespace, include_merchant_verification=False):
     merchant_id = get_setting(config, "MONITORING_MERCHANT_ID", required=True)
     card_number = get_setting(config, "MONITORING_CARD_NUMBER", required=True)
     verification_code = get_setting(config, "MONITORING_VERIFICATION_CODE", default="")
-    device_id = get_setting(config, "SOAP_DEVICE_ID", default="PRDFCAPI02")
-    operator_id = get_setting(config, "SOAP_OPERATOR_ID", default="KS_Monitoring")
+    device_id = get_setting(config, "SOAP_DEVICE_ID", default=DEFAULT_DEVICE_ID)
+    operator_id = get_setting(config, "SOAP_OPERATOR_ID", default=DEFAULT_OPERATOR_ID)
     request_id = _request_id(config)
 
     merchant_verification_xml = ""
@@ -79,18 +84,15 @@ def _build_v2_v3_body(config, namespace, include_merchant_verification=False):
 
 def _build_envelope(config):
     version = get_setting(config, "SOAP_VERSION", default="v3")
+    namespace = get_setting(config, "SOAP_NAMESPACE", required=True)
 
     if version == "v0":
-        namespace = "http://ws.telbase.nl/wsdl/pointofsale/giftcard"
         body = _build_v0_v1_body(config, namespace)
     elif version == "v1":
-        namespace = "http://ws.telbase.nl/wsdl/pointofsale/giftcard"
         body = _build_v0_v1_body(config, namespace)
     elif version == "v2":
-        namespace = "http://pos.fashioncheque.nl/wsdl/v2/giftcard"
         body = _build_v2_v3_body(config, namespace, include_merchant_verification=False)
     elif version == "v3":
-        namespace = "http://pos.fashioncheque.nl/wsdl/v3/giftcard"
         body = _build_v2_v3_body(config, namespace, include_merchant_verification=True)
     else:
         raise ValueError(f"Unsupported SOAP_VERSION: {version}")

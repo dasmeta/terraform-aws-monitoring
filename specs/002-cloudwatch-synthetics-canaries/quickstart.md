@@ -14,7 +14,7 @@
 ## Minimal example
 
 ```hcl
-module "legacy_gateway_canaries" {
+module "service_canaries" {
   source = "dasmeta/monitoring/aws//modules/cloudwatch-synthetics"
   # version = "x.y.z"  # after release
 
@@ -92,6 +92,9 @@ canaries = {
     check_type   = "soap_cardinfo"
     endpoint_url = "https://internal.example.local/soap"
     secret_arn   = "arn:aws:secretsmanager:..."
+    environment = {
+      SOAP_NAMESPACE = "https://service.example/soap/v3"
+    }
     vpc_config = {
       subnet_ids         = ["subnet-abc123"]
       security_group_ids = ["sg-abc123"]

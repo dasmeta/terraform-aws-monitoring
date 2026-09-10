@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a new reusable Terraform submodule at `modules/cloudwatch-synthetics/` that provisions AWS CloudWatch Synthetics canaries from a grouped `canaries` map. Each entry creates a canary, least-privilege IAM role, log group, CloudWatch alarm, and shares module-managed S3 artifact storage (or opts into an existing bucket). Four packaged Python check scripts (`soap_wsdl`, `soap_cardinfo`, `rest_cardinfo`, `blackhawk_management`) replace Legacy Gateway PRTG Bash checks. Credentials are fetched from Secrets Manager at runtime via `secret_fields` mapping; failures route to a consumer-supplied SNS topic ARN.
+Add a new reusable Terraform submodule at `modules/cloudwatch-synthetics/` that provisions AWS CloudWatch Synthetics canaries from a grouped `canaries` map. Each entry creates a canary, least-privilege IAM role, log group, CloudWatch alarm, and shares module-managed S3 artifact storage (or opts into an existing bucket). Four packaged Python check scripts (`soap_wsdl`, `soap_cardinfo`, `rest_cardinfo`, `blackhawk_management`) replace legacy PRTG Bash checks. Credentials are fetched from Secrets Manager at runtime via `secret_fields` mapping; failures route to a consumer-supplied SNS topic ARN.
 
 ## Technical Context
 
@@ -17,7 +17,7 @@ Add a new reusable Terraform submodule at `modules/cloudwatch-synthetics/` that 
 **Project Type**: Terraform submodule library (`dasmeta/monitoring/aws//modules/cloudwatch-synthetics`)
 **Performance Goals**: Default schedule `rate(1 minute)` per canary; timeout configurable per canary (default 60s)
 **Constraints**: No customer hostnames/credentials in repo; secret redaction in logs/artifacts; plan-time validation for check types, schedules, ARNs, numeric bounds; zip scripts under `python/` per AWS Synthetics packaging rules
-**Scale/Scope**: Initial target ~4–20 canaries per module invocation (Legacy Gateway migration scope); one submodule, four check scripts, four+ test scenarios
+**Scale/Scope**: Initial target ~4–20 canaries per module invocation (legacy-monitoring migration scope); one submodule, four check scripts, four+ test scenarios
 
 ## Constitution Check
 
@@ -90,7 +90,7 @@ modules/cloudwatch-synthetics/
 
 ### Module interface
 
-- **Grouped input**: `canaries` map keyed by stable logical name (e.g. `"legacy-gateway-soap-wsdl"`); optional module-level `name_prefix` for resource naming.
+- **Grouped input**: `canaries` map keyed by stable logical name (e.g. `"service-soap-wsdl"`); optional module-level `name_prefix` for resource naming.
 - **Required per canary**: `check_type`, `endpoint_url`, `secret_arn`.
 - **Optional per canary**: `schedule`, `timeout_seconds`, `run_config`, `secret_fields`, `environment`, `vpc_config`, `alarm_config`, `tags`, `runtime_version`.
 - **Module-level**: `sns_topic_arn`, `artifact_bucket` (create vs existing), `kms_key_arn`, `log_retention_days`, `default_tags`.
@@ -174,7 +174,7 @@ Run `/speckit.tasks` to generate `tasks.md` with ordered implementation tasks. *
 
 - Root-module wiring in `health-checks-and-alerts.tf`
 - Production credential provisioning
-- Legacy Gateway application changes
+- Application changes for monitored services
 - Customer-specific naming in examples
 
 ## Complexity Tracking

@@ -16,6 +16,10 @@ module "this" {
       endpoint_url = "https://example.com/soap/cardinfo"
       secret_arn   = aws_secretsmanager_secret.example.arn
       schedule     = "rate(5 minutes)"
+
+      environment = {
+        SOAP_NAMESPACE = "https://example.com/soap/v3"
+      }
     }
     rest-cardinfo = {
       check_type   = "rest_cardinfo"

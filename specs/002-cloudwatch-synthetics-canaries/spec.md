@@ -3,7 +3,7 @@
 **Feature Branch**: `002-cloudwatch-synthetics-canaries`  
 **Created**: 2026-07-21  
 **Status**: Draft  
-**Input**: DMVP-10322 — replace Legacy Gateway PRTG Bash checks with reusable AWS CloudWatch Synthetics monitoring. Implement as submodule `modules/cloudwatch-synthetics/` in `terraform-aws-monitoring` (not a standalone repository). Source design: `infra-governance/docs/superpowers/specs/2026-07-20-cloudwatch-synthetics-module-design.md`.
+**Input**: DMVP-10322 — replace legacy PRTG Bash checks with reusable AWS CloudWatch Synthetics monitoring. Implement as submodule `modules/cloudwatch-synthetics/` in `terraform-aws-monitoring` (not a standalone repository). Source design: `infra-governance/docs/superpowers/specs/2026-07-20-cloudwatch-synthetics-module-design.md`.
 
 ## User Scenarios & Testing
 
@@ -23,11 +23,11 @@ As a platform engineer, I want to define a map of independently configured Cloud
 
 ---
 
-### User Story 2 - Run Supported Legacy Gateway Check Types (Priority: P1)
+### User Story 2 - Run Supported Service Check Types (Priority: P1)
 
-As a platform engineer, I want four supported Python check types packaged with the module so SOAP, REST, and Blackhawk monitoring can migrate off PRTG without custom Terraform per endpoint.
+As a platform engineer, I want four supported Python check types packaged with the module so SOAP, REST, and management-API monitoring can migrate off PRTG without custom Terraform per endpoint.
 
-**Why this priority**: DMVP-10322 exists to replace specific Legacy Gateway check families; the module must ship those scripts.
+**Why this priority**: DMVP-10322 exists to replace legacy check families; the module must ship those scripts.
 
 **Independent Test**: Configure one canary per supported `check_type` and verify each runs with the default runtime and retrieves credentials from Secrets Manager at execution time.
 
@@ -114,7 +114,7 @@ As a module maintainer, I want documentation, examples, and automated tests alig
 ### Key Entities
 
 - **Canary**: A configured Synthetics monitor with check type, endpoint, secret reference, runtime script, schedule, network mode, and alarm settings.
-- **Check Type**: One of four supported Legacy Gateway monitoring patterns with documented request/response assertions and required secret field mappings.
+- **Check Type**: One of four supported monitoring patterns with documented request/response assertions and required secret field mappings.
 - **Secret Contract**: A Secrets Manager secret referenced by ARN whose JSON keys are mapped through `secret_fields` to script inputs at runtime.
 - **Artifact Store**: S3 bucket or prefix used for canary run artifacts, with encryption and access scoped to the canary role.
 
@@ -131,7 +131,7 @@ As a module maintainer, I want documentation, examples, and automated tests alig
 ## Out Of Scope
 
 - Production credentials and monitoring-card data
-- Legacy Gateway application/API changes
+- Application/API changes for monitored services
 - Application bug fixes
 - Customer-specific Terraform names or hostnames
 - Root-module wiring in this feature (optional follow-up after submodule is stable)

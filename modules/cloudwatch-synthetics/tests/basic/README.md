@@ -2,7 +2,7 @@
 
 Applies the module with two example canary entries (placeholder URLs and a test Secrets Manager secret).
 
-For production Legacy Gateway endpoints, use your own stack with real `endpoint_url`, `secret_arn`, and `sns_topic_arn` values.
+For production service endpoints, use your own stack with real `endpoint_url`, `secret_arn`, and `sns_topic_arn` values.
 
 ```bash
 terraform init

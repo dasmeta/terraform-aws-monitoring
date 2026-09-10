@@ -19,7 +19,7 @@ A monitored endpoint configuration keyed by stable map name.
 | `retries` | number | no | `0` | Synthetics run retries (0–2) |
 | `runtime_version` | string | no | `syn-python-selenium-11.0` | Must match allowlist |
 | `secret_fields` | map(string) | no | `{}` | Maps logical names → JSON keys in secret |
-| `environment` | map(string) | no | `{}` | Non-secret env vars passed to script |
+| `environment` | map(string) | no | `{}` | Non-secret env vars passed to script; `soap_cardinfo` requires `SOAP_NAMESPACE` |
 | `vpc_config` | object | no | null | `{ subnet_ids, security_group_ids }` |
 | `alarm_config` | object | no | module defaults | Per-canary alarm overrides |
 | `tags` | map(string) | no | `{}` | Merged with module `default_tags` |
@@ -141,6 +141,7 @@ Destroy → stop canary → delete resources (bucket objects via force_destroy i
 | V-007 | `runtime_version` not matching allowlist |
 | V-008 | `canaries` map empty |
 | V-009 | Map key contains characters invalid for AWS naming after sanitization yields empty string |
+| V-010 | `soap_cardinfo` canary omits `environment.SOAP_NAMESPACE` |
 
 ---
 

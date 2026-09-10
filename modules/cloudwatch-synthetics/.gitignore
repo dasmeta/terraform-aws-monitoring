@@ -5,3 +5,4 @@ builds/
 .terraform.lock.hcl
 **/plan.txt
 **/terraform.tfvars
+tests/local/
