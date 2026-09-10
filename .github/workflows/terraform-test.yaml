@@ -19,6 +19,7 @@ jobs:
           - modules/security-hub
           - modules/billing
           - modules/cloudwatch-alarm-actions
+          - modules/cloudwatch-synthetics
           - modules/dashboard
           - modules/eventbridge
           - modules/sns_to_lambda
