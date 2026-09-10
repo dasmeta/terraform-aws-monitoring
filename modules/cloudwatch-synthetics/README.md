@@ -6,6 +6,8 @@ The consuming configuration supplies its own endpoint URLs and Secrets Manager A
 
 **Source**: `dasmeta/monitoring/aws//modules/cloudwatch-synthetics`
 
+After a module release, consumers should pin `version` to the published registry tag.
+
 ## Supported check types
 
 | check_type | Description |
