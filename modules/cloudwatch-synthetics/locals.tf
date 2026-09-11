@@ -1,0 +1,55 @@
+locals {
+  sanitized_name_prefix = trim(replace(lower(var.name_prefix), "/[^a-z0-9-]/", ""), "-")
+
+  canary_name_stems = {
+    for key, cfg in var.canaries :
+    key => trim(replace(lower("${local.sanitized_name_prefix}-${key}"), "/[^a-z0-9-]/", ""), "-")
+  }
+
+  canary_names = {
+    for key, stem in local.canary_name_stems :
+    key => "${substr(stem, 0, 13)}-${substr(sha1("${var.name_prefix}:${key}"), 0, 7)}"
+  }
+
+  role_names = {
+    for key, cfg in var.canaries :
+    key => "${substr(local.canary_name_stems[key], 0, 55)}-${substr(sha1("${var.name_prefix}:${key}:role"), 0, 8)}"
+  }
+
+  alarm_names = {
+    for key, cfg in var.canaries :
+    key => "${local.canary_names[key]}-failed"
+  }
+
+  artifact_bucket_suffix         = "synthetics-${local.region}-${local.account_id}"
+  generated_artifact_bucket_name = "${substr(local.sanitized_name_prefix, 0, 63 - length(local.artifact_bucket_suffix) - 1)}-${local.artifact_bucket_suffix}"
+  artifact_bucket_id             = var.create_artifact_bucket ? aws_s3_bucket.artifacts[0].id : var.artifact_bucket_name
+  artifact_bucket_arn            = var.create_artifact_bucket ? aws_s3_bucket.artifacts[0].arn : "arn:${data.aws_partition.current.partition}:s3:::${var.artifact_bucket_name}"
+
+  script_object_keys = {
+    for key, cfg in var.canaries :
+    key => "scripts/${substr(sha1(key), 0, 16)}/bundle.zip"
+  }
+
+  canary_configs = {
+    for key, cfg in var.canaries : key => merge(cfg, {
+      alarm_config = merge(
+        {
+          enabled             = true
+          evaluation_periods  = 1
+          datapoints_to_alarm = 1
+          period              = 60
+          treat_missing_data  = "notBreaching"
+        },
+        cfg.alarm_config
+      )
+    })
+  }
+
+  account_id = data.aws_caller_identity.current.account_id
+  region     = data.aws_region.current.name
+}
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+data "aws_partition" "current" {}
