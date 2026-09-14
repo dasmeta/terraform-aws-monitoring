@@ -35,12 +35,10 @@ module "service_canaries" {
     health = {
       secret_name = "monitoring/example/health"
       source_files = {
-        "python/canary.py"     = "canaries/health/canary.py"
-        "python/http_utils.py" = "canaries/common/http_utils.py"
+        "python/canary.py" = "canaries/health/canary.py"
       }
       config = {
         environment = "production"
-        endpoint    = "https://service.example.com/health"
       }
     }
   }
@@ -64,10 +62,8 @@ variables:
       secret_name: ${0-accounts/production/monitoring-secrets.health_secret_name}
       source_files:
         python/canary.py: canaries/health/canary.py
-        python/http_utils.py: canaries/common/http_utils.py
       config:
         environment: production
-        endpoint: https://service.example.com/health
 ```
 
 `health_secret_name` is a Terraform Cloud output containing the existing AWS
