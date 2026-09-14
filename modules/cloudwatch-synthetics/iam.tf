@@ -32,7 +32,7 @@ resource "aws_iam_role_policy" "canary" {
         {
           Effect   = "Allow"
           Action   = "secretsmanager:GetSecretValue"
-          Resource = each.value.secret_arn
+          Resource = data.aws_secretsmanager_secret.canary[each.key].arn
         },
         {
           Effect   = "Allow"
@@ -70,6 +70,17 @@ resource "aws_iam_role_policy" "canary" {
           }
         },
       ],
+      data.aws_kms_key.secret_encryption[each.key].key_manager == "CUSTOMER" ? [{
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = data.aws_kms_key.secret_encryption[each.key].arn
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"                  = "secretsmanager.${local.region}.amazonaws.com"
+            "kms:EncryptionContext:SecretARN" = data.aws_secretsmanager_secret.canary[each.key].arn
+          }
+        }
+      }] : [],
       var.kms_key_arn != null ? [{
         Effect   = "Allow"
         Action   = "kms:Decrypt"

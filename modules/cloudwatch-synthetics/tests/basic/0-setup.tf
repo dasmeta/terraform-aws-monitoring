@@ -6,10 +6,6 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0, < 7.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.4"
-    }
   }
 }
 
@@ -26,12 +22,13 @@ resource "aws_secretsmanager_secret" "example" {
   recovery_window_in_days = 0
 }
 
-data "archive_file" "fixture" {
-  type        = "zip"
-  output_path = "${path.module}/fixture.zip"
+resource "aws_kms_key" "customer_secret" {
+  description             = "Neutral test key for CloudWatch Synthetics fixture secret."
+  deletion_window_in_days = 7
+}
 
-  source {
-    content  = file("${path.module}/../fixtures/python/canary.py")
-    filename = "python/canary.py"
-  }
+resource "aws_secretsmanager_secret" "customer_key" {
+  name                    = "example/cloudwatch-synthetics/customer-key"
+  kms_key_id              = aws_kms_key.customer_secret.arn
+  recovery_window_in_days = 0
 }

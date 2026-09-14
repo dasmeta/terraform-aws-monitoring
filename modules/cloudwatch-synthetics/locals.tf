@@ -1,5 +1,12 @@
 locals {
-  sanitized_name_prefix = trim(replace(lower(var.name_prefix), "/[^a-z0-9-]/", ""), "-")
+  sanitized_name_prefix      = trim(replace(lower(var.name_prefix), "/[^a-z0-9-]/", ""), "-")
+  synthetics_runtime_version = "syn-python-selenium-11.1"
+  synthetics_handler         = "canary.handler"
+
+  archive_output_paths = {
+    for key, cfg in var.canaries :
+    key => "${path.root}/.terraform/cloudwatch-synthetics-${substr(sha1("${path.root}:${var.name_prefix}:${key}"), 0, 16)}.zip"
+  }
 
   canary_name_stems = {
     for key, cfg in var.canaries :
@@ -33,6 +40,9 @@ locals {
 
   canary_configs = {
     for key, cfg in var.canaries : key => merge(cfg, {
+      config = merge(cfg.config, {
+        secret_name = cfg.secret_name
+      })
       alarm_config = merge(
         {
           enabled             = true

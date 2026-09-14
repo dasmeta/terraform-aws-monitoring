@@ -4,8 +4,8 @@ resource "aws_synthetics_canary" "this" {
   name                 = local.canary_names[each.key]
   artifact_s3_location = "s3://${local.artifact_bucket_id}/canaries/${each.key}/"
   execution_role_arn   = aws_iam_role.canary[each.key].arn
-  handler              = "canary.handler"
-  runtime_version      = each.value.runtime_version
+  handler              = local.synthetics_handler
+  runtime_version      = local.synthetics_runtime_version
   start_canary         = true
   delete_lambda        = true
 

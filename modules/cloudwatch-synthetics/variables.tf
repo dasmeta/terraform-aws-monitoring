@@ -8,24 +8,24 @@ variable "name_prefix" {
   }
 }
 
-variable "sns_topic_arn" {
+variable "sns_topic_name" {
   type        = string
-  description = "Consumer-owned SNS topic ARN for canary failure alarms."
+  description = "Existing SNS topic name for canary failure alarms."
 
   validation {
-    condition     = can(regex("^arn:[^:]+:sns:[^:]+:[0-9]{12}:.+", var.sns_topic_arn))
-    error_message = "sns_topic_arn must be a valid SNS topic ARN."
+    condition     = trimspace(var.sns_topic_name) != "" && !startswith(trimspace(var.sns_topic_name), "arn:")
+    error_message = "sns_topic_name must be a non-empty SNS topic name, not an ARN."
   }
 }
 
 variable "canaries" {
   type = map(object({
-    script_zip_path = string
-    secret_arn      = string
+    source_files = map(string)
+    secret_name  = string
+    config       = optional(map(string), {})
 
     schedule        = optional(string, "rate(5 minutes)")
     timeout_seconds = optional(number, 60)
-    runtime_version = optional(string, "syn-python-selenium-11.1")
     tags            = optional(map(string), {})
 
     vpc_config = optional(object({
@@ -42,7 +42,7 @@ variable "canaries" {
     }), {})
   }))
 
-  description = "Map of generic consumer ZIP canary configurations keyed by stable logical name."
+  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported."
 
   validation {
     condition     = length(var.canaries) > 0
@@ -66,25 +66,43 @@ variable "canaries" {
 
   validation {
     condition = alltrue([
-      for key, cfg in var.canaries :
-      can(regex("^arn:[^:]+:secretsmanager:[^:]+:[0-9]{12}:secret:.+", cfg.secret_arn))
+      for key, cfg in var.canaries : trimspace(cfg.secret_name) != ""
     ])
-    error_message = "Each canary secret_arn must be a valid Secrets Manager ARN."
+    error_message = "Each canary secret_name must be a non-empty existing Secrets Manager secret name."
   }
 
   validation {
     condition = alltrue([
-      for key, cfg in var.canaries : fileexists(cfg.script_zip_path)
+      for key, cfg in var.canaries : length(cfg.source_files) > 0 && contains(keys(cfg.source_files), "python/canary.py")
     ])
-    error_message = "Each canary script_zip_path must point to an existing ZIP archive."
+    error_message = "Each canary source_files map must be non-empty and include python/canary.py."
   }
 
   validation {
     condition = alltrue([
-      for key, cfg in var.canaries :
-      can(regex("^syn-python(-selenium-[0-9]+(\\.[0-9]+)?|-[0-9]+(\\.[0-9]+)?)$", cfg.runtime_version))
+      for key, cfg in var.canaries : alltrue([
+        for destination, source_path in cfg.source_files :
+        can(regex("^python/[A-Za-z0-9][A-Za-z0-9._/-]*$", destination)) &&
+        !endswith(destination, "/") &&
+        length(regexall("//", destination)) == 0 &&
+        length(regexall("\\.\\.", destination)) == 0 &&
+        !contains(split("/", destination), ".") &&
+        trimspace(source_path) != "" &&
+        !startswith(source_path, "/") &&
+        !endswith(source_path, "/") &&
+        length(regexall("//", source_path)) == 0 &&
+        !contains(split("/", source_path), ".") &&
+        !contains(split("/", source_path), "..")
+      ])
     ])
-    error_message = "Each canary runtime_version must match syn-python-selenium-* or syn-python-*."
+    error_message = "Each source_files destination must be a canonical python/... path, and each source path must be a non-empty relative path without traversal segments."
+  }
+
+  validation {
+    condition = alltrue([
+      for key, cfg in var.canaries : !contains(keys(cfg.config), "secret_name")
+    ])
+    error_message = "Each canary config map must not set secret_name; the module generates that field."
   }
 
   validation {
@@ -118,7 +136,7 @@ variable "canaries" {
 variable "create_artifact_bucket" {
   type        = bool
   default     = true
-  description = "Whether to create a module-managed S3 bucket for canary artifacts and consumer ZIPs."
+  description = "Whether to create a module-managed S3 bucket for canary artifacts and module-built source packages."
 }
 
 variable "artifact_bucket_name" {
@@ -136,7 +154,7 @@ variable "artifact_bucket_force_destroy" {
 variable "kms_key_arn" {
   type        = string
   default     = null
-  description = "Optional KMS key ARN for artifact encryption and secret decryption."
+  description = "Optional KMS key ARN for artifact bucket encryption."
 
   validation {
     condition     = var.kms_key_arn == null || can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/.+", var.kms_key_arn))

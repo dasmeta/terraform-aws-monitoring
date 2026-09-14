@@ -6,4 +6,3 @@ builds/
 **/plan.txt
 **/terraform.tfvars
 tests/local/
-tests/**/fixture.zip

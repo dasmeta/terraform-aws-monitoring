@@ -21,7 +21,7 @@ resource "aws_cloudwatch_metric_alarm" "canary_failed" {
     CanaryName = aws_synthetics_canary.this[each.key].name
   }
 
-  alarm_actions = [var.sns_topic_arn]
+  alarm_actions = [data.aws_sns_topic.alerts.arn]
 
   tags = merge(var.default_tags, var.canaries[each.key].tags, {
     Name = local.alarm_names[each.key]

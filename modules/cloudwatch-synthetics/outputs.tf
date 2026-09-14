@@ -24,11 +24,11 @@ output "artifact_bucket_arn" {
 }
 
 output "script_object_keys" {
-  description = "Map of canary key to uploaded consumer ZIP object key."
+  description = "Map of canary key to uploaded module-built source package object key."
   value       = { for key, bundle in aws_s3_object.canary_bundle : key => bundle.key }
 }
 
 output "script_object_version_ids" {
-  description = "Map of canary key to uploaded consumer ZIP object version ID."
+  description = "Map of canary key to uploaded module-built source package object version ID."
   value       = { for key, bundle in aws_s3_object.canary_bundle : key => bundle.version_id }
 }

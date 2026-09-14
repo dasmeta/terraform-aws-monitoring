@@ -3,8 +3,8 @@ resource "aws_s3_object" "canary_bundle" {
 
   bucket = local.artifact_bucket_id
   key    = local.script_object_keys[each.key]
-  source = each.value.script_zip_path
-  etag   = filemd5(each.value.script_zip_path)
+  source = archive_file.canary_bundle[each.key].output_path
+  etag   = archive_file.canary_bundle[each.key].output_md5
 
   tags = merge(var.default_tags, each.value.tags, {
     Name      = "${local.canary_names[each.key]}-script"
