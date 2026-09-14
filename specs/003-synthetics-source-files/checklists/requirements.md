@@ -25,6 +25,8 @@
       runtime is pinned rather than accepted as an unvalidated consumer value.
 - [X] The pinned runtime is verified against AWS documentation and has a
       target-region integration acceptance check.
+- [X] The source-symlink limitation is explicit: Terraform rejects lexical
+      traversal but cannot verify a symlink target remains in the workspace.
 
 ## Notes
 

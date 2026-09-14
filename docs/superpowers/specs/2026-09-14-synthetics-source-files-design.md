@@ -64,8 +64,10 @@ such as `./config.json` from shadowing the module-generated root
 Every source path must be a safe relative path below the consumer's Terraform
 root, must not contain `..` or start with `/`, and must identify an existing
 regular file delivered with the consumer's Terraform Cloud configuration
-workspace. The module does not attempt to read arbitrary worker filesystem
-paths.
+workspace. Source symlinks are unsupported: Terraform can reject explicit
+traversal/absolute paths but cannot prove that a symlink target stays inside the
+workspace. The module therefore does not promise to enforce this boundary for a
+consumer-provided symlink.
 
 ## ZIP runtime contract
 

@@ -77,7 +77,9 @@ with the resolved topic as its action.
   generated root `config.json`.
 - Every source path must be a safe relative path below the consumer Terraform
   root, must not contain `..` or start with `/`, and must refer to a file
-  included in the Terraform Cloud configuration workspace.
+  included in the Terraform Cloud configuration workspace. Source symlinks are
+  unsupported because Terraform cannot verify that their targets stay in that
+  workspace.
 - Every canary must include `python/canary.py`.
 - A missing secret or SNS topic name must stop before creating a canary.
 - The `config` map must not override the module-generated `secret_name` field.
@@ -93,6 +95,8 @@ with the resolved topic as its action.
   alarm creation, and cleanup behavior.
 - A source/configuration change produces a different deployment package hash
   and is included in the next canary update.
+- Public documentation states that source symlinks are unsupported and that
+  consumers must supply real workspace files.
 - Two valid module instances in one Terraform root can package same-key
   canaries without ZIP output-path collisions.
 - Tests cover rejection of unsafe source/destination paths and attempts to
