@@ -84,7 +84,7 @@
 - [X] T021 [P] Update `modules/cloudwatch-synthetics/tests/README.md` and `modules/cloudwatch-synthetics/tests/basic/README.md` to describe the neutral automatic-packaging fixture and non-production-only lifecycle test.
 - [X] T022 [P] Update `specs/003-synthetics-source-files/contracts/module-input.md` and `specs/003-synthetics-source-files/quickstart.md` after implementation so the direct Terraform and DasMeta YAML examples match final variable names and behavior.
 - [X] T023 Run `terraform fmt -check -recursive modules/cloudwatch-synthetics`, `terraform -chdir=modules/cloudwatch-synthetics init -backend=false`, `terraform -chdir=modules/cloudwatch-synthetics validate`, and `bash modules/cloudwatch-synthetics/tests/basic/3-static-assert.sh`; resolve every failure.
-- [ ] T024 Run `terraform init`, `plan`, `apply`, AWS canary/IAM policy inspection, and `destroy` from `modules/cloudwatch-synthetics/tests/basic` in a dedicated non-production account; do not use production.
+- [X] T024 Run `terraform init`, `plan`, `apply`, AWS canary/IAM policy inspection, and `destroy` from `modules/cloudwatch-synthetics/tests/basic` in a dedicated non-production account; do not use production.
 - [ ] T025 Run an HCP Terraform saved-plan/apply using `specs/003-synthetics-source-files/quickstart.md` on a clean apply worker, then force recreation of the artifact S3 object without source changes and apply again; record run IDs/URLs and stop for packaging redesign if the archive is unavailable.
 - [X] T026 Search `modules/cloudwatch-synthetics` for client-specific identifiers and secret values, regenerate only this module’s README tables with repository tooling, and confirm no unrelated paths are modified.
 
