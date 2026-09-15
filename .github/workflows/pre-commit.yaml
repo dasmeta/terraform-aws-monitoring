@@ -6,26 +6,48 @@ on:
 jobs:
   terraform-validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         path:
           - modules/security-hub
           - modules/billing
+          - modules/cloudwatch-alarm-actions
           - modules/dashboard
           - modules/eventbridge
           - modules/sns_to_lambda
           - modules/alerts
-    permissions:
-      actions: write
-      contents: write
-      discussions: write
-      pull-requests: write
-      id-token: write
     steps:
-    - name: Pre-Commit
-      uses: dasmeta/reusable-actions-workflows/pre-commit@4.2.1
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        path: ${{ matrix.path }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Install pre-commit tools
+        run: |
+          python -m pip install --disable-pip-version-check pre-commit==4.6.2
+          curl --fail --silent --show-error --location \
+            https://github.com/terraform-docs/terraform-docs/releases/download/v0.22.0/terraform-docs-v0.22.0-linux-amd64.tar.gz \
+            --output /tmp/terraform-docs.tar.gz
+          echo "8ec66616777c66f3e622af4f2853e8ae399f38908ad4b262c9c526dd42501369  /tmp/terraform-docs.tar.gz" \
+            | sha256sum --check -
+          tar -xzf /tmp/terraform-docs.tar.gz -C /tmp terraform-docs
+          sudo install /tmp/terraform-docs /usr/local/bin/terraform-docs
+      - name: Run pre-commit on changed module files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          mapfile -t changed_files < <(
+            git diff --name-only --diff-filter=ACMR \
+              "$BASE_SHA" "$GITHUB_SHA" -- "${{ matrix.path }}"
+          )
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No changed files under ${{ matrix.path }}"
+            exit 0
+          fi
+          pre-commit run --files "${changed_files[@]}"
