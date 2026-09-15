@@ -30,7 +30,7 @@ module "lambda" {
   create        = true
   function_name = local.lambda_name
   handler       = "lambda.handler"
-  runtime       = "python3.9"
+  runtime       = var.runtime
   memory_size   = var.memory_size
   timeout       = var.timeout
 

@@ -9,6 +9,17 @@ variable "action_target_name" {
   description = "Name of the Security Hub action target. This name is used in EventBridge event patterns to filter manual trigger events."
 }
 
+variable "automated_alerts" {
+  type = object({
+    security_hub = optional(bool, true)
+    guardduty    = optional(bool, false)
+    inspector    = optional(bool, false)
+    macie        = optional(bool, false)
+  })
+  default     = {}
+  description = "Automated finding routes to enable. Security Hub keeps the existing broad HIGH/CRITICAL route; service-specific routes listen directly to GuardDuty, Inspector, or Macie."
+}
+
 # CloudWatch Alarm Actions configuration for Security Hub findings notifications
 # This module manages SNS topics and subscriptions for sending Security Hub findings to various channels
 variable "alarm_actions" {
@@ -30,6 +41,13 @@ variable "alarm_actions" {
       channel  = string # Slack channel name (e.g., "#security-alerts")
       username = string # Bot username for Slack messages
     })), [])            # List of Slack webhook configurations for sending notifications to Slack channels
+    opsgenie_guardduty_enrichment = optional(object({
+      enabled                    = optional(bool, false)
+      api_key                    = optional(string, "")
+      api_url                    = optional(string, "https://api.opsgenie.com")
+      alert_search_retries       = optional(number, 8)
+      alert_search_delay_seconds = optional(number, 2)
+    }), {}) # Enrich Opsgenie alerts created by a configured HTTPS endpoint with actionable GuardDuty finding detail
     servicenow_webhooks = optional(list(object({
       domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")
       path   = string                           # API endpoint path

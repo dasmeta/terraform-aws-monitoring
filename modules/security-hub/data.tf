@@ -24,10 +24,13 @@ data "aws_iam_policy_document" "eventbridge_publish_policy" {
     condition {
       test     = "ArnEquals"
       variable = "AWS:SourceArn"
-      values = [
-        aws_cloudwatch_event_rule.automated_alerts.arn,
-        aws_cloudwatch_event_rule.manual_alerts[0].arn
-      ]
+      values = concat(
+        [
+          aws_cloudwatch_event_rule.automated_alerts.arn,
+          aws_cloudwatch_event_rule.manual_alerts[0].arn
+        ],
+        [for rule in values(aws_cloudwatch_event_rule.service_alerts) : rule.arn]
+      )
     }
   }
 }

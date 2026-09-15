@@ -22,4 +22,43 @@ locals {
     for standard in var.enabled_standards : standard => local.security_hub_standards[standard]
     if contains(keys(local.security_hub_standards), standard)
   }
+
+  service_alert_event_patterns = {
+    guardduty = {
+      source        = ["aws.guardduty"]
+      "detail-type" = ["GuardDuty Finding"]
+      detail = {
+        severity = [{ numeric = [">=", 4] }]
+        service = {
+          archived = [false]
+        }
+      }
+    }
+    inspector = {
+      source        = ["aws.inspector2"]
+      "detail-type" = ["Inspector2 Finding"]
+      detail = {
+        severity = ["CRITICAL", "HIGH"]
+        status   = ["ACTIVE"]
+      }
+    }
+    macie = {
+      source        = ["aws.macie"]
+      "detail-type" = ["Macie Finding"]
+      detail = {
+        archived = [false]
+        severity = {
+          description = ["High"]
+        }
+      }
+    }
+  }
+
+  enabled_service_alert_event_patterns = {
+    for service, enabled in {
+      guardduty = var.automated_alerts.guardduty
+      inspector = var.automated_alerts.inspector
+      macie     = var.automated_alerts.macie
+    } : service => local.service_alert_event_patterns[service] if enabled
+  }
 }
