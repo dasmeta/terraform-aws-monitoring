@@ -95,7 +95,7 @@ run "inspector_and_macie" {
 }
 
 run "guardduty_sns_delivery" {
-  command = plan
+  command = apply
 
   variables {
     automated_alerts = {
@@ -108,16 +108,14 @@ run "guardduty_sns_delivery" {
   }
 
   override_module {
-    target          = module.alarm_actions[0]
-    override_during = plan
+    target = module.alarm_actions[0]
     outputs = {
       topic_arn = "arn:aws:sns:eu-central-1:123456789012:test-alerts"
     }
   }
 
   override_resource {
-    target          = aws_cloudwatch_event_rule.service_alerts["guardduty"]
-    override_during = plan
+    target = aws_cloudwatch_event_rule.service_alerts["guardduty"]
     values = {
       arn = "arn:aws:events:eu-central-1:123456789012:rule/test-security-hub-guardduty-automated-trigger"
     }
