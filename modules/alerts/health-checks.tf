@@ -3,9 +3,9 @@ locals {
   health_check_alerts = flatten([
     for health_check in var.health_checks : [
       {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Main"
-        description        = "Main monitoring for ${health_check.host}"
-        alarm_description  = join("\n", [
+        name        = "${health_check.host}:${health_check.port}${health_check.path}-Main"
+        description = "Main monitoring for ${health_check.host}"
+        alarm_description = join("\n", [
           "Main monitoring for ${health_check.host}",
           "client - \"${local.client_name}\"",
           "account - \"${data.aws_caller_identity.project.account_id}\"",
@@ -20,9 +20,9 @@ locals {
         treat_missing_data = "breaching"
       },
       {
-        name               = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
-        description        = "Percentage monitoring for ${health_check.host}"
-        alarm_description  = join("\n", [
+        name        = "${health_check.host}:${health_check.port}${health_check.path}-Percentage"
+        description = "Percentage monitoring for ${health_check.host}"
+        alarm_description = join("\n", [
           "Percentage monitoring for ${health_check.host}",
           "client - \"${local.client_name}\"",
           "account - \"${data.aws_caller_identity.project.account_id}\"",
