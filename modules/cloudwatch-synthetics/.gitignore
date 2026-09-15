@@ -1,0 +1,8 @@
+builds/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+**/plan.txt
+**/terraform.tfvars
+tests/local/
