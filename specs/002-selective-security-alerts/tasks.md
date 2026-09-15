@@ -16,4 +16,4 @@
 - [x] Replace the stale TFLint workflow dependency with the official setup action and per-module execution.
 - [x] Update the Checkov reusable action to a runner-compatible release.
 - [x] Replace the stale Pre-Commit wrapper and Terraform Docs download.
-- [ ] Verify the repaired GitHub Actions checks on the pull request.
+- [x] Verify the repaired GitHub Actions checks on the pull request.
