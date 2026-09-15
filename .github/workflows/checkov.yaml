@@ -26,5 +26,6 @@ jobs:
           directory: ${{ matrix.path }}
           framework: terraform
           download_external_modules: false
+          skip_path: tests
           output_format: cli
           soft_fail: true
