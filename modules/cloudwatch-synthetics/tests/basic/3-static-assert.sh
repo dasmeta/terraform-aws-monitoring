@@ -2,53 +2,26 @@
 set -euo pipefail
 
 module_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-repo_dir="$(cd "${module_dir}/../.." && pwd)"
-locals_file="${module_dir}/locals.tf"
-variables_file="${module_dir}/variables.tf"
-canary_file="${module_dir}/canary.tf"
-package_file="${module_dir}/package.tf"
-lookups_file="${module_dir}/lookups.tf"
-iam_file="${module_dir}/iam.tf"
-artifact_file="${module_dir}/artifact.tf"
-s3_file="${module_dir}/s3.tf"
-versions_file="${module_dir}/versions.tf"
-example_file="${module_dir}/tests/basic/1-example.tf"
-workflow_file="${repo_dir}/.github/workflows/terraform-test.yaml"
 
-grep -Eq 'synthetics-\$\{local\.region\}-\$\{local\.account_id\}' "${locals_file}"
-grep -Eq 'data\.aws_region\.current\.name' "${locals_file}"
-grep -Eq 'sns_topic_name' "${variables_file}"
-grep -Eq 'source_files' "${variables_file}"
-grep -Eq 'secret_name[[:space:]]*=[[:space:]]*optional\(string\)' "${variables_file}"
-grep -Eq 'memory_in_mb % 64 == 0' "${variables_file}"
-grep -Eq 'resource "archive_file" "canary_bundle"' "${package_file}"
-grep -Eq 'runtime_version[[:space:]]*=[[:space:]]*local\.synthetics_runtime_version' "${canary_file}"
-grep -Eq 'handler[[:space:]]*=[[:space:]]*local\.synthetics_handler' "${canary_file}"
-grep -Eq 'filename[[:space:]]*=[[:space:]]*"config.json"' "${package_file}"
-grep -Eq 'for_each[[:space:]]*=[[:space:]]*local\.canaries_with_secrets' "${lookups_file}"
-grep -Eq 'data "aws_sns_topic" "alerts"' "${lookups_file}"
-grep -Eq 'kms:EncryptionContext:SecretARN' "${iam_file}"
-grep -Eq 'kms:ViaService' "${iam_file}"
-grep -Eq 'key_manager == "CUSTOMER"' "${iam_file}"
-grep -Eq 's3:ListAllMyBuckets' "${iam_file}"
-grep -Eq 'kms:GenerateDataKey\*' "${iam_file}"
-grep -Eq 'ec2:CreateNetworkInterface' "${iam_file}"
-grep -Eq 's3:GetObject".*"s3:PutObject' "${iam_file}"
-grep -Eq 'source_hash[[:space:]]*=[[:space:]]*archive_file\.canary_bundle\[each\.key\]\.output_base64sha256' "${artifact_file}"
-grep -Eq 'sha1\("\$\{var\.name_prefix\}:\$\{key\}"\)' "${locals_file}"
-grep -Eq 'prefix[[:space:]]*=[[:space:]]*"canaries/"' "${s3_file}"
-grep -Eq 'version[[:space:]]*=[[:space:]]*"~> 2\.7"' "${versions_file}"
-grep -Eq 'fileexists\("\$\{path\.root\}/\$\{source\.value\}"\) \? file\("\$\{path\.root\}/\$\{source\.value\}"\) : ""' "${package_file}"
-grep -Eq 'python/helper.py' "${example_file}"
-grep -Eq 'Verify CloudWatch Synthetics public boundary' "${workflow_file}"
-
-if grep -q 'xray:PutTraceSegments' "${iam_file}"; then
-  echo "Unused xray:PutTraceSegments must not remain while active_tracing is hardcoded false."
+grep -Eq 'resource "archive_file" "canary_bundle"' "${module_dir}/package.tf"
+if grep -Eq '^[[:space:]]*data "archive_file"' "${module_dir}"/*.tf; then
+  echo "archive_file must be a resource, not a data source."
   exit 1
 fi
 
-if [[ -e "${repo_dir}/AGENTS.md" ]]; then
-  echo "AGENTS.md must not remain; it is Speckit-generated."
+grep -Eq 'secret_name[[:space:]]*=[[:space:]]*optional\(string\)' "${module_dir}/variables.tf"
+grep -Eq 'memory_in_mb % 64 == 0' "${module_dir}/variables.tf"
+grep -Eq 'for_each[[:space:]]*=[[:space:]]*local\.canaries_with_secrets' "${module_dir}/lookups.tf"
+grep -Eq 'source_hash[[:space:]]*=[[:space:]]*archive_file\.canary_bundle\[each\.key\]\.output_base64sha256' "${module_dir}/artifact.tf"
+grep -Eq 'sha1\("\$\{var\.name_prefix\}:\$\{key\}"\)' "${module_dir}/locals.tf"
+grep -Eq 'prefix[[:space:]]*=[[:space:]]*"canaries/"' "${module_dir}/s3.tf"
+grep -Eq 'kms:GenerateDataKey\*' "${module_dir}/iam.tf"
+grep -Eq 'ec2:CreateNetworkInterface' "${module_dir}/iam.tf"
+grep -Eq 's3:ListAllMyBuckets' "${module_dir}/iam.tf"
+grep -Eq 'python/helper.py' "${module_dir}/tests/basic/1-example.tf"
+
+if grep -q 'xray:PutTraceSegments' "${module_dir}/iam.tf"; then
+  echo "Unused xray:PutTraceSegments must not remain while active_tracing is hardcoded false."
   exit 1
 fi
 

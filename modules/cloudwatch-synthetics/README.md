@@ -85,7 +85,7 @@ Provisions generic Synthetics infrastructure for consumer-supplied private sourc
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
-| <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.7 |
+| <a name="requirement_archive"></a> [archive](#requirement\_archive) | >= 2.7, < 2.9 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0, < 7.0 |
 
 ## Providers
