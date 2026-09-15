@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "canary" {
         },
         {
           Effect   = "Allow"
-          Action   = ["s3:ListAllMyBuckets", "xray:PutTraceSegments"]
+          Action   = "s3:ListAllMyBuckets"
           Resource = "*"
         },
         {

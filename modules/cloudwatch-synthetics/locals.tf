@@ -40,7 +40,7 @@ locals {
 
   canaries_with_secrets = {
     for key, cfg in var.canaries : key => cfg
-    if cfg.secret_name != null && trimspace(cfg.secret_name) != ""
+    if cfg.secret_name != null
   }
 
   canary_configs = {

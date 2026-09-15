@@ -1,3 +1,4 @@
+# Resource (not data source) so Terraform Cloud apply workers build the ZIP in the apply graph. Requires hashicorp/archive ~> 2.7.
 resource "archive_file" "canary_bundle" {
   for_each = var.canaries
 

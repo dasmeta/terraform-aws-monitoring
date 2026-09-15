@@ -43,7 +43,7 @@ variable "canaries" {
     }), {})
   }))
 
-  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret_name is optional when the canary does not read Secrets Manager."
+  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret_name is optional when the canary does not read Secrets Manager. memory_in_mb must be 960-3008 and a multiple of 64."
 
   validation {
     condition     = length(var.canaries) > 0
@@ -78,9 +78,10 @@ variable "canaries" {
 
   validation {
     condition = alltrue([
-      for key, cfg in var.canaries : cfg.memory_in_mb >= 960 && cfg.memory_in_mb <= 3008
+      for key, cfg in var.canaries :
+      cfg.memory_in_mb >= 960 && cfg.memory_in_mb <= 3008 && cfg.memory_in_mb % 64 == 0
     ])
-    error_message = "Each canary memory_in_mb must be between 960 and 3008."
+    error_message = "Each canary memory_in_mb must be between 960 and 3008 and a multiple of 64."
   }
 
   validation {
