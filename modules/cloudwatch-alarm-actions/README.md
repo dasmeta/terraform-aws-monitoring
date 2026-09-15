@@ -33,7 +33,7 @@ The HTTPS integration in `web_endpoints` must create the Opsgenie alert with the
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.64.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.2, < 7.0 |
 
 ## Modules
 
