@@ -17,11 +17,15 @@ Every source map must include `python/canary.py`. That file must define
 `syn-python-selenium-11.1` and handler to `canary.handler`.
 
 The module generates root-level `config.json` from the non-secret `config` map
-and the module-owned `secret_name` field. Do not put passwords, tokens, or
-other secret values in `config`: Terraform state can contain package source
-content. Restrict state access to people permitted to read the private code.
-Source symlinks are unsupported because Terraform cannot verify their targets
-remain inside the consumer workspace.
+and, when set, the module-owned `secret_name` field. CloudWatch Synthetics
+unpacks the ZIP as a Lambda layer, so consumer code reads that file at
+`/opt/config.json`. Source files must be UTF-8 text; Terraform's `file()`
+function cannot package binary content. Do not put passwords, tokens, or other
+secret values in `config`: Terraform state can contain package source content.
+Restrict state access to people permitted to read the private code. Source
+symlinks are unsupported because Terraform cannot verify their targets remain
+inside the consumer workspace. `secret_name` is optional; omit it when the
+canary does not read a Secrets Manager secret.
 
 ```hcl
 module "service_canaries" {
@@ -45,9 +49,9 @@ module "service_canaries" {
 }
 ```
 
-The secret must already exist. Terraform looks it up by name and grants the
-canary runtime permission to call `GetSecretValue`. The Python script retrieves
-the secret value at runtime; Terraform never reads the value.
+The secret, when provided, must already exist. Terraform looks it up by name
+and grants the canary runtime permission to call `GetSecretValue`. The Python
+script retrieves the secret value at runtime; Terraform never reads the value.
 
 ## DasMeta wrapper example
 
@@ -81,7 +85,7 @@ Provisions generic Synthetics infrastructure for consumer-supplied private sourc
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
-| <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.4 |
+| <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.7 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0, < 7.0 |
 
 ## Providers
@@ -124,10 +128,10 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_artifact_bucket_force_destroy"></a> [artifact\_bucket\_force\_destroy](#input\_artifact\_bucket\_force\_destroy) | Whether Terraform may delete module-created versioned artifacts; use only for isolated tests. | `bool` | `false` | no |
-| <a name="input_artifact_bucket_name"></a> [artifact\_bucket\_name](#input\_artifact\_bucket\_name) | Name of a consumer-owned artifact bucket when create\_artifact\_bucket is false. | `string` | `null` | no |
-| <a name="input_artifact_expiration_days"></a> [artifact\_expiration\_days](#input\_artifact\_expiration\_days) | Days to retain current and noncurrent artifact objects. | `number` | `30` | no |
-| <a name="input_canaries"></a> [canaries](#input\_canaries) | Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. | <pre>map(object({<br/>    source_files = map(string)<br/>    secret_name  = string<br/>    config       = optional(map(string), {})<br/><br/>    schedule        = optional(string, "rate(5 minutes)")<br/>    timeout_seconds = optional(number, 60)<br/>    tags            = optional(map(string), {})<br/><br/>    vpc_config = optional(object({<br/>      subnet_ids         = list(string)<br/>      security_group_ids = list(string)<br/>    }))<br/><br/>    alarm_config = optional(object({<br/>      enabled             = optional(bool, true)<br/>      evaluation_periods  = optional(number, 1)<br/>      datapoints_to_alarm = optional(number, 1)<br/>      period              = optional(number, 60)<br/>      treat_missing_data  = optional(string, "notBreaching")<br/>    }), {})<br/>  }))</pre> | n/a | yes |
-| <a name="input_create_artifact_bucket"></a> [create\_artifact\_bucket](#input\_create\_artifact\_bucket) | Whether to create a module-managed S3 bucket for canary artifacts and module-built source packages. | `bool` | `true` | no |
+| <a name="input_artifact_bucket_name"></a> [artifact\_bucket\_name](#input\_artifact\_bucket\_name) | Artifact bucket name. Overrides the generated name when create\_artifact\_bucket is true; names the existing bucket when create\_artifact\_bucket is false. | `string` | `null` | no |
+| <a name="input_artifact_expiration_days"></a> [artifact\_expiration\_days](#input\_artifact\_expiration\_days) | Days to retain current and noncurrent canary run artifacts under the canaries/ prefix. Source packages under scripts/ are not expired. | `number` | `30` | no |
+| <a name="input_canaries"></a> [canaries](#input\_canaries) | Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret\_name is optional when the canary does not read Secrets Manager. | <pre>map(object({<br/>    source_files = map(string)<br/>    secret_name  = optional(string)<br/>    config       = optional(map(string), {})<br/><br/>    schedule        = optional(string, "rate(5 minutes)")<br/>    timeout_seconds = optional(number, 60)<br/>    memory_in_mb    = optional(number, 960)<br/>    tags            = optional(map(string), {})<br/><br/>    vpc_config = optional(object({<br/>      subnet_ids         = list(string)<br/>      security_group_ids = list(string)<br/>    }))<br/><br/>    alarm_config = optional(object({<br/>      enabled             = optional(bool, true)<br/>      evaluation_periods  = optional(number, 1)<br/>      datapoints_to_alarm = optional(number, 1)<br/>      period              = optional(number, 60)<br/>      treat_missing_data  = optional(string, "notBreaching")<br/>    }), {})<br/>  }))</pre> | n/a | yes |
+| <a name="input_create_artifact_bucket"></a> [create\_artifact\_bucket](#input\_create\_artifact\_bucket) | Whether to create a module-managed S3 bucket. When true, artifact\_bucket\_name optionally overrides the generated name. When false, artifact\_bucket\_name is required. | `bool` | `true` | no |
 | <a name="input_default_tags"></a> [default\_tags](#input\_default\_tags) | Tags applied to all taggable module resources. | `map(string)` | `{}` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional KMS key ARN for artifact bucket encryption. | `string` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for generated resource names. | `string` | n/a | yes |

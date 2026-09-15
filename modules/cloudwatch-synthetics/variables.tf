@@ -21,11 +21,12 @@ variable "sns_topic_name" {
 variable "canaries" {
   type = map(object({
     source_files = map(string)
-    secret_name  = string
+    secret_name  = optional(string)
     config       = optional(map(string), {})
 
     schedule        = optional(string, "rate(5 minutes)")
     timeout_seconds = optional(number, 60)
+    memory_in_mb    = optional(number, 960)
     tags            = optional(map(string), {})
 
     vpc_config = optional(object({
@@ -42,7 +43,7 @@ variable "canaries" {
     }), {})
   }))
 
-  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported."
+  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret_name is optional when the canary does not read Secrets Manager."
 
   validation {
     condition     = length(var.canaries) > 0
@@ -66,9 +67,20 @@ variable "canaries" {
 
   validation {
     condition = alltrue([
-      for key, cfg in var.canaries : trimspace(cfg.secret_name) != ""
+      for key, cfg in var.canaries :
+      cfg.secret_name == null || (
+        trimspace(cfg.secret_name) != "" &&
+        !startswith(trimspace(cfg.secret_name), "arn:")
+      )
     ])
-    error_message = "Each canary secret_name must be a non-empty existing Secrets Manager secret name."
+    error_message = "Each canary secret_name, when set, must be a non-empty Secrets Manager secret name, not an ARN."
+  }
+
+  validation {
+    condition = alltrue([
+      for key, cfg in var.canaries : cfg.memory_in_mb >= 960 && cfg.memory_in_mb <= 3008
+    ])
+    error_message = "Each canary memory_in_mb must be between 960 and 3008."
   }
 
   validation {
@@ -136,13 +148,13 @@ variable "canaries" {
 variable "create_artifact_bucket" {
   type        = bool
   default     = true
-  description = "Whether to create a module-managed S3 bucket for canary artifacts and module-built source packages."
+  description = "Whether to create a module-managed S3 bucket. When true, artifact_bucket_name optionally overrides the generated name. When false, artifact_bucket_name is required."
 }
 
 variable "artifact_bucket_name" {
   type        = string
   default     = null
-  description = "Name of a consumer-owned artifact bucket when create_artifact_bucket is false."
+  description = "Artifact bucket name. Overrides the generated name when create_artifact_bucket is true; names the existing bucket when create_artifact_bucket is false."
 }
 
 variable "artifact_bucket_force_destroy" {
@@ -165,7 +177,7 @@ variable "kms_key_arn" {
 variable "artifact_expiration_days" {
   type        = number
   default     = 30
-  description = "Days to retain current and noncurrent artifact objects."
+  description = "Days to retain current and noncurrent canary run artifacts under the canaries/ prefix. Source packages under scripts/ are not expired."
 
   validation {
     condition     = var.artifact_expiration_days >= 1

@@ -54,9 +54,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
   bucket = aws_s3_bucket.artifacts[0].id
 
   rule {
-    id     = "expire-canary-artifacts"
+    id     = "expire-canary-run-artifacts"
     status = "Enabled"
-    filter {}
+    filter {
+      prefix = "canaries/"
+    }
 
     expiration {
       days = var.artifact_expiration_days
@@ -65,6 +67,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
     noncurrent_version_expiration {
       noncurrent_days = var.artifact_expiration_days
     }
+  }
+
+  rule {
+    id     = "abort-incomplete-uploads"
+    status = "Enabled"
+    filter {}
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7

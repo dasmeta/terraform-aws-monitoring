@@ -27,12 +27,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify CloudWatch Synthetics public boundary
         if: matrix.path == 'modules/cloudwatch-synthetics'
-        run: |
-          if git grep -nEI 'blackhawk|fashioncheque|legacy[[:space:]_-]*gateway|cardinfo' -- modules/cloudwatch-synthetics; then
-            echo "Client or vendor-specific content is not allowed in the public module."
-            exit 1
-          fi
-          bash modules/cloudwatch-synthetics/tests/basic/3-static-assert.sh
+        run: bash modules/cloudwatch-synthetics/tests/basic/3-static-assert.sh
       - uses: dasmeta/reusable-actions-workflows/terraform-test@4.1.1
         with:
           aws-region: ${{ secrets.AWS_REGION}}

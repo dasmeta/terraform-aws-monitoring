@@ -7,7 +7,7 @@ module "primary" {
     aws_secretsmanager_secret.customer_key,
   ]
 
-  name_prefix                   = "example-basic"
+  name_prefix                   = "example-basic-${random_id.suffix.hex}"
   sns_topic_name                = aws_sns_topic.alerts.name
   artifact_bucket_force_destroy = true
 
@@ -16,6 +16,7 @@ module "primary" {
       secret_name = aws_secretsmanager_secret.example.name
       source_files = {
         "python/canary.py" = "fixtures/python/canary.py"
+        "python/helper.py" = "fixtures/python/helper.py"
       }
       config = {
         environment = "example"
@@ -25,6 +26,7 @@ module "primary" {
       secret_name = aws_secretsmanager_secret.customer_key.name
       source_files = {
         "python/canary.py" = "fixtures/python/canary.py"
+        "python/helper.py" = "fixtures/python/helper.py"
       }
       config = {
         environment = "example"
@@ -43,18 +45,17 @@ module "secondary" {
 
   depends_on = [
     aws_sns_topic.alerts,
-    aws_secretsmanager_secret.example,
   ]
 
-  name_prefix                   = "example-secondary"
+  name_prefix                   = "example-secondary-${random_id.suffix.hex}"
   sns_topic_name                = aws_sns_topic.alerts.name
   artifact_bucket_force_destroy = true
 
   canaries = {
     fixture-default = {
-      secret_name = aws_secretsmanager_secret.example.name
       source_files = {
         "python/canary.py" = "fixtures/python/canary.py"
+        "python/helper.py" = "fixtures/python/helper.py"
       }
       config = {
         environment = "example-secondary"

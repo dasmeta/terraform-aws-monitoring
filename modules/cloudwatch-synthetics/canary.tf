@@ -2,7 +2,7 @@ resource "aws_synthetics_canary" "this" {
   for_each = var.canaries
 
   name                 = local.canary_names[each.key]
-  artifact_s3_location = "s3://${local.artifact_bucket_id}/canaries/${each.key}/"
+  artifact_s3_location = "s3://${local.artifact_bucket_id}/canaries/${local.canary_names[each.key]}/"
   execution_role_arn   = aws_iam_role.canary[each.key].arn
   handler              = local.synthetics_handler
   runtime_version      = local.synthetics_runtime_version
@@ -19,7 +19,7 @@ resource "aws_synthetics_canary" "this" {
 
   run_config {
     timeout_in_seconds = each.value.timeout_seconds
-    memory_in_mb       = 960
+    memory_in_mb       = each.value.memory_in_mb
     active_tracing     = false
   }
 

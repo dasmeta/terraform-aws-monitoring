@@ -1,10 +1,11 @@
 # Basic test: generic source-file canaries
 
 The fixture creates two isolated module instances, three generic canaries, one
-default-key test secret, and one customer-key test secret. It exists only to
-validate public Terraform infrastructure. Run lifecycle tests only in a
-dedicated non-production account; a customer-managed KMS key enters its
-seven-day deletion window during destroy.
+default-key test secret, and one customer-key test secret. The secondary
+instance omits `secret_name`. Resource names include a random suffix so
+concurrent runs do not collide. Run lifecycle tests only in a dedicated
+non-production account; a customer-managed KMS key enters its seven-day
+deletion window during destroy.
 
 ```bash
 terraform init
@@ -19,12 +20,14 @@ terraform destroy
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0, < 7.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.6 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | 6.64.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.6 |
 
 ## Modules
 
@@ -43,6 +46,7 @@ terraform destroy
 | [aws_secretsmanager_secret_version.customer_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.example](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_sns_topic.alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
+| [random_id.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 
 ## Inputs
 

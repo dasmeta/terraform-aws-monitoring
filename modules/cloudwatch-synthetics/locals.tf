@@ -35,29 +35,25 @@ locals {
 
   script_object_keys = {
     for key, cfg in var.canaries :
-    key => "scripts/${substr(sha1(key), 0, 16)}/bundle.zip"
+    key => "scripts/${substr(sha1("${var.name_prefix}:${key}"), 0, 16)}/bundle.zip"
+  }
+
+  canaries_with_secrets = {
+    for key, cfg in var.canaries : key => cfg
+    if cfg.secret_name != null && trimspace(cfg.secret_name) != ""
   }
 
   canary_configs = {
     for key, cfg in var.canaries : key => merge(cfg, {
-      config = merge(cfg.config, {
+      config = contains(keys(local.canaries_with_secrets), key) ? merge(cfg.config, {
         secret_name = cfg.secret_name
-      })
-      alarm_config = merge(
-        {
-          enabled             = true
-          evaluation_periods  = 1
-          datapoints_to_alarm = 1
-          period              = 60
-          treat_missing_data  = "notBreaching"
-        },
-        cfg.alarm_config
-      )
+      }) : cfg.config
     })
   }
 
   account_id = data.aws_caller_identity.current.account_id
-  region     = data.aws_region.current.name
+  # name remains required for AWS provider 5.x; .region exists only in 6.x.
+  region = data.aws_region.current.name
 }
 
 data "aws_caller_identity" "current" {}
