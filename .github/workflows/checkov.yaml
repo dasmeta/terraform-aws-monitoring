@@ -25,6 +25,6 @@ jobs:
         with:
           directory: ${{ matrix.path }}
           framework: terraform
-          download_external_modules: true
+          download_external_modules: false
           output_format: cli
           soft_fail: true
