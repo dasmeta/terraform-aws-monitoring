@@ -12,3 +12,7 @@
 - [x] Add the production-equivalent GuardDuty enrichment handler.
 - [x] Document Slack and Opsgenie routing requirements.
 - [x] Re-run Python tests, Terraform tests, formatting, and validation.
+- [x] Replace the stale Terraform Test workflow dependency with credential-free module tests.
+- [x] Replace the stale TFLint workflow dependency with the official setup action and per-module execution.
+- [x] Update the Checkov reusable action to a runner-compatible release.
+- [ ] Verify the repaired GitHub Actions checks on the pull request.

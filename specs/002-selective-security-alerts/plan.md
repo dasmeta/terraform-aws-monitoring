@@ -32,3 +32,14 @@ Reuse the existing GuardDuty-aware `notify-slack` dependency for Slack. Add only
 - Create `modules/cloudwatch-alarm-actions/tests/opsgenie-guardduty/test_lambda.py`: focused handler tests.
 - Create `modules/cloudwatch-alarm-actions/opsgenie_guardduty.tftest.hcl`: disabled, enabled, and API-key validation plan tests.
 - Modify `modules/cloudwatch-alarm-actions/README.md`: explain alert creation, alias matching, and optional enrichment.
+
+## CI Repair
+
+The pull-request workflows currently fail before evaluating this change. The pinned TFLint and Terraform Test wrappers configure an expired repository AWS access key, while the pinned Checkov wrapper uses `actions/setup-python@v1` with an unavailable Python 3.11.11 build. Pull request #93 has the same three failed workflows, and `meta exec buycycle production` confirms that valid managed AWS access plus the changed-module Terraform and TFLint commands succeed.
+
+Keep the existing module matrices and remove the unrelated static AWS credential dependency from validation:
+
+- Modify `.github/workflows/terraform-test.yaml`: use `actions/checkout@v4` and `hashicorp/setup-terraform@v3`, initialize every module with `terraform init -backend=false`, and run `terraform test` with Terraform 1.9.8. The new plan tests mock AWS and pass without credentials.
+- Modify `.github/workflows/tflint.yaml`: use `actions/checkout@v4` and the official `terraform-linters/setup-tflint@v6.3.1`, then run `tflint --force` in each matrix directory. `--force` preserves the current advisory policy for lint findings, while setup and execution errors still fail the job; no step-level `continue-on-error` is used.
+- Modify `.github/workflows/checkov.yaml`: call the official Checkov v12 action directly by immutable commit, with `soft_fail: true` to preserve the current advisory policy for scan findings. Do not use step-level `continue-on-error`, so action setup and scanner execution errors still fail the job.
+- Validate the workflow YAML, rerun the changed-module Terraform and TFLint commands without AWS credentials, push the repair, and use the GitHub Actions results as the integration test.
