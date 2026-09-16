@@ -4,12 +4,12 @@ resource "aws_secretsmanager_secret_version" "example" {
 
   lifecycle {
     precondition {
-      condition     = length(module.primary.canary_arns) == 2 && length(module.secondary.canary_arns) == 1
+      condition     = length(module.primary.canary_arns) == 3 && length(module.secondary.canary_arns) == 1
       error_message = "Module instances must create the expected neutral canaries."
     }
 
     precondition {
-      condition     = length(module.primary.alarm_arns) == 2 && length(module.secondary.alarm_arns) == 1
+      condition     = length(module.primary.alarm_arns) == 3 && length(module.secondary.alarm_arns) == 1
       error_message = "Module instances must create enabled failure alarms."
     }
 
@@ -18,6 +18,20 @@ resource "aws_secretsmanager_secret_version" "example" {
         for version_id in concat(values(module.primary.script_object_version_ids), values(module.secondary.script_object_version_ids)) : version_id != null && version_id != ""
       ])
       error_message = "Each generated source package must be uploaded as a versioned S3 object."
+    }
+
+    precondition {
+      condition     = module.primary.canary_names["fixture-named"] == "ex-named-${random_id.suffix.hex}"
+      error_message = "A supplied canary_name must be used as the AWS Synthetics canary name."
+    }
+
+    precondition {
+      condition = module.primary.canary_names["fixture-default"] == format(
+        "%s-%s",
+        substr(trim(replace(lower("example-basic-${random_id.suffix.hex}-fixture-default"), "/[^a-z0-9-]/", ""), "-"), 0, 13),
+        substr(sha1("example-basic-${random_id.suffix.hex}:fixture-default"), 0, 7)
+      )
+      error_message = "Omitting canary_name must keep the module-generated Synthetics canary name."
     }
 
     precondition {

@@ -1,8 +1,9 @@
 # Basic test: generic source-file canaries
 
-The fixture creates two isolated module instances, three generic canaries, one
-default-key test secret, and one customer-key test secret. The secondary
-instance omits `secret_name`. Resource names include a random suffix so
+The fixture creates two isolated module instances, four generic canaries, one
+default-key test secret, and one customer-key test secret. The primary instance
+includes one canary with an explicit `canary_name` and two that omit it so the
+generated-name path stays covered. The secondary instance omits `secret_name`. Resource names include a random suffix so
 concurrent runs do not collide. Run lifecycle tests only in a dedicated
 non-production account; a customer-managed KMS key enters its seven-day
 deletion window during destroy.

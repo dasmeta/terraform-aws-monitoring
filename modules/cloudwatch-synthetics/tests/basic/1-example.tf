@@ -32,6 +32,16 @@ module "primary" {
         environment = "example"
       }
     }
+    fixture-named = {
+      canary_name = "ex-named-${random_id.suffix.hex}"
+      source_files = {
+        "python/canary.py" = "fixtures/python/canary.py"
+        "python/helper.py" = "fixtures/python/helper.py"
+      }
+      config = {
+        environment = "example-named"
+      }
+    }
   }
 
   default_tags = {
