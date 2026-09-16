@@ -4,7 +4,7 @@ output "canary_arns" {
 }
 
 output "canary_names" {
-  description = "Map of canary key to generated Synthetics canary name."
+  description = "Map of canary key to resolved Synthetics canary name."
   value       = { for key, canary in aws_synthetics_canary.this : key => canary.name }
 }
 

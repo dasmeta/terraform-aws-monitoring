@@ -25,7 +25,12 @@ secret values in `config`: Terraform state can contain package source content.
 Restrict state access to people permitted to read the private code. Source
 symlinks are unsupported because Terraform cannot verify their targets remain
 inside the consumer workspace. `secret_name` is optional; omit it when the
-canary does not read a Secrets Manager secret.
+canary does not read a Secrets Manager secret. `canary_name` is optional; set it
+to the AWS Synthetics canary name you want in CloudWatch and Slack. The value
+must be 1-21 letters, numbers, hyphens, or underscores. Omit it to keep the
+module-generated name. Changing `canary_name` on an existing canary, or adding
+it after apply, replaces that canary. Canaries that omit it keep the generated
+name and are not replaced.
 
 ```hcl
 module "service_canaries" {
@@ -36,10 +41,12 @@ module "service_canaries" {
   sns_topic_name = "example-synthetics-alerts"
 
   canaries = {
-    health = {
+    rest-api = {
+      canary_name = "example-prod-rest-api"
+      schedule    = "rate(5 minutes)"
       secret_name = "monitoring/example/health"
       source_files = {
-        "python/canary.py" = "canaries/health/canary.py"
+        "python/canary.py" = "canaries/rest-api/canary.py"
       }
       config = {
         environment = "production"
@@ -62,10 +69,12 @@ variables:
   name_prefix: example-prod
   sns_topic_name: example-synthetics-alerts
   canaries:
-    health:
+    rest-api:
+      canary_name: example-prod-rest-api
+      schedule: rate(5 minutes)
       secret_name: ${0-accounts/production/monitoring-secrets.health_secret_name}
       source_files:
-        python/canary.py: canaries/health/canary.py
+        python/canary.py: canaries/rest-api/canary.py
       config:
         environment: production
 ```
@@ -130,7 +139,7 @@ No modules.
 | <a name="input_artifact_bucket_force_destroy"></a> [artifact\_bucket\_force\_destroy](#input\_artifact\_bucket\_force\_destroy) | Whether Terraform may delete module-created versioned artifacts; use only for isolated tests. | `bool` | `false` | no |
 | <a name="input_artifact_bucket_name"></a> [artifact\_bucket\_name](#input\_artifact\_bucket\_name) | Artifact bucket name. Overrides the generated name when create\_artifact\_bucket is true; names the existing bucket when create\_artifact\_bucket is false. | `string` | `null` | no |
 | <a name="input_artifact_expiration_days"></a> [artifact\_expiration\_days](#input\_artifact\_expiration\_days) | Days to retain current and noncurrent canary run artifacts under the canaries/ prefix. Source packages under scripts/ are not expired. | `number` | `30` | no |
-| <a name="input_canaries"></a> [canaries](#input\_canaries) | Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret\_name is optional when the canary does not read Secrets Manager. memory\_in\_mb must be 960-3008 and a multiple of 64. | <pre>map(object({<br/>    source_files = map(string)<br/>    secret_name  = optional(string)<br/>    config       = optional(map(string), {})<br/><br/>    schedule        = optional(string, "rate(5 minutes)")<br/>    timeout_seconds = optional(number, 60)<br/>    memory_in_mb    = optional(number, 960)<br/>    tags            = optional(map(string), {})<br/><br/>    vpc_config = optional(object({<br/>      subnet_ids         = list(string)<br/>      security_group_ids = list(string)<br/>    }))<br/><br/>    alarm_config = optional(object({<br/>      enabled             = optional(bool, true)<br/>      evaluation_periods  = optional(number, 1)<br/>      datapoints_to_alarm = optional(number, 1)<br/>      period              = optional(number, 60)<br/>      treat_missing_data  = optional(string, "notBreaching")<br/>    }), {})<br/>  }))</pre> | n/a | yes |
+| <a name="input_canaries"></a> [canaries](#input\_canaries) | Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. canary\_name is optional; when set it is the AWS Synthetics canary name (1-21 letters, numbers, hyphens, or underscores) and Terraform will replace an existing generated-name canary. Omit it to keep the module-generated name. secret\_name is optional when the canary does not read Secrets Manager. memory\_in\_mb must be 960-3008 and a multiple of 64. | <pre>map(object({<br/>    source_files = map(string)<br/>    canary_name  = optional(string)<br/>    secret_name  = optional(string)<br/>    config       = optional(map(string), {})<br/><br/>    schedule        = optional(string, "rate(5 minutes)")<br/>    timeout_seconds = optional(number, 60)<br/>    memory_in_mb    = optional(number, 960)<br/>    tags            = optional(map(string), {})<br/><br/>    vpc_config = optional(object({<br/>      subnet_ids         = list(string)<br/>      security_group_ids = list(string)<br/>    }))<br/><br/>    alarm_config = optional(object({<br/>      enabled             = optional(bool, true)<br/>      evaluation_periods  = optional(number, 1)<br/>      datapoints_to_alarm = optional(number, 1)<br/>      period              = optional(number, 60)<br/>      treat_missing_data  = optional(string, "notBreaching")<br/>    }), {})<br/>  }))</pre> | n/a | yes |
 | <a name="input_create_artifact_bucket"></a> [create\_artifact\_bucket](#input\_create\_artifact\_bucket) | Whether to create a module-managed S3 bucket. When true, artifact\_bucket\_name optionally overrides the generated name. When false, artifact\_bucket\_name is required. | `bool` | `true` | no |
 | <a name="input_default_tags"></a> [default\_tags](#input\_default\_tags) | Tags applied to all taggable module resources. | `map(string)` | `{}` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional KMS key ARN for artifact bucket encryption. | `string` | `null` | no |
@@ -144,7 +153,7 @@ No modules.
 | <a name="output_alarm_arns"></a> [alarm\_arns](#output\_alarm\_arns) | Map of canary key to enabled CloudWatch alarm ARN. |
 | <a name="output_artifact_bucket_arn"></a> [artifact\_bucket\_arn](#output\_artifact\_bucket\_arn) | ARN of the selected artifact S3 bucket. |
 | <a name="output_canary_arns"></a> [canary\_arns](#output\_canary\_arns) | Map of canary key to Synthetics canary ARN. |
-| <a name="output_canary_names"></a> [canary\_names](#output\_canary\_names) | Map of canary key to generated Synthetics canary name. |
+| <a name="output_canary_names"></a> [canary\_names](#output\_canary\_names) | Map of canary key to resolved Synthetics canary name. |
 | <a name="output_execution_role_arns"></a> [execution\_role\_arns](#output\_execution\_role\_arns) | Map of canary key to execution IAM role ARN. |
 | <a name="output_script_object_keys"></a> [script\_object\_keys](#output\_script\_object\_keys) | Map of canary key to uploaded module-built source package object key. |
 | <a name="output_script_object_version_ids"></a> [script\_object\_version\_ids](#output\_script\_object\_version\_ids) | Map of canary key to uploaded module-built source package object version ID. |

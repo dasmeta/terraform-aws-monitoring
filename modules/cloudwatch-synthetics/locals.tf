@@ -13,9 +13,14 @@ locals {
     key => trim(replace(lower("${local.sanitized_name_prefix}-${key}"), "/[^a-z0-9-]/", ""), "-")
   }
 
-  canary_names = {
+  generated_canary_names = {
     for key, stem in local.canary_name_stems :
     key => "${substr(stem, 0, 13)}-${substr(sha1("${var.name_prefix}:${key}"), 0, 7)}"
+  }
+
+  canary_names = {
+    for key, cfg in var.canaries :
+    key => cfg.canary_name != null ? cfg.canary_name : local.generated_canary_names[key]
   }
 
   role_names = {

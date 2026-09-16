@@ -21,6 +21,7 @@ variable "sns_topic_name" {
 variable "canaries" {
   type = map(object({
     source_files = map(string)
+    canary_name  = optional(string)
     secret_name  = optional(string)
     config       = optional(map(string), {})
 
@@ -43,7 +44,7 @@ variable "canaries" {
     }), {})
   }))
 
-  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. secret_name is optional when the canary does not read Secrets Manager. memory_in_mb must be 960-3008 and a multiple of 64."
+  description = "Map of generic canary configurations keyed by stable logical name. Source files are relative to the consumer Terraform root; source symlinks are unsupported. canary_name is optional; when set it is the AWS Synthetics canary name (1-21 letters, numbers, hyphens, or underscores) and Terraform will replace an existing generated-name canary. Omit it to keep the module-generated name. secret_name is optional when the canary does not read Secrets Manager. memory_in_mb must be 960-3008 and a multiple of 64."
 
   validation {
     condition     = length(var.canaries) > 0
@@ -63,6 +64,23 @@ variable "canaries" {
       for key, cfg in var.canaries : cfg.timeout_seconds >= 3 && cfg.timeout_seconds <= 840
     ])
     error_message = "Each canary timeout_seconds must be between 3 and 840."
+  }
+
+  validation {
+    condition = alltrue([
+      for key, cfg in var.canaries :
+      cfg.canary_name == null || can(regex("^[0-9A-Za-z_-]{1,21}$", cfg.canary_name))
+    ])
+    error_message = "Each canary_name, when set, must be 1-21 letters, numbers, hyphens, or underscores."
+  }
+
+  validation {
+    condition = length(distinct([
+      for key, cfg in var.canaries : cfg.canary_name if cfg.canary_name != null
+      ])) == length([
+      for key, cfg in var.canaries : cfg.canary_name if cfg.canary_name != null
+    ])
+    error_message = "Each canary_name, when set, must be unique within the module instance."
   }
 
   validation {

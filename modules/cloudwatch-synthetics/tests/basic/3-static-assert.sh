@@ -18,7 +18,10 @@ grep -Eq 'prefix[[:space:]]*=[[:space:]]*"canaries/"' "${module_dir}/s3.tf"
 grep -Eq 'kms:GenerateDataKey\*' "${module_dir}/iam.tf"
 grep -Eq 'ec2:CreateNetworkInterface' "${module_dir}/iam.tf"
 grep -Eq 's3:ListAllMyBuckets' "${module_dir}/iam.tf"
+grep -Eq 'canary_name[[:space:]]*=[[:space:]]*optional\(string\)' "${module_dir}/variables.tf"
+grep -Eq 'cfg\.canary_name != null \? cfg\.canary_name : local\.generated_canary_names\[key\]' "${module_dir}/locals.tf"
 grep -Eq 'python/helper.py' "${module_dir}/tests/basic/1-example.tf"
+grep -Eq 'canary_name = "ex-named-\$\{random_id\.suffix\.hex\}"' "${module_dir}/tests/basic/1-example.tf"
 
 if grep -q 'xray:PutTraceSegments' "${module_dir}/iam.tf"; then
   echo "Unused xray:PutTraceSegments must not remain while active_tracing is hardcoded false."
