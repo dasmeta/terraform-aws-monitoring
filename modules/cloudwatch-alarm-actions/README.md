@@ -1,4 +1,6 @@
-# This module allows to create an aws SNS topic and multiple email/sms/https/slack-lambda/servicenow-lambda subscriptions to forward cloudwatch alerts/alarms to. It is supposed that this module will be used aloconjunctionnt
+# CloudWatch Alarm Actions
+
+Creates an SNS topic and notification subscriptions for email, SMS, HTTPS integrations, Slack, and other supported channels.
 
 # Example
 
@@ -7,30 +9,40 @@ module "monitoring_cloudwatch_alarm_actions" {
   source  = "dasmeta/monitoring/aws//modules/cloudwatch-alarm-actions"
   version = "x.y.z"
 
-  web_endpoints = ["https://api.opsgenie.com/v1/json/cloudwatch?apiKey=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
+  web_endpoints = [var.opsgenie_integration_url]
+  opsgenie_guardduty_enrichment = {
+    enabled = true
+    api_key = var.opsgenie_api_key
+  }
 }
 ```
+
+For native GuardDuty findings, Slack already formats the finding through the existing notification Lambda. The optional setting above adds the GuardDuty description enrichment used in Buycycle production to Opsgenie alerts.
+
+The HTTPS integration in `web_endpoints` must create the Opsgenie alert with the EventBridge event ID as its alias. When using an existing topic that already has this integration, the subscription may be managed outside this module. The updater retries while that alert is being created, then adds the finding details, resource, timestamps, console link, and response guidance. It ignores other SNS messages and is disabled by default. Supply the API key from secret-backed configuration; for an EU Opsgenie account, set `api_url = "https://api.eu.opsgenie.com"` ([Opsgenie API overview](https://docs.opsgenie.com/docs/api-overview)).
+
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.2, < 7.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.2, < 7.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
 | <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.2.7 |
 | <a name="module_notify_jira"></a> [notify\_jira](#module\_notify\_jira) | ./modules/lambda-subscription | n/a |
+| <a name="module_notify_opsgenie_guardduty"></a> [notify\_opsgenie\_guardduty](#module\_notify\_opsgenie\_guardduty) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_servicenow"></a> [notify\_servicenow](#module\_notify\_servicenow) | ./modules/lambda-subscription | n/a |
 | <a name="module_notify_slack"></a> [notify\_slack](#module\_notify\_slack) | terraform-aws-modules/notify-slack/aws | 6.7.0 |
 | <a name="module_notify_teams"></a> [notify\_teams](#module\_notify\_teams) | ./modules/lambda-subscription | n/a |
@@ -39,13 +51,13 @@ module "monitoring_cloudwatch_alarm_actions" {
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_create_topic"></a> [create\_topic](#input\_create\_topic) | Whether to create sns topic | `bool` | `true` | no |
 | <a name="input_delivery_policy"></a> [delivery\_policy](#input\_delivery\_policy) | The SNS topic delivery policy | `any` | <pre>{<br/>  "http": {<br/>    "defaultHealthyRetryPolicy": {<br/>      "backoffFunction": "linear",<br/>      "maxDelayTarget": 20,<br/>      "minDelayTarget": 20,<br/>      "numMaxDelayRetries": 0,<br/>      "numMinDelayRetries": 0,<br/>      "numNoDelayRetries": 0,<br/>      "numRetries": 3<br/>    },<br/>    "defaultThrottlePolicy": {<br/>      "maxReceivesPerSecond": 1<br/>    },<br/>    "disableSubscriptionOverrides": false<br/>  }<br/>}</pre> | no |
 | <a name="input_email_addresses"></a> [email\_addresses](#input\_email\_addresses) | List of email addresses to send notification to | `list(string)` | `[]` | no |
@@ -59,6 +71,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 | <a name="input_lambda_failed_alert"></a> [lambda\_failed\_alert](#input\_lambda\_failed\_alert) | Alert for lambda failed | `any` | <pre>{<br/>  "equation": "gte",<br/>  "period": 60,<br/>  "statistic": "sum",<br/>  "threshold": 1<br/>}</pre> | no |
 | <a name="input_log_group_retention_days"></a> [log\_group\_retention\_days](#input\_log\_group\_retention\_days) | The count of days that cloudwatch log group will keep each log item and then will cleanup automatically | `number` | `7` | no |
 | <a name="input_log_level"></a> [log\_level](#input\_log\_level) | log level for python code | `string` | `"INFO"` | no |
+| <a name="input_opsgenie_guardduty_enrichment"></a> [opsgenie\_guardduty\_enrichment](#input\_opsgenie\_guardduty\_enrichment) | Optional Lambda that enriches an Opsgenie alert created from a GuardDuty SNS event. Configure an Opsgenie HTTPS endpoint in web\_endpoints as the alert creator. | <pre>object({<br/>    enabled                    = optional(bool, false)<br/>    api_key                    = optional(string, "")<br/>    api_url                    = optional(string, "https://api.opsgenie.com")<br/>    alert_search_retries       = optional(number, 8)<br/>    alert_search_delay_seconds = optional(number, 2)<br/>  })</pre> | `{}` | no |
 | <a name="input_phone_numbers"></a> [phone\_numbers](#input\_phone\_numbers) | List of international formatted phone number to send notification to | `list(string)` | `[]` | no |
 | <a name="input_policy"></a> [policy](#input\_policy) | The SNS topic policy | `any` | `null` | no |
 | <a name="input_recreate_missing_package"></a> [recreate\_missing\_package](#input\_recreate\_missing\_package) | Whether to recreate missing Lambda package if it is missing locally or not | `bool` | `true` | no |
@@ -71,6 +84,7 @@ module "monitoring_cloudwatch_alarm_actions" {
 ## Outputs
 
 | Name | Description |
-|------|-------------|
-| <a name="output_topic_arn"></a> [topic\_arn](#output\_topic\_arn) | n/a |
+| ---- | ----------- |
+| <a name="output_opsgenie_guardduty_enrichment"></a> [opsgenie\_guardduty\_enrichment](#output\_opsgenie\_guardduty\_enrichment) | Opsgenie GuardDuty enrichment Lambda outputs, or null when enrichment is disabled. |
+| <a name="output_topic_arn"></a> [topic\_arn](#output\_topic\_arn) | ARN of the alert SNS topic. |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->

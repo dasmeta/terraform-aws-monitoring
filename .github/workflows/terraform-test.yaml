@@ -6,11 +6,7 @@ on:
 jobs:
   terraform-validate:
     permissions:
-      actions: write
-      contents: write
-      discussions: write
-      pull-requests: write
-      id-token: write
+      contents: read
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,9 +24,12 @@ jobs:
       - name: Verify CloudWatch Synthetics public boundary
         if: matrix.path == 'modules/cloudwatch-synthetics'
         run: bash modules/cloudwatch-synthetics/tests/basic/3-static-assert.sh
-      - uses: dasmeta/reusable-actions-workflows/terraform-test@4.1.1
+      - uses: hashicorp/setup-terraform@v3
         with:
-          aws-region: ${{ secrets.AWS_REGION}}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          path: ${{ matrix.path }}
+          terraform_version: 1.9.8
+      - name: Initialize Terraform
+        working-directory: ${{ matrix.path }}
+        run: terraform init -backend=false -input=false
+      - name: Run Terraform tests
+        working-directory: ${{ matrix.path }}
+        run: terraform test

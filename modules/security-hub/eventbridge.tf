@@ -5,6 +5,7 @@
 resource "aws_cloudwatch_event_rule" "automated_alerts" {
   name        = "${var.name}-automated-trigger"
   description = "EventBridge rule for automated Security Hub findings - captures CRITICAL and HIGH severity findings for Networking, IAM, and EC2/EKS vulnerabilities"
+  state       = var.automated_alerts.security_hub ? "ENABLED" : "DISABLED"
 
   # Filter for CRITICAL and HIGH severity findings
   # Note: Additional filtering by product name or finding type can be done in Lambda functions
@@ -24,6 +25,16 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
   })
 }
 
+# Direct service rules avoid the recurring control-analysis findings emitted by Security Hub.
+# Only explicitly selected services create a rule.
+resource "aws_cloudwatch_event_rule" "service_alerts" {
+  for_each = local.enabled_service_alert_event_patterns
+
+  name          = "${var.name}-${each.key}-automated-trigger"
+  description   = "EventBridge rule for actionable ${each.key} findings"
+  event_pattern = jsonencode(each.value)
+}
+
 # EventBridge target for automated findings notifications via SNS (alarm_actions module)
 # This target sends automated findings to the SNS topic managed by cloudwatch-alarm-actions module
 # Findings are automatically forwarded to all configured notification channels (email, SMS, Slack, Teams, etc.)
@@ -36,6 +47,15 @@ resource "aws_cloudwatch_event_target" "automated_alerts_sns" {
   depends_on = [
     module.alarm_actions
   ]
+}
+
+resource "aws_cloudwatch_event_target" "service_alerts_sns" {
+  for_each = var.alarm_actions.enabled ? aws_cloudwatch_event_rule.service_alerts : {}
+
+  rule = each.value.name
+  arn  = module.alarm_actions[0].topic_arn
+
+  depends_on = [module.alarm_actions]
 }
 
 # EventBridge rule for manual Security Hub action target alerts

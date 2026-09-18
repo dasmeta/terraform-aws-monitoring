@@ -14,6 +14,12 @@ variable "type" {
   default     = "empty"
 }
 
+variable "runtime" {
+  type        = string
+  default     = "python3.9"
+  description = "Lambda runtime. Existing predefined handlers retain Python 3.9 unless explicitly overridden."
+}
+
 variable "additional_script_files" {
   description = "List of additional files to include into lambda function zip to upload to aws"
   type        = list(string)

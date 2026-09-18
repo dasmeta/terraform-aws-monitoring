@@ -28,6 +28,66 @@ This module enables AWS Security Hub with comprehensive security monitoring and 
 
 By default, Config and Inspector are enabled (`config.enabled = true`, `inspector.enabled = true`), while GuardDuty and Macie are disabled (`guardduty.enabled = false`, `macie.enabled = false`).
 
+## Selective finding alerts
+
+`automated_alerts` controls notification routing independently from enabling the underlying security services. Existing consumers keep the Security Hub HIGH/CRITICAL route by default. To route only actionable GuardDuty findings and avoid recurring Security Hub control-analysis notifications:
+
+```hcl
+module "security_hub" {
+  source = "dasmeta/monitoring/aws//modules/security-hub"
+
+  name = "example-security-hub"
+
+  alarm_actions = {
+    enabled    = true
+    topic_name = "example-security-alerts"
+
+    web_endpoints = [var.opsgenie_integration_url]
+    slack_webhooks = [{
+      hook_url = var.slack_webhook_url
+      channel  = "#security-alerts"
+      username = "security-alerts"
+    }]
+    opsgenie_guardduty_enrichment = {
+      enabled = true
+      api_key = var.opsgenie_api_key
+    }
+  }
+
+  automated_alerts = {
+    security_hub = false
+    guardduty    = true
+    inspector    = false
+    macie        = false
+  }
+}
+```
+
+The GuardDuty route matches unarchived findings with severity 4 or higher, the same filter used by the verified production rule. Inspector routes active HIGH/CRITICAL findings, and Macie routes unarchived HIGH findings.
+
+Slack uses the existing GuardDuty-aware notification Lambda. The Opsgenie HTTPS integration creates the alert; the optional enrichment Lambda then matches its alias to the EventBridge event ID and adds the finding type, title, severity, account, region, resource, available remote IP, timestamps, occurrence count, finding link, description, and response guidance. This follows the verified Buycycle production implementation while propagating update failures so Lambda retries and failure alarms work. The Opsgenie integration must use the EventBridge event ID as the alert alias. An existing subscription on a reused topic can be managed outside this module.
+
+The same inputs in a YAML-based module definition are shown below. Supply the webhook URLs and Opsgenie API key through your secret-backed configuration. Omit `opsgenie_guardduty_enrichment` or set `enabled: false` if you already manage the updater separately.
+
+```yaml
+automated_alerts:
+  security_hub: false
+  guardduty: true
+  inspector: false
+  macie: false
+alarm_actions:
+  enabled: true
+  web_endpoints:
+    - "${OPSGENIE_INTEGRATION_URL}"
+  slack_webhooks:
+    - hook_url: "${SLACK_WEBHOOK_URL}"
+      channel: "#security-alerts"
+      username: security-alerts
+  opsgenie_guardduty_enrichment:
+    enabled: true
+    api_key: "${OPSGENIE_API_KEY}"
+```
+
 ## 🌍 Multi-Region Support and Finding Aggregation
 
 ### Region-Specific Services
@@ -109,7 +169,7 @@ No outputs.
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.3 |
 | <a name="requirement_archive"></a> [archive](#requirement\_archive) | ~> 2.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0, < 7.0 |
@@ -117,13 +177,13 @@ No outputs.
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0, < 7.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_alarm_actions"></a> [alarm\_actions](#module\_alarm\_actions) | ../cloudwatch-alarm-actions | n/a |
 | <a name="module_config"></a> [config](#module\_config) | ../config | n/a |
 | <a name="module_guardduty"></a> [guardduty](#module\_guardduty) | ../guardduty | n/a |
@@ -133,11 +193,13 @@ No outputs.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_cloudwatch_event_rule.automated_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
 | [aws_cloudwatch_event_rule.manual_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_rule.service_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
 | [aws_cloudwatch_event_target.automated_alerts_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_cloudwatch_event_target.manual_alerts_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_event_target.service_alerts_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_securityhub_account.sec-hub](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_account) | resource |
 | [aws_securityhub_action_target.sec-hub-target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_action_target) | resource |
 | [aws_securityhub_finding_aggregator.sec-hub-aggregator](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/securityhub_finding_aggregator) | resource |
@@ -153,9 +215,10 @@ No outputs.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_action_target_name"></a> [action\_target\_name](#input\_action\_target\_name) | Name of the Security Hub action target. This name is used in EventBridge event patterns to filter manual trigger events. | `string` | `"SendNotification"` | no |
-| <a name="input_alarm_actions"></a> [alarm\_actions](#input\_alarm\_actions) | CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.). | <pre>object({<br/>    enabled                          = optional(bool, false)      # Enable/disable alarm actions module for Security Hub findings notifications<br/>    topic_name                       = optional(string, "")       # SNS topic name for Security Hub findings. If empty, defaults to "${var.name}-security-hub-findings"<br/>    create_topic                     = optional(bool, true)       # Whether to create a new SNS topic or use an existing one (specified by topic_name)<br/>    topic_assign_security_hub_policy = optional(bool, true)       # Whether to assign the default security hub policy to the SNS topic<br/>    email_addresses                  = optional(list(string), []) # List of email addresses to receive Security Hub findings notifications<br/>    fallback_email_addresses         = optional(list(string), []) # List of fallback email addresses to receive notifications when primary channels fail<br/>    phone_numbers                    = optional(list(string), []) # List of international formatted phone numbers (e.g., "+1234567890") to receive SMS notifications<br/>    fallback_phone_numbers           = optional(list(string), []) # List of fallback phone numbers for SMS notifications when primary channels fail<br/>    web_endpoints                    = optional(list(string), []) # List of webhook endpoints (e.g., Opsgenie, PagerDuty) to receive HTTP POST notifications<br/>    fallback_web_endpoints           = optional(list(string), []) # List of fallback webhook endpoints when primary channels fail<br/>    lambda_arns                      = optional(list(string), []) # List of Lambda function ARNs to invoke when Security Hub findings are received. Note: Lambda functions must be in the same region as the SNS topic<br/>    fallback_lambda_arns             = optional(list(string), []) # List of fallback Lambda function ARNs when primary channels fail<br/>    slack_webhooks = optional(list(object({<br/>      hook_url = string # Slack webhook URL<br/>      channel  = string # Slack channel name (e.g., "#security-alerts")<br/>      username = string # Bot username for Slack messages<br/>    })), [])            # List of Slack webhook configurations for sending notifications to Slack channels<br/>    servicenow_webhooks = optional(list(object({<br/>      domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")<br/>      path   = string                           # API endpoint path<br/>      user   = string                           # ServiceNow username<br/>      pass   = string                           # ServiceNow password or API token<br/>    })), [])                                    # List of ServiceNow webhook configurations for creating incidents in ServiceNow<br/>    teams_webhooks = optional(list(string), []) # List of Microsoft Teams webhook URLs for sending notifications to Teams channels<br/>    jira_config = optional(list(object({<br/>      url            = string         # Jira instance URL (e.g., "https://yourcompany.atlassian.net")<br/>      key            = string         # Jira project key<br/>      user_username  = string         # Jira username<br/>      user_api_token = string         # Jira API token<br/>    })), [])                          # List of Jira configurations for creating tickets for Security Hub findings<br/>    delivery_policy = optional(any, { # SNS topic delivery policy for retry and throttling configuration. Controls how SNS retries message delivery to endpoints<br/>      "http" : {<br/>        "defaultHealthyRetryPolicy" : {<br/>          "minDelayTarget" : 20,<br/>          "maxDelayTarget" : 20,<br/>          "numRetries" : 3,<br/>          "numMaxDelayRetries" : 0,<br/>          "numNoDelayRetries" : 0,<br/>          "numMinDelayRetries" : 0,<br/>          "backoffFunction" : "linear"<br/>        },<br/>        "disableSubscriptionOverrides" : false,<br/>        "defaultThrottlePolicy" : {<br/>          "maxReceivesPerSecond" : 1<br/>        }<br/>      }<br/>    })<br/>    policy                   = optional(any, null)      # SNS topic policy (IAM policy document) for controlling access to the topic. If null, uses default policy allowing EventBridge to publish<br/>    log_group_retention_days = optional(number, 7)      # Number of days to retain CloudWatch Logs for Lambda functions (default: 7 days)<br/>    enable_dead_letter_queue = optional(bool, true)     # Whether to enable dead letter queue (SQS) for failed Lambda invocations<br/>    recreate_missing_package = optional(bool, true)     # Whether to recreate missing Lambda deployment packages if they are missing locally<br/>    log_level                = optional(string, "INFO") # Log level for Lambda functions ("DEBUG", "INFO", "WARNING", "ERROR")<br/>    lambda_failed_alert = optional(any, {               # CloudWatch alarm configuration for monitoring Lambda function failures. Triggers when Lambda functions fail to process notifications<br/>      period    = 60                                    # Evaluation period in seconds<br/>      threshold = 1                                     # Number of failures to trigger alarm<br/>      equation  = "gte"                                 # Comparison operator (greater than or equal)<br/>      statistic = "sum"                                 # Statistic type (sum, average, etc.)<br/>    })<br/>  })</pre> | `{}` | no |
+| <a name="input_alarm_actions"></a> [alarm\_actions](#input\_alarm\_actions) | CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.). | <pre>object({<br/>    enabled                          = optional(bool, false)      # Enable/disable alarm actions module for Security Hub findings notifications<br/>    topic_name                       = optional(string, "")       # SNS topic name for Security Hub findings. If empty, defaults to "${var.name}-security-hub-findings"<br/>    create_topic                     = optional(bool, true)       # Whether to create a new SNS topic or use an existing one (specified by topic_name)<br/>    topic_assign_security_hub_policy = optional(bool, true)       # Whether to assign the default security hub policy to the SNS topic<br/>    email_addresses                  = optional(list(string), []) # List of email addresses to receive Security Hub findings notifications<br/>    fallback_email_addresses         = optional(list(string), []) # List of fallback email addresses to receive notifications when primary channels fail<br/>    phone_numbers                    = optional(list(string), []) # List of international formatted phone numbers (e.g., "+1234567890") to receive SMS notifications<br/>    fallback_phone_numbers           = optional(list(string), []) # List of fallback phone numbers for SMS notifications when primary channels fail<br/>    web_endpoints                    = optional(list(string), []) # List of webhook endpoints (e.g., Opsgenie, PagerDuty) to receive HTTP POST notifications<br/>    fallback_web_endpoints           = optional(list(string), []) # List of fallback webhook endpoints when primary channels fail<br/>    lambda_arns                      = optional(list(string), []) # List of Lambda function ARNs to invoke when Security Hub findings are received. Note: Lambda functions must be in the same region as the SNS topic<br/>    fallback_lambda_arns             = optional(list(string), []) # List of fallback Lambda function ARNs when primary channels fail<br/>    slack_webhooks = optional(list(object({<br/>      hook_url = string # Slack webhook URL<br/>      channel  = string # Slack channel name (e.g., "#security-alerts")<br/>      username = string # Bot username for Slack messages<br/>    })), [])            # List of Slack webhook configurations for sending notifications to Slack channels<br/>    opsgenie_guardduty_enrichment = optional(object({<br/>      enabled                    = optional(bool, false)<br/>      api_key                    = optional(string, "")<br/>      api_url                    = optional(string, "https://api.opsgenie.com")<br/>      alert_search_retries       = optional(number, 8)<br/>      alert_search_delay_seconds = optional(number, 2)<br/>    }), {}) # Enrich Opsgenie alerts created by a configured HTTPS endpoint with actionable GuardDuty finding detail<br/>    servicenow_webhooks = optional(list(object({<br/>      domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")<br/>      path   = string                           # API endpoint path<br/>      user   = string                           # ServiceNow username<br/>      pass   = string                           # ServiceNow password or API token<br/>    })), [])                                    # List of ServiceNow webhook configurations for creating incidents in ServiceNow<br/>    teams_webhooks = optional(list(string), []) # List of Microsoft Teams webhook URLs for sending notifications to Teams channels<br/>    jira_config = optional(list(object({<br/>      url            = string         # Jira instance URL (e.g., "https://yourcompany.atlassian.net")<br/>      key            = string         # Jira project key<br/>      user_username  = string         # Jira username<br/>      user_api_token = string         # Jira API token<br/>    })), [])                          # List of Jira configurations for creating tickets for Security Hub findings<br/>    delivery_policy = optional(any, { # SNS topic delivery policy for retry and throttling configuration. Controls how SNS retries message delivery to endpoints<br/>      "http" : {<br/>        "defaultHealthyRetryPolicy" : {<br/>          "minDelayTarget" : 20,<br/>          "maxDelayTarget" : 20,<br/>          "numRetries" : 3,<br/>          "numMaxDelayRetries" : 0,<br/>          "numNoDelayRetries" : 0,<br/>          "numMinDelayRetries" : 0,<br/>          "backoffFunction" : "linear"<br/>        },<br/>        "disableSubscriptionOverrides" : false,<br/>        "defaultThrottlePolicy" : {<br/>          "maxReceivesPerSecond" : 1<br/>        }<br/>      }<br/>    })<br/>    policy                   = optional(any, null)      # SNS topic policy (IAM policy document) for controlling access to the topic. If null, uses default policy allowing EventBridge to publish<br/>    log_group_retention_days = optional(number, 7)      # Number of days to retain CloudWatch Logs for Lambda functions (default: 7 days)<br/>    enable_dead_letter_queue = optional(bool, true)     # Whether to enable dead letter queue (SQS) for failed Lambda invocations<br/>    recreate_missing_package = optional(bool, true)     # Whether to recreate missing Lambda deployment packages if they are missing locally<br/>    log_level                = optional(string, "INFO") # Log level for Lambda functions ("DEBUG", "INFO", "WARNING", "ERROR")<br/>    lambda_failed_alert = optional(any, {               # CloudWatch alarm configuration for monitoring Lambda function failures. Triggers when Lambda functions fail to process notifications<br/>      period    = 60                                    # Evaluation period in seconds<br/>      threshold = 1                                     # Number of failures to trigger alarm<br/>      equation  = "gte"                                 # Comparison operator (greater than or equal)<br/>      statistic = "sum"                                 # Statistic type (sum, average, etc.)<br/>    })<br/>  })</pre> | `{}` | no |
+| <a name="input_automated_alerts"></a> [automated\_alerts](#input\_automated\_alerts) | Automated finding routes to enable. Security Hub keeps the existing broad HIGH/CRITICAL route; service-specific routes listen directly to GuardDuty, Inspector, or Macie. | <pre>object({<br/>    security_hub = optional(bool, true)<br/>    guardduty    = optional(bool, false)<br/>    inspector    = optional(bool, false)<br/>    macie        = optional(bool, false)<br/>  })</pre> | `{}` | no |
 | <a name="input_config"></a> [config](#input\_config) | AWS Config configuration. REQUIRED for Security Hub standards to evaluate resources. Without Config, Security Hub won't detect misconfigurations properly. Config can be enabled independently of Security Hub. | <pre>object({<br/>    enabled                    = optional(bool, true)                 # Enable/disable AWS Config. REQUIRED for Security Hub standards to work properly. Can be enabled independently of Security Hub.<br/>    create_service_linked_role = optional(bool, true)                 # Whether to create the AWS Config service-linked role. Set to false if the role already exists in your account. If set to true and the role already exists, Terraform will fail with EntityAlreadyExists - in that case, set this to false and import the existing role<br/>    record_all_resources       = optional(bool, true)                 # Record all supported resource types in AWS Config. If false, use included_resource_types to specify which resources to record<br/>    include_global_resources   = optional(bool, true)                 # Include global resources (IAM, etc.) in AWS Config recording<br/>    s3_bucket_name             = optional(string, "")                 # S3 bucket name for AWS Config. If empty, a bucket will be created automatically<br/>    s3_bucket_force_destroy    = optional(bool, false)                # Force destroy S3 bucket for Config when deleting the module<br/>    delivery_frequency         = optional(string, "TwentyFour_Hours") # Frequency for Config snapshot delivery. Valid values: One_Hour, Three_Hours, Six_Hours, Twelve_Hours, TwentyFour_Hours<br/>    included_resource_types    = optional(list(string), [])           # List of resource types to include when record_all_resources is false. If empty and record_all_resources is false, all resources are excluded<br/>    excluded_resource_types    = optional(list(string), [])           # List of resource types to exclude when record_all_resources is true<br/>    rules = optional(map(object({                                     # Map of Config rules to create. Key is the rule name. If empty, no rules will be created<br/>      description = optional(string)                                  # Rule description<br/>      source = optional(object({                                      # Rule source configuration<br/>        owner             = string                                    # Source owner (AWS or CUSTOM_LAMBDA)<br/>        source_identifier = string                                    # Source identifier (e.g., "S3_BUCKET_PUBLIC_READ_PROHIBITED" for AWS managed rules)<br/>        source_detail = optional(list(object({                        # Additional source details for event-based rules<br/>          event_source                = optional(string)              # Event source (e.g., "aws.config")<br/>          maximum_execution_frequency = optional(string)              # Maximum execution frequency<br/>          message_type                = optional(string)              # Message type<br/>        })))<br/>      }))<br/>      scope = optional(object({                            # Rule scope - defines which resources the rule evaluates<br/>        compliance_resource_types = optional(list(string)) # Resource types to evaluate<br/>        compliance_resource_id    = optional(string)       # Specific resource ID to evaluate<br/>        tag_key                   = optional(string)       # Tag key for tag-based scoping<br/>        tag_value                 = optional(string)       # Tag value for tag-based scoping<br/>      }))<br/>      input_parameters = optional(string)      # JSON string of input parameters for the rule<br/>      tags             = optional(map(string)) # Tags to apply to the rule<br/>    })), {})<br/>  })</pre> | `{}` | no |
 | <a name="input_enable_security_hub"></a> [enable\_security\_hub](#input\_enable\_security\_hub) | Whether to enable/activate security hub and its finding aggregator for aws account, this is useful in case the security hub is already enabled (for example when we test, or account have it enable by default) | `bool` | `true` | no |
 | <a name="input_enable_security_hub_finding_aggregator"></a> [enable\_security\_hub\_finding\_aggregator](#input\_enable\_security\_hub\_finding\_aggregator) | Whether to enable/create security hub and its finding aggregator for aws account, this is useful in case there is already created security hub finding aggregator | `bool` | `true` | no |
@@ -173,7 +236,7 @@ No outputs.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_alarm_actions"></a> [alarm\_actions](#output\_alarm\_actions) | CloudWatch Alarm Actions module outputs for Security Hub findings notifications. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
 | <a name="output_config"></a> [config](#output\_config) | AWS Config module outputs. Note: Module can be enabled independently, but output is null when Security Hub is disabled for backward compatibility. |
 | <a name="output_eventbridge_rule_arn"></a> [eventbridge\_rule\_arn](#output\_eventbridge\_rule\_arn) | The ARN of the EventBridge rule for Security Hub findings |

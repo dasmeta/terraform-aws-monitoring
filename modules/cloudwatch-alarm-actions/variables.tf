@@ -95,6 +95,23 @@ variable "slack_webhooks" {
   description = "List of slack webhook configs to send notification to"
 }
 
+variable "opsgenie_guardduty_enrichment" {
+  type = object({
+    enabled                    = optional(bool, false)
+    api_key                    = optional(string, "")
+    api_url                    = optional(string, "https://api.opsgenie.com")
+    alert_search_retries       = optional(number, 8)
+    alert_search_delay_seconds = optional(number, 2)
+  })
+  default     = {}
+  description = "Optional Lambda that enriches an Opsgenie alert created from a GuardDuty SNS event. Configure an Opsgenie HTTPS endpoint in web_endpoints as the alert creator."
+
+  validation {
+    condition     = !var.opsgenie_guardduty_enrichment.enabled || trimspace(var.opsgenie_guardduty_enrichment.api_key) != ""
+    error_message = "opsgenie_guardduty_enrichment.api_key must be set when enrichment is enabled."
+  }
+}
+
 variable "servicenow_webhooks" {
   type = list(object({
     domain = string

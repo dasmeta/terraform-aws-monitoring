@@ -82,24 +82,25 @@ module "alarm_actions" {
       }
     }
   }
-  policy                   = var.alarm_actions.policy
-  email_addresses          = var.alarm_actions.email_addresses
-  fallback_email_addresses = var.alarm_actions.fallback_email_addresses
-  phone_numbers            = var.alarm_actions.phone_numbers
-  fallback_phone_numbers   = var.alarm_actions.fallback_phone_numbers
-  web_endpoints            = var.alarm_actions.web_endpoints
-  fallback_web_endpoints   = var.alarm_actions.fallback_web_endpoints
-  lambda_arns              = var.alarm_actions.lambda_arns
-  fallback_lambda_arns     = var.alarm_actions.fallback_lambda_arns
-  slack_webhooks           = var.alarm_actions.slack_webhooks
-  servicenow_webhooks      = var.alarm_actions.servicenow_webhooks
-  teams_webhooks           = var.alarm_actions.teams_webhooks
-  jira_config              = var.alarm_actions.jira_config
-  log_group_retention_days = var.alarm_actions.log_group_retention_days
-  enable_dead_letter_queue = var.alarm_actions.enable_dead_letter_queue
-  recreate_missing_package = var.alarm_actions.recreate_missing_package
-  log_level                = var.alarm_actions.log_level
-  lambda_failed_alert      = var.alarm_actions.lambda_failed_alert
+  policy                        = var.alarm_actions.policy
+  email_addresses               = var.alarm_actions.email_addresses
+  fallback_email_addresses      = var.alarm_actions.fallback_email_addresses
+  phone_numbers                 = var.alarm_actions.phone_numbers
+  fallback_phone_numbers        = var.alarm_actions.fallback_phone_numbers
+  web_endpoints                 = var.alarm_actions.web_endpoints
+  fallback_web_endpoints        = var.alarm_actions.fallback_web_endpoints
+  lambda_arns                   = var.alarm_actions.lambda_arns
+  fallback_lambda_arns          = var.alarm_actions.fallback_lambda_arns
+  slack_webhooks                = var.alarm_actions.slack_webhooks
+  opsgenie_guardduty_enrichment = var.alarm_actions.opsgenie_guardduty_enrichment
+  servicenow_webhooks           = var.alarm_actions.servicenow_webhooks
+  teams_webhooks                = var.alarm_actions.teams_webhooks
+  jira_config                   = var.alarm_actions.jira_config
+  log_group_retention_days      = var.alarm_actions.log_group_retention_days
+  enable_dead_letter_queue      = var.alarm_actions.enable_dead_letter_queue
+  recreate_missing_package      = var.alarm_actions.recreate_missing_package
+  log_level                     = var.alarm_actions.log_level
+  lambda_failed_alert           = var.alarm_actions.lambda_failed_alert
 }
 
 # SNS topic policy to allow EventBridge to publish from both automated and manual alert rules
@@ -118,6 +119,7 @@ resource "aws_sns_topic_policy" "eventbridge_publish" {
   depends_on = [
     module.alarm_actions,
     aws_cloudwatch_event_rule.automated_alerts,
+    aws_cloudwatch_event_rule.service_alerts,
     aws_cloudwatch_event_rule.manual_alerts
   ]
 }

@@ -7,12 +7,7 @@ jobs:
   terraform-validate:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
-      contents: write
-      discussions: write
-      pull-requests: write
-      security-events: write
-      id-token: write
+      contents: read
     strategy:
       matrix:
         path:
@@ -25,7 +20,12 @@ jobs:
           - modules/eventbridge
           - modules/sns_to_lambda
     steps:
-    - uses: dasmeta/reusable-actions-workflows/checkov@4.2.1
-      with:
-        fetch-depth: 0
-        directory: ${{ matrix.path }}
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@a8664e3a0549367977f0cda990a34311835c87c0 # v12
+        with:
+          directory: ${{ matrix.path }}
+          framework: terraform
+          download_external_modules: false
+          skip_path: tests
+          output_format: cli
+          soft_fail: true

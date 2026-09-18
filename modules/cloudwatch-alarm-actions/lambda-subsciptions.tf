@@ -23,6 +23,37 @@ module "notify_slack" {
   lambda_attach_dead_letter_policy       = var.enable_dead_letter_queue
 }
 
+# Opsgenie creates the GuardDuty alert through an HTTPS subscription first. This
+# Lambda then finds that alert by the EventBridge event ID and adds actionable detail.
+module "notify_opsgenie_guardduty" {
+  source = "./modules/lambda-subscription"
+  count  = var.opsgenie_guardduty_enrichment.enabled ? 1 : 0
+
+  sns_topic_name          = module.topic.name
+  fallback_sns_topic_name = module.fallback-topic[0].name
+
+  uniq_id = "enrich"
+  type    = "opsgenie-guardduty"
+  runtime = "python3.12"
+  timeout = 30
+
+  environment_variables = {
+    LOG_LEVEL                           = var.log_level
+    OPSGENIE_API_KEY                    = sensitive(var.opsgenie_guardduty_enrichment.api_key)
+    OPSGENIE_API_URL                    = var.opsgenie_guardduty_enrichment.api_url
+    OPSGENIE_ALERT_SEARCH_RETRIES       = tostring(var.opsgenie_guardduty_enrichment.alert_search_retries)
+    OPSGENIE_ALERT_SEARCH_DELAY_SECONDS = tostring(var.opsgenie_guardduty_enrichment.alert_search_delay_seconds)
+  }
+
+  recreate_missing_package  = var.recreate_missing_package
+  log_group_retention_days  = var.log_group_retention_days
+  dead_letter_queue_arn     = try(module.dead_letter_queue[0].queue_arn, null)
+  attach_dead_letter_policy = var.enable_dead_letter_queue
+  lambda_failed_alert       = merge({ fill_insufficient_data = true }, var.lambda_failed_alert)
+
+  depends_on = [module.topic]
+}
+
 # servicenow notify subscription
 module "notify_servicenow" {
   source = "./modules/lambda-subscription"
