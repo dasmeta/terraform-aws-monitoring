@@ -91,7 +91,7 @@ module "cloudwatch_metric-alarm" {
 
   alarm_actions             = var.enable_alarm_actions ? local.alarm_actions : null
   ok_actions                = var.enable_ok_actions ? local.ok_actions : null
-  insufficient_data_actions = var.enable_insufficient_data_actions ? local.alarm_actions : null
+  insufficient_data_actions = coalesce(each.value.enable_insufficient_data_actions, var.enable_insufficient_data_actions) ? local.alarm_actions : null
 }
 
 
@@ -135,7 +135,7 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
   )
 
   alarm_actions             = local.alarm_actions
-  insufficient_data_actions = local.alarm_actions
+  insufficient_data_actions = coalesce(each.value.enable_insufficient_data_actions, var.enable_insufficient_data_actions) ? local.alarm_actions : null
 }
 
 module "cloudwatch_log-based-metric-alarm" {
@@ -174,7 +174,7 @@ module "cloudwatch_log-based-metric-alarm" {
   )
 
   alarm_actions             = local.alarm_actions
-  insufficient_data_actions = local.alarm_actions
+  insufficient_data_actions = coalesce(each.value.enable_insufficient_data_actions, var.enable_insufficient_data_actions) ? local.alarm_actions : null
 }
 
 

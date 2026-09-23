@@ -6,13 +6,14 @@ variable "log_group_name" {
 
 variable "metrics_patterns" {
   type = list(object({
-    name           = string
-    pattern        = string
-    unit           = optional(string, "None")
-    dimensions     = optional(any, {})
-    value          = optional(string, "1")
-    default_value  = optional(string, "0")
-    log_group_name = optional(string, null)
+    name               = string
+    pattern            = string
+    unit               = optional(string, "None")
+    dimensions         = optional(any, {})
+    value              = optional(string, "1")
+    default_value      = optional(string, "0")
+    emit_default_value = optional(bool, true)
+    log_group_name     = optional(string, null)
   }))
   default     = []
   description = "The configurations of log based metric filtration, one of var.log_group_name or var.metrics_patterns.*.log_group_name is required"

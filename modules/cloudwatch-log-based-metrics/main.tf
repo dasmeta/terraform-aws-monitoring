@@ -9,7 +9,7 @@ resource "aws_cloudwatch_log_metric_filter" "metric_filter" {
     name          = each.value.name
     namespace     = var.metrics_namespace
     value         = each.value.value
-    default_value = each.value.default_value
+    default_value = each.value.emit_default_value ? each.value.default_value : null
     unit          = each.value.unit
     dimensions    = each.value.dimensions
   }
