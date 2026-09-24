@@ -15,6 +15,17 @@ module "cloudwatch_metric_filter" {
   metrics_namespace = "Log_Filters"
 }
 ```
+
+## Sparse metrics and alarms
+
+Setting `emit_default_value = false` prevents unmatched log events from
+publishing zero-valued samples. An alarm over that sparse metric sees missing
+data during quiet periods. When quiet periods are healthy, configure the
+corresponding alert with `treat_missing_data = "notBreaching"` and
+`enable_insufficient_data_actions = false`; otherwise the alarm can enter
+`INSUFFICIENT_DATA` and notify. See the
+[alert action guidance](../alerts/README.md#insufficient-data-action-behavior).
+
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 

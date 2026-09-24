@@ -32,6 +32,20 @@ module "alerts" {
 }
 ```
 
+## Insufficient-data action behavior
+
+`enable_insufficient_data_actions` defaults to `true` and applies to standard,
+anomaly-detection, and log-based alarms. In earlier releases, setting the
+module-level value to `false` affected only standard alarms. After upgrading,
+the same setting also disables insufficient-data notifications for anomaly and
+log-based alarms.
+
+For a sparse log metric created with `emit_default_value = false`, set
+`treat_missing_data = "notBreaching"` and
+`enable_insufficient_data_actions = false` on the corresponding alert when no
+matching log events is a healthy condition. See the
+[log-based metric guidance](../cloudwatch-log-based-metrics/README.md#sparse-metrics-and-alarms).
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
