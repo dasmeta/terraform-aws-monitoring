@@ -17,6 +17,11 @@ locals {
         equation           = try(health_check.main.equation, "lt")
         threshold          = try(health_check.main.threshold, 1)
         period             = try(health_check.main.period, 60)
+        evaluation_periods = try(health_check.main.evaluation_periods, 1)
+        datapoints_to_alarm = try(
+          health_check.main.datapoints_to_alarm,
+          try(health_check.main.evaluation_periods, 1)
+        )
         treat_missing_data = "breaching"
       },
       {
@@ -34,6 +39,11 @@ locals {
         equation           = try(health_check.percentage.equation, "lt")
         threshold          = try(health_check.percentage.threshold, 75)
         period             = try(health_check.percentage.period, 60)
+        evaluation_periods = try(health_check.percentage.evaluation_periods, 1)
+        datapoints_to_alarm = try(
+          health_check.percentage.datapoints_to_alarm,
+          try(health_check.percentage.evaluation_periods, 1)
+        )
         treat_missing_data = "breaching"
       }
     ]

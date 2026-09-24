@@ -14,8 +14,10 @@ module "this" {
       host = "example.com"
       path = "/api"
       percentage = {
-        statistic = "min"
-        period    = "60"
+        statistic           = "min"
+        period              = "300"
+        evaluation_periods  = 5
+        datapoints_to_alarm = 5
       }
     },
     {
@@ -29,16 +31,20 @@ module "this" {
       host = "example.com"
       port = 80
       percentage = {
-        statistic = "min"
-        equation  = "lt"
-        threshold = "1"
-        period    = "60"
+        statistic           = "min"
+        equation            = "lt"
+        threshold           = "1"
+        period              = "300"
+        evaluation_periods  = 5
+        datapoints_to_alarm = 5
       }
       main = {
-        statistic = "max"
-        equation  = "gt"
-        threshold = "75"
-        period    = "60"
+        statistic           = "max"
+        equation            = "gt"
+        threshold           = "75"
+        period              = "300"
+        evaluation_periods  = 5
+        datapoints_to_alarm = 5
       }
     }
   ]

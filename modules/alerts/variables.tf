@@ -49,12 +49,16 @@ variable "health_checks" {
       equation : optional(string, "lt")
       threshold : optional(number, 1)
       period : optional(number, "60")
+      evaluation_periods : optional(number, 1)
+      datapoints_to_alarm : optional(number)
     }))
     percentage : optional(object({
       statistic : optional(string, "avg")
       equation : optional(string, "lt")
       threshold : optional(number, 75)
       period : optional(number, 60)
+      evaluation_periods : optional(number, 1)
+      datapoints_to_alarm : optional(number)
     }))
   }))
   default = []
