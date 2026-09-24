@@ -25,10 +25,12 @@ jobs:
           - modules/eventbridge
           - modules/sns_to_lambda
     steps:
-    - uses: dasmeta/reusable-actions-workflows/tflint@4.1.1
-      with:
-        aws-region: ${{ secrets.AWS_REGION}}
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        path: ${{ matrix.path }}
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v7
+      - uses: terraform-linters/setup-tflint@v6
+      - name: Run TFLint
+        run: >-
+          tflint
+          --chdir="${{ matrix.path }}"
+          --enable-rule=terraform_unused_declarations
+          --minimum-failure-severity=error
+          --format=compact
