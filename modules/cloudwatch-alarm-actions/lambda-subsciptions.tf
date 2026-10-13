@@ -13,6 +13,7 @@ module "notify_slack" {
   lambda_function_name = substr(replace("${each.value.channel}-${each.value.username}-slack", ".", "-"), 0, 63)
 
   # lambda configs
+  runtime           = "python3.12"
   slack_webhook_url = sensitive(each.value.hook_url)
   slack_channel     = each.value.channel
   slack_username    = each.value.username
