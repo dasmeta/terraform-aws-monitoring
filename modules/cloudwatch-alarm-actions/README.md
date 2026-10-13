@@ -14,20 +14,20 @@ module "monitoring_cloudwatch_alarm_actions" {
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.2, < 7.0 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.2, < 7.0 |
 
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
+|------|--------|---------|
 | <a name="module_dead_letter_queue"></a> [dead\_letter\_queue](#module\_dead\_letter\_queue) | dasmeta/modules/aws//modules/sqs | 1.5.1 |
 | <a name="module_fallback-topic"></a> [fallback-topic](#module\_fallback-topic) | dasmeta/sns/aws//modules/topic | 1.2.7 |
 | <a name="module_notify_jira"></a> [notify\_jira](#module\_notify\_jira) | ./modules/lambda-subscription | n/a |
@@ -39,13 +39,13 @@ module "monitoring_cloudwatch_alarm_actions" {
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_create_topic"></a> [create\_topic](#input\_create\_topic) | Whether to create sns topic | `bool` | `true` | no |
 | <a name="input_delivery_policy"></a> [delivery\_policy](#input\_delivery\_policy) | The SNS topic delivery policy | `any` | <pre>{<br/>  "http": {<br/>    "defaultHealthyRetryPolicy": {<br/>      "backoffFunction": "linear",<br/>      "maxDelayTarget": 20,<br/>      "minDelayTarget": 20,<br/>      "numMaxDelayRetries": 0,<br/>      "numMinDelayRetries": 0,<br/>      "numNoDelayRetries": 0,<br/>      "numRetries": 3<br/>    },<br/>    "defaultThrottlePolicy": {<br/>      "maxReceivesPerSecond": 1<br/>    },<br/>    "disableSubscriptionOverrides": false<br/>  }<br/>}</pre> | no |
 | <a name="input_email_addresses"></a> [email\_addresses](#input\_email\_addresses) | List of email addresses to send notification to | `list(string)` | `[]` | no |
@@ -71,33 +71,6 @@ module "monitoring_cloudwatch_alarm_actions" {
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_topic_arn"></a> [topic\_arn](#output\_topic\_arn) | n/a |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-## Slack reporter runtime
-
-Slack alarm reporters use **Python 3.12 on Amazon Linux 2023**. The module
-explicitly selects this runtime while retaining notify-slack 6.7.0, the existing
-webhook inputs, function names and SNS wiring. Existing numbered Lambda versions
-retain their original runtime; upgrading this module updates `$LATEST` when
-the consumer applies the reviewed Terraform plan.
-
-See [examples/slack](examples/slack) for a generic configuration. Consumers that
-pin an older monitoring release through an account module must adopt a released
-version containing this change through that dependency chain.
-
-Run the following from this module directory with Terraform 1.7+ and Python 3.12:
-
-```sh
-terraform init -backend=false -input=false
-terraform validate
-terraform test -filter=tests/slack_runtime.tftest.hcl -json -verbose > /tmp/slack-runtime-tests.jsonl
-python3 tests/check_slack_runtime_plan.py /tmp/slack-runtime-tests.jsonl
-python3.12 tests/test_slack_handler.py --handler .terraform/modules/notify_slack/functions/notify_slack.py
-```
-
-The tests mock AWS and Slack delivery. They verify both regional reporter
-configurations, the actual planned runtime, stable names, handler and subscription
-types, plus alarm states and upstream failure behavior. They do not deploy
-resources or send notifications. The consumer Terraform compatibility floor is
-unchanged; Terraform 1.7+ is required only for the mocked tests.
