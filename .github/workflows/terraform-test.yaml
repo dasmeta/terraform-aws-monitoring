@@ -37,3 +37,14 @@ jobs:
       - name: Validate Terraform
         working-directory: ${{ matrix.path }}
         run: terraform validate -no-color
+      - uses: actions/setup-python@v6
+        if: matrix.path == 'modules/cloudwatch-alarm-actions'
+        with:
+          python-version: '3.12'
+      - name: Verify Slack reporter runtime and delivery compatibility
+        if: matrix.path == 'modules/cloudwatch-alarm-actions'
+        working-directory: ${{ matrix.path }}
+        run: |
+          terraform test -filter=tests/slack_runtime.tftest.hcl -json -verbose > "$RUNNER_TEMP/slack-runtime-tests.jsonl"
+          python tests/check_slack_runtime_plan.py "$RUNNER_TEMP/slack-runtime-tests.jsonl"
+          python tests/test_slack_handler.py --handler .terraform/modules/notify_slack/functions/notify_slack.py
