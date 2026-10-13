@@ -20,7 +20,7 @@
 
 ## Phase 5: Review
 - [x] T011 Review diff, formatting, generic naming and validation evidence; record generic results in specs/003-slack-runtime-upgrade/validation.md.
-- [ ] T012 Commit generic change, create a generic PR and record customer validation plus PR link in Jira.
+- [x] T012 Commit generic change, create a generic PR and record customer validation plus PR link in Jira.
 
 ## Dependencies and Strategy
 T001 -> T002 -> T003 -> T004/T005 -> T006 -> T007/T008 -> T009/T010 -> T011 -> T012. US1 is independently verified by mocked Terraform plans and actual pinned-handler tests. US2 validates both regional consumer configurations and records rollout gates. T004 and T005 concern different files but execute inline; no delegated work. No production apply or real notification is part of these tasks.

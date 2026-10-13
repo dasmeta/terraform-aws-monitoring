@@ -19,3 +19,7 @@ This verifies module configuration and handler compatibility on local Python 3.1
 ## Independent review
 
 Review found no critical or important issues. Reviewer checked the runtime diff, generic naming, test behavior and Terraform 1.9.8 JSON output compatibility against its source. Minor contract/checker gaps were corrected: fixture field descriptions and exact SNS source/permission checks.
+
+## Review artifact
+
+Draft PR: https://github.com/dasmeta/terraform-aws-monitoring/pull/102 . The review artifact is ready; versioned release and consumer deployment remain separate rollout steps.
