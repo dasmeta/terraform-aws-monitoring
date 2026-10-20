@@ -124,6 +124,15 @@ resource "aws_sns_topic_policy" "eventbridge_publish" {
 
 resource "aws_securityhub_account" "sec-hub" {
   count = var.enable_security_hub ? 1 : 0
+
+  enable_default_standards  = var.enable_default_standards
+  control_finding_generator = var.control_finding_generator
+
+  lifecycle {
+    # This provider argument is create-time only. Preserve existing hubs and
+    # apply the false default only when a new Security Hub account is created.
+    ignore_changes = [enable_default_standards]
+  }
 }
 
 resource "aws_securityhub_action_target" "sec-hub-target" {
@@ -166,7 +175,8 @@ resource "aws_securityhub_member" "account" {
 #
 # Available standards (configure via enabled_standards variable):
 # - aws-foundational-security-best-practices/v/1.0.0 (default)
-# - cis-aws-foundations-benchmark/v/1.2.0 (default)
+# - cis-aws-foundations-benchmark/v/5.0.0 (default)
+# - cis-aws-foundations-benchmark/v/1.2.0 (legacy)
 # - aws-resource-tagging-standard/v/1.0.0
 # - cis-aws-foundations-benchmark/v/1.4.0
 # - cis-aws-foundations-benchmark/v/3.0.0
