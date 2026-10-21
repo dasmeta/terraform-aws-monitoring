@@ -94,6 +94,23 @@ variable "enable_security_hub" {
   description = "Whether to enable/activate security hub and its finding aggregator for aws account, this is useful in case the security hub is already enabled (for example when we test, or account have it enable by default)"
 }
 
+variable "enable_default_standards" {
+  type        = bool
+  default     = false
+  description = "Whether Security Hub should automatically enable its default FSBP and CIS v1.2.0 standards when the account is first enabled. Standards are managed explicitly by enabled_standards, so this defaults to false."
+}
+
+variable "control_finding_generator" {
+  type        = string
+  default     = null
+  description = "Optional finding generator mode. Set to SECURITY_CONTROL to consolidate findings across standards or STANDARD_CONTROL to emit a finding per standard. Defaults to the provider/AWS value and leaves existing hubs unchanged."
+
+  validation {
+    condition     = var.control_finding_generator == null || contains(["SECURITY_CONTROL", "STANDARD_CONTROL"], var.control_finding_generator)
+    error_message = "control_finding_generator must be SECURITY_CONTROL or STANDARD_CONTROL."
+  }
+}
+
 variable "enable_security_hub_finding_aggregator" {
   type        = bool
   default     = true
@@ -114,26 +131,33 @@ variable "securityhub_members" {
 
 variable "enabled_standards" {
   type        = set(string)
-  default     = ["aws-foundational-security-best-practices/v/1.0.0", "cis-aws-foundations-benchmark/v/1.2.0"]
+  default     = ["aws-foundational-security-best-practices/v/1.0.0", "cis-aws-foundations-benchmark/v/5.0.0"]
   description = <<-EOT
-    Set of Security Hub standards to enable. Available standards:
+    Set of Security Hub standards to enable. Changing the default from CIS v1.2.0 to v5.0.0 is a breaking change. For existing deployments, first explicitly include both versions, wait for v5.0.0 to become READY and produce findings, then remove v1.2.0. Available standards:
     - "aws-foundational-security-best-practices/v/1.0.0" (default)
-    - "cis-aws-foundations-benchmark/v/1.2.0" (default)
+    - "cis-aws-foundations-benchmark/v/5.0.0" (default)
+    - "cis-aws-foundations-benchmark/v/1.2.0" (legacy)
     - "aws-resource-tagging-standard/v/1.0.0"
     - "cis-aws-foundations-benchmark/v/1.4.0"
     - "cis-aws-foundations-benchmark/v/3.0.0"
-    - "cis-aws-foundations-benchmark/v/5.0.0"
     - "nist-800-171-rev2/v/1.0.0"
     - "nist-800-53-rev5/v/1.0.0"
     - "pci-dss/v/3.2.1"
     - "pci-dss/v/4.0.1"
 
-    Default: ["aws-foundational-security-best-practices/v/1.0.0", "cis-aws-foundations-benchmark/v/1.2.0"]
+    Default: ["aws-foundational-security-best-practices/v/1.0.0", "cis-aws-foundations-benchmark/v/5.0.0"]
+
+    Migration override for the first apply to existing deployments:
+    enabled_standards = [
+      "aws-foundational-security-best-practices/v/1.0.0",
+      "cis-aws-foundations-benchmark/v/1.2.0",
+      "cis-aws-foundations-benchmark/v/5.0.0"
+    ]
 
     Example to enable all standards:
     enabled_standards = [
       "aws-foundational-security-best-practices/v/1.0.0",
-      "cis-aws-foundations-benchmark/v/1.2.0",
+      "cis-aws-foundations-benchmark/v/5.0.0",
       "aws-resource-tagging-standard/v/1.0.0",
       "cis-aws-foundations-benchmark/v/1.4.0",
       "cis-aws-foundations-benchmark/v/3.0.0",
