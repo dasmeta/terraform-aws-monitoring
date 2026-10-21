@@ -106,7 +106,7 @@ variable "control_finding_generator" {
   description = "Optional finding generator mode. Set to SECURITY_CONTROL to consolidate findings across standards or STANDARD_CONTROL to emit a finding per standard. Defaults to the provider/AWS value and leaves existing hubs unchanged."
 
   validation {
-    condition     = var.control_finding_generator == null || contains(["SECURITY_CONTROL", "STANDARD_CONTROL"], var.control_finding_generator)
+    condition     = var.control_finding_generator == null ? true : contains(["SECURITY_CONTROL", "STANDARD_CONTROL"], var.control_finding_generator)
     error_message = "control_finding_generator must be SECURITY_CONTROL or STANDARD_CONTROL."
   }
 }
