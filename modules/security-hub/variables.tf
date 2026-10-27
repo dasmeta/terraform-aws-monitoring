@@ -76,6 +76,7 @@ variable "alarm_actions" {
   description = "CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.)."
 }
 
+# Enabling alert actions now requires an independently owned failure path.
 variable "delivery_failure" {
   description = "Required operator response for enabled Security Hub alert delivery: owner, same-account escalation SNS topic, and HTTPS drain/replay runbook."
   type = object({
