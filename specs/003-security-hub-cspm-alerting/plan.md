@@ -23,7 +23,7 @@ Preserve the Security Hub monitoring submodule interface and existing EventBridg
 - Existing `versions.tf` layout and `~> 1.3` contract stay unchanged. Existing opinionated wrapper is preserved. No grouped interface refactor, provider bump, or destructive state move is planned.
 - New EventBridge target retry/DLQ is **supported** by [AWS guidance](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-dlq.html) and [provider documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) within the existing provider range.
 - No breaking or interface-widening approval gate is triggered. Added queue is an enabled-alerting safety resource, and current rule addresses stay stable.
-- Baseline gaps: the repository uses existing module-local tests and examples; a native test is added at the touched module surface. No repo-wide automation or release workflow changes are in scope.
+- Baseline gaps: the repository uses existing module-local tests and examples; a native test is added at the touched module surface. The Checkov job runner is pinned to Ubuntu 24.04 because its reusable action requests Python 3.14.3, which has no Ubuntu 26.04 build. No release workflow changes are in scope.
 - CloudBrowser: no exact monitoring documentation or linked repository module record matched this change. The account module catalog record `aws-account` was completed separately with its source repository link and scoped description.
 
 ## Phase 0 Research
