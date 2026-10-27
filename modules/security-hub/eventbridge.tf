@@ -129,8 +129,7 @@ resource "aws_sqs_queue_policy" "eventbridge_failed_delivery" {
       Action    = "sqs:SendMessage"
       Resource  = aws_sqs_queue.eventbridge_failed_delivery[0].arn
       Condition = {
-        ArnEquals    = { "aws:SourceArn" = [aws_cloudwatch_event_rule.automated_alerts.arn, aws_cloudwatch_event_rule.manual_alerts[0].arn] }
-        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        ArnEquals = { "aws:SourceArn" = [aws_cloudwatch_event_rule.automated_alerts.arn, aws_cloudwatch_event_rule.manual_alerts[0].arn] }
       }
     }]
   })
