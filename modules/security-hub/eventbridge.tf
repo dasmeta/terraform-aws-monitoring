@@ -16,6 +16,9 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
     "detail" : {
       "findings" : {
         "RecordState" : ["ACTIVE"],
+        "Workflow" : {
+          "Status" : ["NEW", "NOTIFIED"]
+        },
         "Severity" : {
           "Label" : ["CRITICAL", "HIGH"]
         }
@@ -33,8 +36,19 @@ resource "aws_cloudwatch_event_target" "automated_alerts_sns" {
   rule = aws_cloudwatch_event_rule.automated_alerts.name
   arn  = module.alarm_actions[0].topic_arn
 
+  retry_policy {
+    maximum_event_age_in_seconds = 86400
+    maximum_retry_attempts       = 185
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.eventbridge_failed_delivery[0].arn
+  }
+
   depends_on = [
-    module.alarm_actions
+    module.alarm_actions,
+    aws_sns_topic_policy.eventbridge_publish,
+    aws_sqs_queue_policy.eventbridge_failed_delivery
   ]
 }
 
@@ -76,8 +90,48 @@ resource "aws_cloudwatch_event_target" "manual_alerts_sns" {
   rule = aws_cloudwatch_event_rule.manual_alerts[0].name
   arn  = module.alarm_actions[0].topic_arn
 
+  retry_policy {
+    maximum_event_age_in_seconds = 86400
+    maximum_retry_attempts       = 185
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.eventbridge_failed_delivery[0].arn
+  }
+
   depends_on = [
     module.alarm_actions,
-    aws_cloudwatch_event_rule.manual_alerts
+    aws_sns_topic_policy.eventbridge_publish,
+    aws_cloudwatch_event_rule.manual_alerts,
+    aws_sqs_queue_policy.eventbridge_failed_delivery
   ]
+}
+
+# EventBridge target delivery failures are distinct from later SNS subscription failures.
+resource "aws_sqs_queue" "eventbridge_failed_delivery" {
+  count = var.alarm_actions.enabled ? 1 : 0
+
+  name                      = "${var.name}-eventbridge-failures"
+  message_retention_seconds = 1209600
+  sqs_managed_sse_enabled   = true
+}
+
+resource "aws_sqs_queue_policy" "eventbridge_failed_delivery" {
+  count = var.alarm_actions.enabled ? 1 : 0
+
+  queue_url = aws_sqs_queue.eventbridge_failed_delivery[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowSecurityHubRuleDeliveryFailures"
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.eventbridge_failed_delivery[0].arn
+      Condition = {
+        ArnEquals    = { "aws:SourceArn" = [aws_cloudwatch_event_rule.automated_alerts.arn, aws_cloudwatch_event_rule.manual_alerts[0].arn] }
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+      }
+    }]
+  })
 }

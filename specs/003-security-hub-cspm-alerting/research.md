@@ -1,0 +1,6 @@
+# Research decisions
+
+1. **Source pattern**: AWS Security Hub sends new and updated findings as `Security Hub Findings - Imported`. `RecordState`, `Workflow.Status`, and `Severity.Label` can be filtered in one EventBridge rule. Keep CRITICAL/HIGH and exclude RESOLVED/SUPPRESSED; keep threat findings even when they lack a compliance status. [AWS Security Hub](https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-cwe-all-findings.html).
+2. **Route failure**: EventBridge retries SNS target delivery. A per-instance SQS standard queue with rule-restricted policy captures events after target retries expire. This does not prove that SNS subscribers received them. [AWS EventBridge DLQ](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-dlq.html).
+3. **State**: Keep existing rule and target addresses; add queue resources only when the current `alarm_actions.enabled` input is true. No `moved.tf` is required.
+4. **Capability**: AWS provider 5.x already supports `retry_policy` and `dead_letter_config` in `aws_cloudwatch_event_target`, so no provider-floor change is required. [Terraform AWS provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target).
