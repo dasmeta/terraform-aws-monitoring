@@ -76,6 +76,26 @@ variable "alarm_actions" {
   description = "CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.)."
 }
 
+# Enabling alert actions now requires an independently owned failure path.
+variable "delivery_failure" {
+  description = "Required operator response for enabled Security Hub alert delivery: owner, same-account escalation SNS topic, and HTTPS drain/replay runbook."
+  type = object({
+    owner                = string
+    escalation_topic_arn = string
+    runbook_url          = string
+  })
+  default = null
+
+  validation {
+    condition = var.delivery_failure == null ? true : (
+      try(trimspace(var.delivery_failure.owner), "") != "" &&
+      can(regex("^arn:aws(-us-gov|-cn)?:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]+$", var.delivery_failure.escalation_topic_arn)) &&
+      can(regex("^https://[^ ]+$", var.delivery_failure.runbook_url))
+    )
+    error_message = "delivery_failure requires an owner, an exact SNS topic ARN, and an HTTPS drain/replay runbook."
+  }
+}
+
 variable "link_mode" {
   type        = string
   default     = "ALL_REGIONS"

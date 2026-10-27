@@ -5,7 +5,8 @@ on:
     branches: [main, master]
 jobs:
   terraform-validate:
-    runs-on: ubuntu-latest
+    # The reusable Checkov action installs Python 3.14.3, which has no Ubuntu 26.04 build.
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
       contents: write

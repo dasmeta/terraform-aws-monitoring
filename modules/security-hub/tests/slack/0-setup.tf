@@ -23,3 +23,12 @@ variable "slack_channel_name" {
   description = "Slack channel name"
   default     = "test-webhooks-channel"
 }
+
+variable "delivery_failure" {
+  description = "Owned escalation topic and drain/replay runbook for failed Security Hub event delivery"
+  type = object({
+    owner                = string
+    escalation_topic_arn = string
+    runbook_url          = string
+  })
+}
