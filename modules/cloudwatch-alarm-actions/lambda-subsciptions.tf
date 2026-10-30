@@ -21,6 +21,9 @@ module "notify_slack" {
   slack_webhook_url = sensitive(local.slack_webhooks_by_name[each.key].hook_url)
   slack_channel     = local.slack_webhooks_by_name[each.key].channel
   slack_username    = local.slack_webhooks_by_name[each.key].username
+  # Upstream resolves custom sources relative to path.root; strip that prefix
+  # when this module is installed under an absolute root path.
+  lambda_source_path = "${trimprefix(path.module, "${path.root}/")}/functions/notify_slack.py"
 
   recreate_missing_package               = var.recreate_missing_package
   cloudwatch_log_group_retention_in_days = var.log_group_retention_days
