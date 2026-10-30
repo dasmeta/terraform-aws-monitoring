@@ -47,9 +47,11 @@ module "security_failure_actions" {
   source = "../cloudwatch-alarm-actions"
   count  = local.finding_delivery_enabled ? 1 : 0
 
-  topic_name               = "${var.name}-delivery-failures-alerts"
-  create_topic             = true
-  slack_webhooks           = var.alarm_actions.slack_webhooks
+  topic_name   = "${var.name}-delivery-failures-alerts"
+  create_topic = true
+  slack_webhooks = [for index, webhook in var.alarm_actions.slack_webhooks : merge(webhook, {
+    instance_key = "security-delivery-${index}"
+  })]
   enable_dead_letter_queue = true
 }
 

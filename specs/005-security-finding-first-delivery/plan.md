@@ -2,7 +2,7 @@
 
 ## Design
 
-Add an opt-in Security Hub finding router Lambda and DynamoDB delivery table. EventBridge forwards active imported findings to the router. An SSM parameter records the first apply's UTC cutover time unless an explicit value is supplied. The router excludes older findings, claims per-finding Slack and Opsgenie destinations with conditional DynamoDB updates, publishes the original Security Hub event to the existing Slack SNS topic and a new HIGH/CRITICAL Opsgenie SNS topic, then records successful publishes. It does not change Security Hub workflow status. A new security-only SNS topic receives delivery-failure alarms and uses the dedicated security Slack webhook.
+Add an opt-in Security Hub finding router Lambda and DynamoDB delivery table. EventBridge forwards active imported findings to the router. An SSM parameter records the first apply's UTC cutover time unless an explicit value is supplied. The router excludes older findings, claims per-finding Slack and Opsgenie destinations with conditional DynamoDB updates, publishes the original Security Hub event to the existing Slack SNS topic and a new HIGH/CRITICAL Opsgenie SNS topic, then records successful publishes. It does not change Security Hub workflow status. A new security-only SNS topic receives delivery-failure alarms and uses the dedicated security Slack webhook under a separate stable Lambda key.
 
 The existing manual action still publishes directly to the finding SNS topic. Existing module behavior remains the default unless the new routing input is enabled.
 
