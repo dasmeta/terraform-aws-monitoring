@@ -98,20 +98,27 @@ variable "delivery_failure" {
 }
 
 variable "finding_delivery" {
-  description = "Opt-in first-delivery routing: durable per-finding delivery and a dedicated AmazonSecurityHub Opsgenie endpoint. Cutover defaults to first apply time."
+  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Cutover defaults to first apply time."
   type = object({
-    enabled           = optional(bool, false)
-    cutover_at        = optional(string)
-    opsgenie_endpoint = optional(string)
+    enabled               = optional(bool, false)
+    cutover_at            = optional(string)
+    opsgenie_endpoint     = optional(string)
+    opsgenie_api_key      = optional(string)
+    opsgenie_api_url      = optional(string, "https://api.opsgenie.com")
+    opsgenie_alert_prefix = optional(string, "Security Hub")
   })
   default = {}
 
   validation {
     condition = !var.finding_delivery.enabled || (
       (var.finding_delivery.cutover_at == null || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.finding_delivery.cutover_at))) &&
-      can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))
+      ((var.finding_delivery.opsgenie_endpoint != null) != (var.finding_delivery.opsgenie_api_key != null)) &&
+      (var.finding_delivery.opsgenie_endpoint == null || can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))) &&
+      (var.finding_delivery.opsgenie_api_key == null || try(length(trimspace(var.finding_delivery.opsgenie_api_key)) > 0, false)) &&
+      contains(["https://api.opsgenie.com", "https://api.eu.opsgenie.com"], var.finding_delivery.opsgenie_api_url) &&
+      try(length(trimspace(var.finding_delivery.opsgenie_alert_prefix)) > 0, false)
     )
-    error_message = "Enabled finding_delivery requires an AmazonSecurityHub Opsgenie endpoint and a valid UTC cutover_at when provided."
+    error_message = "Enabled finding_delivery requires exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."
   }
 }
 

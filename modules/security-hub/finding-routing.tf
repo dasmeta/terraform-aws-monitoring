@@ -39,7 +39,7 @@ module "high_severity_actions" {
 
   topic_name               = "${var.name}-high-severity-findings"
   create_topic             = true
-  web_endpoints            = [var.finding_delivery.opsgenie_endpoint]
+  web_endpoints            = var.finding_delivery.opsgenie_endpoint == null ? [] : [var.finding_delivery.opsgenie_endpoint]
   enable_dead_letter_queue = true
 }
 
@@ -60,7 +60,7 @@ data "aws_iam_policy_document" "finding_router" {
 
   statement {
     sid       = "RecordFindingDelivery"
-    actions   = ["dynamodb:UpdateItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
   }
 
@@ -91,12 +91,55 @@ module "finding_router" {
     FINDING_CUTOVER_AT  = local.finding_cutover_at
     SLACK_TOPIC_ARN     = module.alarm_actions[0].topic_arn
     HIGH_TOPIC_ARN      = module.high_severity_actions[0].topic_arn
+    OPSGENIE_API_MODE   = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
   }
 
   attach_policy_json        = true
   policy_json               = data.aws_iam_policy_document.finding_router[0].json
   dead_letter_target_arn    = aws_sqs_queue.eventbridge_failed_delivery[0].arn
   attach_dead_letter_policy = true
+}
+
+module "opsgenie_api_notifier" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "6.8.0"
+  count   = local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null) ? 1 : 0
+
+  function_name = substr("${var.name}-opsgenie-api", 0, 64)
+  description   = "Create and close per-finding Opsgenie alerts"
+  runtime       = "python3.12"
+  handler       = "opsgenie_notifier.lambda_handler"
+  source_path   = "${path.module}/functions/opsgenie_notifier.py"
+  timeout       = 30
+
+  environment_variables = {
+    OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+  }
+
+  dead_letter_target_arn    = module.high_severity_actions[0].dead_letter_queue_arn
+  attach_dead_letter_policy = true
+}
+
+resource "aws_lambda_permission" "opsgenie_api_sns" {
+  count = length(module.opsgenie_api_notifier)
+
+  statement_id  = "AllowSecurityHubHighSeveritySNS"
+  action        = "lambda:InvokeFunction"
+  function_name = module.opsgenie_api_notifier[0].lambda_function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = module.high_severity_actions[0].topic_arn
+}
+
+resource "aws_sns_topic_subscription" "opsgenie_api" {
+  count = length(module.opsgenie_api_notifier)
+
+  topic_arn = module.high_severity_actions[0].topic_arn
+  protocol  = "lambda"
+  endpoint  = module.opsgenie_api_notifier[0].lambda_function_arn
+
+  depends_on = [aws_lambda_permission.opsgenie_api_sns]
 }
 
 resource "aws_lambda_permission" "finding_router_events" {
@@ -152,6 +195,13 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
         namespace   = "AWS/Lambda"
         metric_name = "Errors"
         dimensions  = { FunctionName = module.finding_router[0].lambda_function_name }
+      }
+    },
+    length(module.opsgenie_api_notifier) == 0 ? {} : {
+      opsgenie-api-lambda = {
+        namespace   = "AWS/Lambda"
+        metric_name = "Errors"
+        dimensions  = { FunctionName = module.opsgenie_api_notifier[0].lambda_function_name }
       }
     },
     { for key, name in module.alarm_actions[0].slack_lambda_names : "slack-lambda-${key}" => {

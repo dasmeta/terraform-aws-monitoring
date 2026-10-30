@@ -45,6 +45,7 @@ override_module {
   outputs = {
     topic_arn              = "arn:aws:sns:eu-central-1:111122223333:high-security-findings"
     dead_letter_queue_name = "high-security-findings-dead-letter"
+    dead_letter_queue_arn  = "arn:aws:sqs:eu-central-1:111122223333:high-security-findings-dead-letter"
   }
 }
 
@@ -61,6 +62,59 @@ override_module {
   outputs = {
     lambda_function_arn  = "arn:aws:lambda:eu-central-1:111122223333:function:example-finding-router"
     lambda_function_name = "example-finding-router"
+  }
+}
+
+override_module {
+  target = module.opsgenie_api_notifier
+  outputs = {
+    lambda_function_arn  = "arn:aws:lambda:eu-central-1:111122223333:function:example-opsgenie-api"
+    lambda_function_name = "example-opsgenie-api"
+  }
+}
+
+run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions = {
+      enabled      = true
+      create_topic = false
+      topic_name   = "example-security-alerts"
+      slack_webhooks = [{
+        hook_url = sensitive("https://hooks.slack.com/services/example")
+        channel  = "project-spm-security-alerts"
+        username = "security-hub"
+      }]
+    }
+    finding_delivery = {
+      enabled               = true
+      opsgenie_api_key      = sensitive("example-api-key")
+      opsgenie_alert_prefix = "SPM"
+    }
+    delivery_failure = {
+      owner       = "security-operations"
+      runbook_url = "https://example.com/runbooks/security-hub-delivery"
+    }
+  }
+
+  assert {
+    condition = (
+      length(module.opsgenie_api_notifier) == 1 &&
+      length(aws_sns_topic_subscription.opsgenie_api) == 1 &&
+      length(aws_cloudwatch_event_target.automated_alerts_router) == 1 &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail") &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["opsgenie-api-lambda"].metric_name == "Errors"
+    )
+    error_message = "API mode must receive resolution events, subscribe the Opsgenie Lambda, and monitor Lambda errors."
   }
 }
 

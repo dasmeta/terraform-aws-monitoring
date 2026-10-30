@@ -9,18 +9,17 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
   # Legacy callers retain the HIGH/CRITICAL filter. Opt-in routing sends all
   # active findings to a durable per-destination router, which selects Opsgenie
   # only for HIGH/CRITICAL and suppresses repeated scan updates.
-  event_pattern = jsonencode({
+  event_pattern = jsonencode(merge({
     "source" : ["aws.securityhub"],
     "detail-type" : ["Security Hub Findings - Imported"],
+    }, local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null) ? {} : {
     "detail" : {
       "findings" : merge({
         "RecordState" : ["ACTIVE"],
-        "Workflow" : {
-          "Status" : ["NEW", "NOTIFIED"]
-        }
+        "Workflow" : { "Status" : ["NEW", "NOTIFIED"] }
       }, local.finding_delivery_enabled ? {} : { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } })
     }
-  })
+  }))
 }
 
 # EventBridge target for automated findings notifications via SNS (alarm_actions module)

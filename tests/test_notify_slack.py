@@ -88,8 +88,17 @@ class SecurityHubFormatterTests(unittest.TestCase):
         finding.pop("ProductFields")
         finding.pop("Resources")
         result = notify_slack.format_aws_security_hub(imported, "eu-central-1")
+        self.assertIn("GuardDuty", result["text"])
         self.assertIn("AWS GuardDuty Finding", result["text"])
         self.assertIn({"title": "Severity", "value": "`HIGH`", "short": True}, result["fields"])
+
+    def test_resolution_formats_without_mutating_finding(self):
+        routed = finding_event("Inspector")
+        routed["_dasmeta_resolution_delivery"] = "RESOLVED"
+        result = notify_slack.format_aws_security_hub(routed, "eu-central-1")
+        self.assertIn("resolved", result["text"])
+        self.assertIn({"title": "Status", "value": "RESOLVED", "short": True}, result["fields"])
+        notify_slack.SECURITY_HUB_CLIENT.batch_update_findings.assert_not_called()
 
 
 if __name__ == "__main__":

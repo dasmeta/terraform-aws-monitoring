@@ -140,6 +140,25 @@ def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, A
     service_url = get_service_url(region=region, service="securityhub")
     finding = message["detail"]["findings"][0]
 
+    resolution = message.get("_dasmeta_resolution_delivery")
+    if resolution in {"RESOLVED", "ARCHIVED"}:
+        title = finding.get("Title", "Security finding")
+        finding_id = finding.get("Id", "")
+        encoded_id = urllib.parse.quote(urllib.parse.quote(finding_id, safe=""), safe="")
+        finding_url = f"{service_url}#/findings?search=Id%3D%255Coperator%255C%253AEQUALS%255C%253A{encoded_id}"
+        return {
+            "color": "good" if resolution == "RESOLVED" else "#808080",
+            "fallback": f"Security finding {resolution.lower()}: {title}",
+            "text": f"Security Hub finding {resolution.lower()} - {title}",
+            "fields": [
+                {"title": "Status", "value": resolution, "short": True},
+                {"title": "Severity", "value": finding.get("Severity", {}).get("Label", "UNKNOWN"), "short": True},
+                {"title": "Product", "value": finding.get("ProductName", "Security Hub"), "short": True},
+                {"title": "AWS account", "value": finding.get("AwsAccountId", "Unknown"), "short": True},
+                {"title": "Finding", "value": finding_url, "short": False},
+            ],
+        }
+
     # The opt-in finding router owns deduplication and must leave the finding's
     # workflow status available to security analysts and other integrations.
     try:
