@@ -1,6 +1,9 @@
 locals {
   # SNS topic name for alarm_actions module
-  sns_topic_name = var.alarm_actions.topic_name != "" ? var.alarm_actions.topic_name : "${var.name}-security-hub-findings"
+  sns_topic_name                        = var.alarm_actions.topic_name != "" ? var.alarm_actions.topic_name : "${var.name}-security-hub-findings"
+  finding_delivery_enabled              = var.alarm_actions.enabled && nonsensitive(var.finding_delivery.enabled)
+  finding_cutover_at                    = local.finding_delivery_enabled ? (var.finding_delivery.cutover_at != null ? var.finding_delivery.cutover_at : aws_ssm_parameter.finding_cutover[0].value) : null
+  delivery_failure_escalation_topic_arn = local.finding_delivery_enabled ? module.security_failure_actions[0].topic_arn : try(var.delivery_failure.escalation_topic_arn, null)
 
   # Security Hub Standards ARN mapping
   # Maps standard identifiers to their full ARNs

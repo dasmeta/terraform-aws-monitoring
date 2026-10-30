@@ -43,7 +43,7 @@ output "eventbridge_failed_delivery_alarm_arns" {
 
 output "delivery_failure_response" {
   description = "Owner, escalation topic, and drain/replay runbook for Security Hub alert delivery failures"
-  value       = var.alarm_actions.enabled ? var.delivery_failure : null
+  value       = var.alarm_actions.enabled ? merge(var.delivery_failure, { escalation_topic_arn = local.delivery_failure_escalation_topic_arn }) : null
 }
 
 output "alarm_actions" {

@@ -1,21 +1,29 @@
 data "aws_region" "current" {}
 
+locals {
+  slack_webhooks_by_name = { for webhook in var.slack_webhooks : coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}") => webhook }
+}
+
 # slack notify subscription
 module "notify_slack" {
   source  = "terraform-aws-modules/notify-slack/aws"
   version = "6.7.0"
 
-  for_each = { for webhook in var.slack_webhooks : "${webhook.channel}-${webhook.username}" => webhook }
+  # Instance keys stay public and stable when the Slack channel changes.
+  for_each = toset(nonsensitive(keys(local.slack_webhooks_by_name)))
 
   # sns/subscription configs
   sns_topic_name       = module.topic.name
   create_sns_topic     = false
-  lambda_function_name = substr(replace("${each.value.channel}-${each.value.username}-slack", ".", "-"), 0, 63)
+  lambda_function_name = substr(replace("${each.key}-slack", ".", "-"), 0, 63)
 
   # lambda configs
-  slack_webhook_url = sensitive(each.value.hook_url)
-  slack_channel     = each.value.channel
-  slack_username    = each.value.username
+  slack_webhook_url = sensitive(local.slack_webhooks_by_name[each.key].hook_url)
+  slack_channel     = local.slack_webhooks_by_name[each.key].channel
+  slack_username    = local.slack_webhooks_by_name[each.key].username
+  # Upstream resolves custom sources relative to path.root; strip that prefix
+  # when this module is installed under an absolute root path.
+  lambda_source_path = "${trimprefix(path.module, "${path.root}/")}/functions/notify_slack.py"
 
   recreate_missing_package               = var.recreate_missing_package
   cloudwatch_log_group_retention_in_days = var.log_group_retention_days
