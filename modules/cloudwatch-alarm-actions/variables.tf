@@ -87,9 +87,10 @@ variable "fallback_lambda_arns" {
 
 variable "slack_webhooks" {
   type = list(object({
-    hook_url = string
-    channel  = string
-    username = string
+    hook_url     = string           # Incoming Slack webhook URL; may be sensitive.
+    channel      = string           # Slack channel name used in the notification payload.
+    username     = string           # Sender name used in the notification payload.
+    instance_key = optional(string) # Stable, non-secret Terraform identity; defaults to channel-username.
   }))
   default     = []
   description = "List of slack webhook configs to send notification to"

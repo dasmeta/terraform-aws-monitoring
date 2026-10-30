@@ -1,7 +1,7 @@
 data "aws_region" "current" {}
 
 locals {
-  slack_webhooks_by_name = { for webhook in var.slack_webhooks : "${webhook.channel}-${webhook.username}" => webhook }
+  slack_webhooks_by_name = { for webhook in var.slack_webhooks : coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}") => webhook }
 }
 
 # slack notify subscription
@@ -9,7 +9,7 @@ module "notify_slack" {
   source  = "terraform-aws-modules/notify-slack/aws"
   version = "6.7.0"
 
-  # Only channel and username identify instances; webhook URLs stay sensitive.
+  # Instance keys stay public and stable when the Slack channel changes.
   for_each = toset(nonsensitive(keys(local.slack_webhooks_by_name)))
 
   # sns/subscription configs

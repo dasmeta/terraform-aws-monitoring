@@ -10,9 +10,10 @@ module "this" {
   teams_webhooks = ["webhook"]
 
   slack_webhooks = [{
-    hook_url = "test-slack-hook-url"
-    channel  = "test-slack-channel"
-    username = "test-slack-username"
+    hook_url     = "test-slack-hook-url"
+    channel      = "test-slack-channel"
+    username     = "test-slack-username"
+    instance_key = "test-slack-instance"
   }]
   servicenow_webhooks = [{
     domain = "test-servicenow-domain"
