@@ -1,4 +1,10 @@
 mock_provider "aws" {
+  mock_resource "aws_cloudwatch_event_rule" {
+    defaults = {
+      arn = "arn:aws:events:eu-central-1:111122223333:rule/example-security-hub"
+    }
+  }
+
   mock_resource "aws_sqs_queue" {
     defaults = {
       arn = "arn:aws:sqs:eu-central-1:111122223333:example-security-hub-eventbridge-failures"
@@ -30,6 +36,30 @@ override_module {
   target = module.alarm_actions
   outputs = {
     topic_arn = "arn:aws:sns:eu-central-1:111122223333:example-security-alerts"
+  }
+}
+
+override_module {
+  target = module.high_severity_actions
+  outputs = {
+    topic_arn              = "arn:aws:sns:eu-central-1:111122223333:high-security-findings"
+    dead_letter_queue_name = "high-security-findings-dead-letter"
+  }
+}
+
+override_module {
+  target = module.security_failure_actions
+  outputs = {
+    topic_arn              = "arn:aws:sns:eu-central-1:111122223333:security-failure-alerts"
+    dead_letter_queue_name = "security-failure-alerts-dead-letter"
+  }
+}
+
+override_module {
+  target = module.finding_router
+  outputs = {
+    lambda_function_arn  = "arn:aws:lambda:eu-central-1:111122223333:function:example-finding-router"
+    lambda_function_name = "example-finding-router"
   }
 }
 
@@ -105,6 +135,53 @@ run "enabled_has_current_finding_filter_and_failure_capture" {
       output.delivery_failure_response.owner == "security-operations"
     )
     error_message = "Enabled critical/high alerting must filter unresolved findings and retain failed deliveries for both targets."
+  }
+}
+
+run "first_delivery_routes_all_severities_without_general_monitoring" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions = {
+      enabled      = true
+      create_topic = false
+      topic_name   = "example-security-alerts"
+      slack_webhooks = [{
+        hook_url = sensitive("https://hooks.slack.com/services/example")
+        channel  = "project-spm-security-alerts"
+        username = "security-hub"
+      }]
+    }
+    finding_delivery = {
+      enabled           = true
+      opsgenie_endpoint = sensitive("https://api.opsgenie.com/v1/json/integrations/webhooks/amazonsecurityhub?apiKey=example")
+    }
+    delivery_failure = {
+      owner       = "security-operations"
+      runbook_url = "https://example.com/runbooks/security-hub-delivery"
+    }
+  }
+
+  assert {
+    condition = (
+      length(aws_dynamodb_table.finding_delivery) == 1 &&
+      length(aws_ssm_parameter.finding_cutover) == 1 &&
+      length(aws_cloudwatch_event_target.automated_alerts_sns) == 0 &&
+      length(aws_cloudwatch_event_target.automated_alerts_router) == 1 &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "Severity") &&
+      contains(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions, module.security_failure_actions[0].topic_arn) &&
+      alltrue([for alarm in aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric : contains(alarm.alarm_actions, module.security_failure_actions[0].topic_arn)]) &&
+      length(aws_cloudwatch_metric_alarm.finding_destination_queue_nonempty) == 2
+    )
+    error_message = "First-delivery mode must route all active severities through the router and use a separate security failure topic."
   }
 }
 

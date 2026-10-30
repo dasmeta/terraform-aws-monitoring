@@ -24,9 +24,9 @@ data "aws_iam_policy_document" "eventbridge_publish_policy" {
     condition {
       test     = "ArnEquals"
       variable = "AWS:SourceArn"
-      values = [
+      values = local.finding_delivery_enabled ? [aws_cloudwatch_event_rule.manual_alerts[0].arn] : [
         aws_cloudwatch_event_rule.automated_alerts.arn,
-        aws_cloudwatch_event_rule.manual_alerts[0].arn
+        aws_cloudwatch_event_rule.manual_alerts[0].arn,
       ]
     }
   }

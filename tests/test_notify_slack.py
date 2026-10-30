@@ -76,6 +76,21 @@ class SecurityHubFormatterTests(unittest.TestCase):
             Workflow={"Status": "NOTIFIED"},
         )
 
+    def test_first_delivery_router_does_not_change_workflow(self):
+        routed = finding_event("Security Hub", "FAILED")
+        routed["_dasmeta_first_delivery"] = True
+        notify_slack.format_aws_security_hub(routed, "eu-central-1")
+        notify_slack.SECURITY_HUB_CLIENT.batch_update_findings.assert_not_called()
+
+    def test_other_security_product_receives_readable_slack_message(self):
+        imported = finding_event("GuardDuty")
+        finding = imported["detail"]["findings"][0]
+        finding.pop("ProductFields")
+        finding.pop("Resources")
+        result = notify_slack.format_aws_security_hub(imported, "eu-central-1")
+        self.assertIn("AWS GuardDuty Finding", result["text"])
+        self.assertIn({"title": "Severity", "value": "`HIGH`", "short": True}, result["fields"])
+
 
 if __name__ == "__main__":
     unittest.main()

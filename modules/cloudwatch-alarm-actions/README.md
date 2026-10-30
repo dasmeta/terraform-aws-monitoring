@@ -153,5 +153,6 @@ slack_webhooks = [{
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_dead_letter_queue_name"></a> [dead\_letter\_queue\_name](#output\_dead\_letter\_queue\_name) | Name of the SNS/Lambda dead-letter queue, if enabled. |
 | <a name="output_topic_arn"></a> [topic\_arn](#output\_topic\_arn) | n/a |
 <!-- END_TF_DOCS -->

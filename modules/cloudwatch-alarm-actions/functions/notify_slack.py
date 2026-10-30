@@ -140,11 +140,12 @@ def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, A
     service_url = get_service_url(region=region, service="securityhub")
     finding = message["detail"]["findings"][0]
 
-    # Switch Status From New To Notified To Prevent Repeated Messages
+    # The opt-in finding router owns deduplication and must leave the finding's
+    # workflow status available to security analysts and other integrations.
     try:
         compliance_status = finding.get("Compliance", {}).get("Status", "UNKNOWN")
         workflow_status = finding["Workflow"].get("Status", "UNKNOWN")
-        if compliance_status == "FAILED" and workflow_status == "NEW":
+        if not message.get("_dasmeta_first_delivery") and compliance_status == "FAILED" and workflow_status == "NEW":
             notified = SECURITY_HUB_CLIENT.batch_update_findings(
                 FindingIdentifiers=[{
                     'Id': finding.get('Id'),
@@ -251,7 +252,26 @@ def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, A
 
         return slack_message
 
-    return format_default(message=message)
+    product_name = finding.get("ProductName", "Security Hub")
+    title = finding.get("Title", "Security finding")
+    severity = finding.get("Severity", {}).get("Label", "INFORMATIONAL")
+    resource = next((item.get("Id", "Unknown Resource") for item in finding.get("Resources", [])), "Unknown Resource")
+    compliance_status = finding.get("Compliance", {}).get("Status", "UNKNOWN")
+    color = SecurityHubSeverity.get(severity.upper(), SecurityHubSeverity.INFORMATIONAL).value
+    return {
+        "color": color,
+        "fallback": f"{product_name} Finding: {title}",
+        "fields": [
+            {"title": "Title", "value": f"`{title}`", "short": False},
+            {"title": "Product", "value": f"`{product_name}`", "short": True},
+            {"title": "Severity", "value": f"`{severity}`", "short": True},
+            {"title": "Compliance Status", "value": f"`{compliance_status}`", "short": True},
+            {"title": "Account ID", "value": f"`{finding.get('AwsAccountId', 'Unknown Account')}`", "short": True},
+            {"title": "Affected Resource", "value": f"`{resource}`", "short": False},
+            {"title": "Description", "value": f"`{finding.get('Description', 'No Description Provided')}`", "short": False},
+        ],
+        "text": f"AWS {product_name} Finding - {title}",
+    }
 
 
 class SecurityHubSeverity(Enum):

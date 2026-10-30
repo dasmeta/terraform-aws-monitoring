@@ -79,10 +79,10 @@ variable "alarm_actions" {
 
 # Enabling alert actions now requires an independently owned failure path.
 variable "delivery_failure" {
-  description = "Required operator response for enabled Security Hub alert delivery: owner, same-account escalation SNS topic, and HTTPS drain/replay runbook."
+  description = "Required operator response for enabled Security Hub alert delivery: owner, optional same-account escalation SNS topic for legacy routing, and HTTPS drain/replay runbook."
   type = object({
     owner                = string
-    escalation_topic_arn = string
+    escalation_topic_arn = optional(string)
     runbook_url          = string
   })
   default = null
@@ -90,10 +90,28 @@ variable "delivery_failure" {
   validation {
     condition = var.delivery_failure == null ? true : (
       try(trimspace(var.delivery_failure.owner), "") != "" &&
-      can(regex("^arn:aws(-us-gov|-cn)?:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]+$", var.delivery_failure.escalation_topic_arn)) &&
+      (var.delivery_failure.escalation_topic_arn == null || can(regex("^arn:aws(-us-gov|-cn)?:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]+$", var.delivery_failure.escalation_topic_arn))) &&
       can(regex("^https://[^ ]+$", var.delivery_failure.runbook_url))
     )
-    error_message = "delivery_failure requires an owner, an exact SNS topic ARN, and an HTTPS drain/replay runbook."
+    error_message = "delivery_failure requires an owner, an optional exact SNS topic ARN, and an HTTPS drain/replay runbook."
+  }
+}
+
+variable "finding_delivery" {
+  description = "Opt-in first-delivery routing: durable per-finding delivery and a dedicated AmazonSecurityHub Opsgenie endpoint. Cutover defaults to first apply time."
+  type = object({
+    enabled           = optional(bool, false)
+    cutover_at        = optional(string)
+    opsgenie_endpoint = optional(string)
+  })
+  default = {}
+
+  validation {
+    condition = !var.finding_delivery.enabled || (
+      (var.finding_delivery.cutover_at == null || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.finding_delivery.cutover_at))) &&
+      can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))
+    )
+    error_message = "Enabled finding_delivery requires an AmazonSecurityHub Opsgenie endpoint and a valid UTC cutover_at when provided."
   }
 }
 
