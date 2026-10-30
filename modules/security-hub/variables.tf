@@ -26,10 +26,11 @@ variable "alarm_actions" {
     lambda_arns                      = optional(list(string), []) # List of Lambda function ARNs to invoke when Security Hub findings are received. Note: Lambda functions must be in the same region as the SNS topic
     fallback_lambda_arns             = optional(list(string), []) # List of fallback Lambda function ARNs when primary channels fail
     slack_webhooks = optional(list(object({
-      hook_url = string # Slack webhook URL
-      channel  = string # Slack channel name (e.g., "#security-alerts")
-      username = string # Bot username for Slack messages
-    })), [])            # List of Slack webhook configurations for sending notifications to Slack channels
+      hook_url     = string           # Slack webhook URL
+      channel      = string           # Slack channel name (e.g., "#security-alerts")
+      username     = string           # Bot username for Slack messages
+      instance_key = optional(string) # Stable, non-secret Terraform identity for the Slack destination
+    })), [])                          # List of Slack webhook configurations for sending notifications to Slack channels
     servicenow_webhooks = optional(list(object({
       domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")
       path   = string                           # API endpoint path

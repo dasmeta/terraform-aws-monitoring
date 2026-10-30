@@ -1,6 +1,7 @@
 # Tasks
 
 - [x] Add optional `instance_key` to the Slack webhook object and use it for the module instance key when provided.
+- [x] Pass the optional key through the Security Hub module input type.
 - [x] Add a Terraform regression test for a stable key with a changed channel and sensitive webhook.
 - [x] Run module tests and formatting checks.
 - [ ] Pin the new monitoring commit in SPM, render Terraform, and inspect a production HCP plan for resource address stability.

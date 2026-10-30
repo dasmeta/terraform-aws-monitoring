@@ -6,7 +6,7 @@ Changing a Slack webhook's `channel` in `modules/cloudwatch-alarm-actions` chang
 
 ## Scope
 
-Add an optional, non-secret `instance_key` to each `slack_webhooks` entry. When omitted, preserve the existing `<channel>-<username>` key. When set, use it as the stable Terraform instance key while allowing `channel` and `hook_url` to change. Keep the current Lambda name and resource addresses when SPM supplies the prior key.
+Add an optional, non-secret `instance_key` to each `slack_webhooks` entry in both the Security Hub module and its CloudWatch alarm actions child module. When omitted, preserve the existing `<channel>-<username>` key. When set, pass it through the Security Hub module and use it as the stable Terraform instance key while allowing `channel` and `hook_url` to change. Keep the current Lambda name and resource addresses when SPM supplies the prior key.
 
 ## Acceptance criteria
 

@@ -2,7 +2,7 @@
 
 ## Design
 
-Extend the `slack_webhooks` object type with `instance_key = optional(string)`. In the wrapper's local key expression, use `coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}")`. The value is an identity label, not a secret or destination. Preserve the existing default identity and the sensitive URL handling from PR #106.
+Extend the `slack_webhooks` object type in the Security Hub module and CloudWatch alarm actions module with `instance_key = optional(string)`. The Security Hub module passes it through to the child module. In the child module's local key expression, use `coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}")`. The value is an identity label, not a secret or destination. Preserve the existing default identity and the sensitive URL handling from PR #106.
 
 SPM will set `instance_key: proejct-spm-monitoring-security-hub` while changing `channel` to `project-spm-security-alerts` and `hook_url` to the dedicated root secret. This retains the current Terraform module instance and Lambda name. The legacy name remains until a separate reviewed migration is needed.
 
