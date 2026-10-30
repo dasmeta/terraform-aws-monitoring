@@ -6,6 +6,8 @@ Add an opt-in Security Hub finding router Lambda and DynamoDB delivery table. Ev
 
 The existing manual action still publishes directly to the finding SNS topic. Existing module behavior remains the default unless the new routing input is enabled.
 
+The first production apply revealed a historical Slack dead-letter backlog from the prior formatter crash. Keep the queue-depth alarm and add per-period SNS `NumberOfNotificationsFailed` and Lambda `Errors` alarms to the security escalation topic. AWS does not count automatic dead-letter redrive in SQS `NumberOfMessagesSent`, so that metric cannot identify fresh failures reliably.
+
 ## Verification and rollout
 
 Test the router with mocked SNS/DynamoDB clients for first delivery, repeat updates, severity escalation, cutoff, and retry behavior. Validate Terraform event rules, IAM, SNS policies, and generated SPM files. Use the current production state for a reviewable HCP plan. Apply only after the user's production approval, then send controlled synthetic LOW and HIGH notifications, verify Slack/Opsgenie and delivery queues, and keep PRs draft until the live checks pass.

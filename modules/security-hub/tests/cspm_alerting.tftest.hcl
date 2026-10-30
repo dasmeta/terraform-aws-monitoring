@@ -35,7 +35,8 @@ mock_provider "aws" {
 override_module {
   target = module.alarm_actions
   outputs = {
-    topic_arn = "arn:aws:sns:eu-central-1:111122223333:example-security-alerts"
+    topic_arn          = "arn:aws:sns:eu-central-1:111122223333:example-security-alerts"
+    slack_lambda_names = { security = "example-security-slack" }
   }
 }
 
@@ -179,7 +180,14 @@ run "first_delivery_routes_all_severities_without_general_monitoring" {
       !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "Severity") &&
       contains(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions, module.security_failure_actions[0].topic_arn) &&
       alltrue([for alarm in aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric : contains(alarm.alarm_actions, module.security_failure_actions[0].topic_arn)]) &&
-      length(aws_cloudwatch_metric_alarm.finding_destination_queue_nonempty) == 2
+      length(aws_cloudwatch_metric_alarm.finding_destination_queue_nonempty) == 2 &&
+      length(aws_cloudwatch_metric_alarm.finding_destination_new_failure) == 4 &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["slack-lambda-security"].metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["slack-lambda-security"].dimensions.FunctionName == "example-security-slack" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["router-lambda"].dimensions.FunctionName == "example-finding-router" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["slack-sns"].metric_name == "NumberOfNotificationsFailed" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["opsgenie-sns"].metric_name == "NumberOfNotificationsFailed" &&
+      alltrue([for alarm in aws_cloudwatch_metric_alarm.finding_destination_new_failure : contains(alarm.alarm_actions, module.security_failure_actions[0].topic_arn)])
     )
     error_message = "First-delivery mode must route all active severities through the router and use a separate security failure topic."
   }

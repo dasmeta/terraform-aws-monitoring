@@ -130,3 +130,47 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_queue_nonempty" {
   treat_missing_data  = "notBreaching"
   alarm_actions       = [module.security_failure_actions[0].topic_arn]
 }
+
+# A pre-existing DLQ backlog can keep the queue-depth alarm in ALARM and hide
+# later failures. These per-period metrics detect fresh errors without deleting
+# historical DLQ evidence. SQS NumberOfMessagesSent is unsuitable for DLQs:
+# automatic redrive does not increment it.
+resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
+  for_each = local.finding_delivery_enabled ? merge(
+    {
+      slack-sns = {
+        namespace   = "AWS/SNS"
+        metric_name = "NumberOfNotificationsFailed"
+        dimensions  = { TopicName = split(":", module.alarm_actions[0].topic_arn)[5] }
+      }
+      opsgenie-sns = {
+        namespace   = "AWS/SNS"
+        metric_name = "NumberOfNotificationsFailed"
+        dimensions  = { TopicName = split(":", module.high_severity_actions[0].topic_arn)[5] }
+      }
+      router-lambda = {
+        namespace   = "AWS/Lambda"
+        metric_name = "Errors"
+        dimensions  = { FunctionName = module.finding_router[0].lambda_function_name }
+      }
+    },
+    { for key, name in module.alarm_actions[0].slack_lambda_names : "slack-lambda-${key}" => {
+      namespace   = "AWS/Lambda"
+      metric_name = "Errors"
+      dimensions  = { FunctionName = name }
+    } }
+  ) : {}
+
+  alarm_name          = substr("${var.name}-${each.key}-new-failures", 0, 255)
+  alarm_description   = "New Security Hub ${each.key} delivery failure; ${var.delivery_failure.owner} investigates via ${var.delivery_failure.runbook_url}."
+  namespace           = each.value.namespace
+  metric_name         = each.value.metric_name
+  dimensions          = each.value.dimensions
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [module.security_failure_actions[0].topic_arn]
+}
