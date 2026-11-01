@@ -129,6 +129,49 @@ def format_cloudwatch_alarm(message: Dict[str, Any], region: str) -> Dict[str, A
     }
 
 
+def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Show one remediation group while leaving every finding in Security Hub."""
+    digest = message["_dasmeta_group_digest"]
+    new_count = digest["new_count"]
+    active = digest["active_count"]
+    closing = digest["closing"]
+    label = digest["label"]
+    if digest.get("baseline"):
+        title = f"Security Hub baseline: {new_count} findings across {digest.get('groups_changed_total', 0)} groups"
+    elif digest.get("groups_changed_total"):
+        title = f"Security Hub digest: {new_count} new or escalated; {digest.get('groups_cleared_total', 0)} groups cleared"
+    else:
+        title = f"Security group cleared: {label}" if closing else f"Security findings: {label}"
+    severity_lines = ", ".join(f"{severity} {count}" for severity, count in sorted(digest["new_severities"].items())) or "none"
+    active_lines = ", ".join(f"{severity} {count}" for severity, count in sorted(digest["active_severities"].items())) or "none"
+    top_titles = ", ".join(f"{title} ({count})" for title, count in digest["top_titles"][:5]) or "none"
+    fields = [
+        {"title": "New or escalated findings", "value": f"{new_count} ({severity_lines})", "short": True},
+        {"title": "Still active", "value": f"{active} ({active_lines})", "short": True},
+        {"title": "Affected resources", "value": str(digest["affected_resources"]), "short": True},
+        {"title": "Distinct vulnerabilities", "value": str(digest["vulnerability_count"]), "short": True},
+        {"title": "Top active findings", "value": top_titles[:1500], "short": False},
+        {"title": "All finding records", "value": digest["finding_url"], "short": False},
+    ]
+    if digest["sample_new_ids"]:
+        fields.insert(-1, {"title": "Sample new IDs", "value": "\n".join(digest["sample_new_ids"][:10])[:1200], "short": False})
+    changed = digest.get("groups_changed", [])
+    if changed:
+        lines = [f"{item['label']}: +{item['new']}, {item['active']} active" for item in changed]
+        remaining = digest.get("groups_changed_total", len(changed)) - len(changed)
+        if remaining:
+            lines.append(f"...and {remaining} more groups in Security Hub")
+        fields.insert(-1, {"title": "Remediation groups", "value": "\n".join(lines)[:2500], "short": False})
+    if digest.get("groups_cleared_total"):
+        fields.insert(-1, {"title": "Groups cleared", "value": f"{digest['groups_cleared_total']} groups after a one-hour quiet period", "short": False})
+    return {
+        "color": "good" if closing else "danger" if digest["active_severities"].get("CRITICAL") else "warning",
+        "fallback": title,
+        "text": title,
+        "fields": fields,
+    }
+
+
 def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, Any]:
     """
     Format AWS Security Hub finding event into Slack message format
@@ -554,6 +597,8 @@ def parse_notification(message: Dict[str, Any], subject: Optional[str], region: 
     :params region: AWS region where the event originated from
     :returns: Slack message payload
     """
+    if isinstance(message, Dict) and "_dasmeta_group_digest" in message:
+        return format_group_digest(message)
     if "AlarmName" in message:
         return format_cloudwatch_alarm(message=message, region=region)
     if isinstance(message, Dict) and message.get("detail-type") == "GuardDuty Finding":
@@ -655,11 +700,8 @@ def lambda_handler(event: Dict[str, Any], context: Dict[str, Any]) -> str:
             message=message, region=region, subject=subject
         )
         response = send_slack_notification(payload=payload)
-
-    if json.loads(response)["code"] != 200:
-        response_info = json.loads(response)["info"]
-        logging.error(
-            f"Error: received status `{response_info}` using event `{event}` and context `{context}`"
-        )
+        if json.loads(response)["code"] != 200:
+            response_info = json.loads(response)["info"]
+            raise RuntimeError(f"Slack webhook rejected notification: {response_info}")
 
     return response

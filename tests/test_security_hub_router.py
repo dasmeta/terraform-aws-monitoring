@@ -80,7 +80,7 @@ def finding(identifier="finding-1", severity="LOW", created="2026-10-31T00:00:00
     return {
         "Id": identifier,
         "ProductArn": "arn:aws:securityhub:eu-central-1::product/aws/inspector",
-        "AwsAccountId": "047719614430",
+        "AwsAccountId": "111122223333",
         "RecordState": "ACTIVE",
         "Workflow": {"Status": "NEW"},
         "Severity": {"Label": severity},
@@ -103,8 +103,8 @@ class RouterTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {
             "DELIVERY_TABLE_NAME": "finding-delivery",
             "FINDING_CUTOVER_AT": "2026-10-30T12:00:00Z",
-            "SLACK_TOPIC_ARN": "arn:aws:sns:eu-central-1:047719614430:slack",
-            "HIGH_TOPIC_ARN": "arn:aws:sns:eu-central-1:047719614430:opsgenie",
+            "SLACK_TOPIC_ARN": "arn:aws:sns:eu-central-1:111122223333:slack",
+            "HIGH_TOPIC_ARN": "arn:aws:sns:eu-central-1:111122223333:opsgenie",
         })
         self.env.start()
         self.addCleanup(self.env.stop)

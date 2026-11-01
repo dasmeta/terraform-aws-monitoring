@@ -48,11 +48,13 @@ def _request(method, path, payload=None):
                     raise RuntimeError(f"Opsgenie API returned HTTP {response.status}")
                 return body
         except urllib.error.HTTPError as error:
-            # Opsgenie may briefly serve stale API-key permissions after an
-            # integration change. A persistent denial still fails the Lambda.
-            if error.code != 403 or attempt == 3:
+            # Permission propagation, rate limiting, and transient server
+            # failures must be retried; persistent failures reach the DLQ.
+            if error.code not in (403, 429, 500, 502, 503, 504) or attempt == 3:
                 raise
-            time.sleep(0.5 * (attempt + 1))
+            retry_after = error.headers.get("Retry-After") if error.headers else None
+            delay = float(retry_after) if retry_after and retry_after.isdigit() else 0.5 * (attempt + 1)
+            time.sleep(min(delay, 5))
 
 
 def _wait_for_request(request_id):
@@ -75,6 +77,49 @@ def _wait_for_request(request_id):
 
 def deliver(message):
     finding = message["detail"]["findings"][0]
+    if message.get("_dasmeta_group_urgent"):
+        from finding_router import _group_identity
+
+        group = message.get("_dasmeta_group") or _group_identity(finding)
+        alias = "securityhub-group-" + group["key"]
+        path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+        try:
+            existing = _request("GET", path + "?identifierType=alias").get("data")
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            existing = None
+        if existing and existing.get("priority") == "P1":
+            LOG.info("Opsgenie urgent group already has P1 priority: %s", alias)
+            return
+        if existing:
+            result = _request("PUT", path + "/priority?identifierType=alias", {"priority": "P1"})
+        else:
+            result = _request("POST", "/v2/alerts", {
+                "message": f"{os.environ.get('OPSGENIE_ALERT_PREFIX', 'Security Hub')} | P1 | {group['label']}"[:130],
+                "alias": alias,
+                "description": (
+                    f"Urgent Security Hub finding: {finding.get('Title', 'Security finding')}\n"
+                    f"Resource: {(finding.get('Resources') or [{}])[0].get('Id', 'unknown')}\n"
+                    f"Finding ID: {finding['Id']}\n"
+                    "The scheduled group digest will reconcile all affected resources."
+                )[:15000],
+                "priority": "P1",
+                "source": "AWS Security Hub",
+                "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
+                "details": {
+                    "AWS account": finding["AwsAccountId"],
+                    "Cluster": (group["cluster"] or "n/a")[:50],
+                    "Node pool": (group["nodepool"] or "n/a")[:50],
+                    "AMI": (group["image"] or "n/a")[:50],
+                },
+            })
+        request_id = result.get("requestId")
+        if not request_id:
+            raise RuntimeError("Opsgenie urgent group action returned no request ID")
+        _wait_for_request(request_id)
+        LOG.info("Opsgenie urgent group action confirmed for %s", alias)
+        return
     alias = finding_alias(finding)
     action = message.get("_dasmeta_opsgenie_action", "create")
     if action == "close":

@@ -73,6 +73,62 @@ override_module {
   }
 }
 
+override_module {
+  target = module.finding_group_digest
+  outputs = {
+    lambda_function_arn  = "arn:aws:lambda:eu-central-1:111122223333:function:example-finding-group-digest"
+    lambda_function_name = "example-finding-group-digest"
+  }
+}
+
+run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
+  command = apply
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions = {
+      enabled      = true
+      create_topic = false
+      topic_name   = "example-security-alerts"
+      slack_webhooks = [{
+        hook_url = sensitive("https://hooks.slack.com/services/example")
+        channel  = "security-alerts"
+        username = "security-hub"
+      }]
+    }
+    finding_delivery = {
+      enabled               = true
+      notification_mode     = "grouped"
+      opsgenie_api_key      = sensitive("example-api-key")
+      opsgenie_alert_prefix = "SPM"
+    }
+    delivery_failure = {
+      owner       = "security-operations"
+      runbook_url = "https://example.com/runbooks/security-hub-delivery"
+    }
+  }
+
+  assert {
+    condition = (
+      length(module.finding_group_digest) == 1 &&
+      module.finding_router[0].lambda_function_name != module.finding_group_digest[0].lambda_function_name &&
+      aws_cloudwatch_event_rule.finding_group_digest[0].schedule_expression == "rate(15 minutes)" &&
+      length(aws_cloudwatch_event_target.finding_group_digest) == 1 &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].metric_name == "Errors" &&
+      contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail")
+    )
+    error_message = "Grouped mode must reconcile all finding severities and monitor scheduled digest delivery."
+  }
+}
+
 run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
   command = plan
 

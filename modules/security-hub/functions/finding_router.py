@@ -29,6 +29,108 @@ def _finding_key(finding):
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
 
+def _group_identity(finding):
+    """Only combine findings that share a concrete remediation target."""
+    resource = (finding.get("Resources") or [{}])[0]
+    tags = resource.get("Tags") or {}
+    details = resource.get("Details", {}).get("AwsEc2Instance", {})
+    image = details.get("ImageId")
+    pool = tags.get("karpenter.sh/nodepool")
+    cluster = tags.get("eks:cluster-name") or next(
+        (key.removeprefix("kubernetes.io/cluster/") for key in tags
+         if key.startswith("kubernetes.io/cluster/")), None
+    )
+    product = finding.get("ProductName", "Security Hub")
+    region = resource.get("Id", "").split(":")[3] if resource.get("Id", "").startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
+    account = finding["AwsAccountId"]
+    control = (finding.get("Compliance") or {}).get("SecurityControlId") or (finding.get("ProductFields") or {}).get("ControlId")
+    if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
+        parts = (account, region, product, cluster, pool, image)
+        label = f"{product} | {cluster}/{pool} | {image}"
+    elif resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Security Hub" and control:
+        parts = (account, region, product, control, cluster, pool, image)
+        label = f"{control} | {cluster}/{pool} | {image}"
+    else:
+        parts = (account, region, product, _finding_key(finding))
+        label = f"{product} | {finding.get('Title', 'Security finding')[:80]}"
+    return {
+        "key": hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest(),
+        "label": label,
+        "account": account,
+        "region": region,
+        "product": product,
+        "cluster": cluster or "",
+        "nodepool": pool or "",
+        "image": image or "",
+    }
+
+
+def _compact_finding(finding):
+    group = _group_identity(finding)
+    resource = (finding.get("Resources") or [{}])[0]
+    vulnerabilities = finding.get("Vulnerabilities") or []
+    return {
+        "finding_key": _finding_key(finding),
+        "finding_id": finding["Id"],
+        "product_arn": finding["ProductArn"],
+        "account": finding["AwsAccountId"],
+        "group": group,
+        "resource": resource.get("Id", ""),
+        "title": finding.get("Title", "Security finding")[:250],
+        "vulnerability_ids": sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")}),
+        "exploit_available": "YES" if any(v.get("ExploitAvailable") == "YES" for v in vulnerabilities) else "NO",
+        "severity": finding.get("Severity", {}).get("Label", "UNKNOWN"),
+        "record_state": finding.get("RecordState", "UNKNOWN"),
+        "workflow": finding.get("Workflow", {}).get("Status", "UNKNOWN"),
+        "created_at": finding["CreatedAt"],
+        "updated_at": finding.get("UpdatedAt", finding["CreatedAt"]),
+    }
+
+
+def _record_grouped(table, finding):
+    """Keep the latest snapshot; a duplicate event does not create a new digest item."""
+    record = _compact_finding(finding)
+    key = record["finding_key"]
+    current = _get_item(table, key)
+    if current.get("notification_updated_at", "") >= record["updated_at"]:
+        return False
+    if current.get("notification_payload"):
+        # Archive events may omit EC2 tags or image details. Keep the first
+        # remediation identity so the original group can be closed correctly.
+        previous = json.loads(current["notification_payload"])
+        record["group"] = previous["group"]
+    pending = current.get("notification_pending", "1")
+    if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
+        pending = "1"
+    if current.get("notification_payload"):
+        severity_rank = {"INFORMATIONAL": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+        if severity_rank.get(record["severity"], -1) > severity_rank.get(previous["severity"], -1) or (record["exploit_available"] == "YES" and previous["exploit_available"] != "YES"):
+            pending = "1"
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": key}},
+            UpdateExpression="SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #state = :state, #pending = :pending",
+            ConditionExpression="attribute_not_exists(#updated) OR #updated < :updated",
+            ExpressionAttributeNames={
+                "#kind": "notification_kind", "#group": "notification_group_key",
+                "#payload": "notification_payload", "#updated": "notification_updated_at",
+                "#state": "notification_state", "#pending": "notification_pending",
+            },
+            ExpressionAttributeValues={
+                ":kind": {"S": "finding"}, ":group": {"S": record["group"]["key"]},
+                ":payload": {"S": json.dumps(record, separators=(",", ":"))},
+                ":updated": {"S": record["updated_at"]},
+                ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
+            },
+        )
+    except ClientError as error:
+        if _conditional_failure(error):
+            return False
+        raise
+    return True
+
+
 def _conditional_failure(error):
     return error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
 
@@ -189,6 +291,28 @@ def route_event(event, table, sns, now=None):
         return {"slack": 0, "opsgenie": 0, "skipped": 0}
     cutoff = _timestamp(os.environ["FINDING_CUTOVER_AT"])
     now = int(time.time() if now is None else now)
+    if os.environ.get("GROUPED_DELIVERY_MODE") == "true":
+        counts = {"recorded": 0, "urgent": 0, "skipped": 0}
+        for finding in event.get("detail", {}).get("findings", []):
+            if _timestamp(finding["CreatedAt"]) < cutoff:
+                counts["skipped"] += 1
+                continue
+            counts["recorded"] += int(_record_grouped(table, finding))
+            severity = finding.get("Severity", {}).get("Label")
+            urgent = severity == "CRITICAL" or (severity == "HIGH" and any(
+                vulnerability.get("ExploitAvailable") == "YES" for vulnerability in finding.get("Vulnerabilities") or []
+            ))
+            if urgent and finding.get("RecordState") == "ACTIVE" and finding.get("Workflow", {}).get("Status") in {"NEW", "NOTIFIED"}:
+                item = _get_item(table, _finding_key(finding))
+                if item.get("notification_updated_at") != finding.get("UpdatedAt", finding["CreatedAt"]) or item.get("notification_state") != "ACTIVE":
+                    continue
+                group = json.loads(item["notification_payload"])["group"]
+                group_key = "group#" + group["key"]
+                payload = {**event, "detail": {**event["detail"], "findings": [finding]}, "_dasmeta_group_urgent": True, "_dasmeta_group": group}
+                if _publish_once(table, sns, group_key, "urgent", os.environ["HIGH_TOPIC_ARN"], payload, now):
+                    counts["urgent"] += 1
+        LOG.info("Security Hub grouped intake counts: %s", counts)
+        return counts
     api_mode = os.environ.get("OPSGENIE_API_MODE") == "true"
     counts = {"slack": 0, "opsgenie": 0, "skipped": 0}
     if api_mode:

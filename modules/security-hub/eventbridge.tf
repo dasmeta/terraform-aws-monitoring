@@ -155,7 +155,10 @@ resource "aws_sqs_queue_policy" "eventbridge_failed_delivery" {
       Action    = "sqs:SendMessage"
       Resource  = aws_sqs_queue.eventbridge_failed_delivery[0].arn
       Condition = {
-        ArnEquals = { "aws:SourceArn" = [aws_cloudwatch_event_rule.automated_alerts.arn, aws_cloudwatch_event_rule.manual_alerts[0].arn] }
+        ArnEquals = { "aws:SourceArn" = concat(
+          [aws_cloudwatch_event_rule.automated_alerts.arn, aws_cloudwatch_event_rule.manual_alerts[0].arn],
+          local.grouped_delivery_enabled ? [aws_cloudwatch_event_rule.finding_group_digest[0].arn] : []
+        ) }
       }
     }]
   })
@@ -163,9 +166,9 @@ resource "aws_sqs_queue_policy" "eventbridge_failed_delivery" {
 
 locals {
   security_hub_delivery_failure_metrics = var.alarm_actions.enabled ? {
-    for pair in setproduct(["automatic", "manual"], ["InvocationsSentToDlq", "InvocationsFailedToBeSentToDlq"]) :
+    for pair in setproduct(concat(["automatic", "manual"], local.grouped_delivery_enabled ? ["digest"] : []), ["InvocationsSentToDlq", "InvocationsFailedToBeSentToDlq"]) :
     "${pair[0]}-${pair[1]}" => {
-      rule_name = pair[0] == "automatic" ? aws_cloudwatch_event_rule.automated_alerts.name : aws_cloudwatch_event_rule.manual_alerts[0].name
+      rule_name = pair[0] == "automatic" ? aws_cloudwatch_event_rule.automated_alerts.name : pair[0] == "manual" ? aws_cloudwatch_event_rule.manual_alerts[0].name : aws_cloudwatch_event_rule.finding_group_digest[0].name
       metric    = pair[1]
     }
   } : {}

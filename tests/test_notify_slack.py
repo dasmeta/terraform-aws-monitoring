@@ -4,7 +4,7 @@ import importlib.util
 import os
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("AWS_DEFAULT_REGION", "eu-central-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
@@ -22,12 +22,12 @@ spec.loader.exec_module(notify_slack)
 def finding_event(product_name, compliance=None):
     finding = {
         "Id": "test-finding",
-        "ProductArn": "arn:aws:securityhub:eu-central-1:047719614430:product/aws/securityhub",
+        "ProductArn": "arn:aws:securityhub:eu-central-1:111122223333:product/aws/securityhub",
         "ProductName": product_name,
         "Severity": {"Label": "HIGH"},
         "Workflow": {"Status": "NEW"},
         "ProductFields": {},
-        "Resources": [{"Id": "arn:aws:ec2:eu-central-1:047719614430:instance/i-test"}],
+        "Resources": [{"Id": "arn:aws:ec2:eu-central-1:111122223333:instance/i-test"}],
         "Title": "Controlled test finding",
     }
     if compliance is not None:
@@ -70,7 +70,7 @@ class SecurityHubFormatterTests(unittest.TestCase):
             FindingIdentifiers=[
                 {
                     "Id": "test-finding",
-                    "ProductArn": "arn:aws:securityhub:eu-central-1:047719614430:product/aws/securityhub",
+                    "ProductArn": "arn:aws:securityhub:eu-central-1:111122223333:product/aws/securityhub",
                 }
             ],
             Workflow={"Status": "NOTIFIED"},
@@ -99,6 +99,36 @@ class SecurityHubFormatterTests(unittest.TestCase):
         self.assertIn("resolved", result["text"])
         self.assertIn({"title": "Status", "value": "RESOLVED", "short": True}, result["fields"])
         notify_slack.SECURITY_HUB_CLIENT.batch_update_findings.assert_not_called()
+
+    def test_group_digest_shows_totals_and_link_without_marking_findings_notified(self):
+        message = {"_dasmeta_group_digest": {
+            "label": "Inspector | example-prod/general | ami-123",
+            "new_count": 24,
+            "new_severities": {"HIGH": 23, "CRITICAL": 1},
+            "active_count": 8,
+            "active_severities": {"HIGH": 7, "CRITICAL": 1},
+            "affected_resources": 2,
+            "vulnerability_count": 4,
+            "top_titles": [["CVE-2026-56855", 8]],
+            "sample_new_ids": ["finding-one"],
+            "finding_url": "https://console.aws.amazon.com/securityhub/home?region=eu-central-1#/findings",
+            "closing": False,
+        }}
+        result = notify_slack.parse_notification(message, "Security Hub finding digest", "eu-central-1")
+        self.assertIn("example-prod/general", result["text"])
+        self.assertIn("24", result["fields"][0]["value"])
+        self.assertEqual(result["color"], "danger")
+        notify_slack.SECURITY_HUB_CLIENT.batch_update_findings.assert_not_called()
+
+    def test_failed_slack_delivery_raises_for_retry_and_dead_letter_capture(self):
+        event = {"Records": [{"Sns": {
+            "Subject": "Security Hub finding digest",
+            "Message": '{"text":"digest"}',
+            "TopicArn": "arn:aws:sns:eu-central-1:111122223333:security",
+        }}]}
+        with patch.object(notify_slack, "send_slack_notification", return_value='{"code":429,"info":"rate limited"}'), patch.dict(os.environ, {"SLACK_CHANNEL": "security", "SLACK_USERNAME": "security", "SLACK_EMOJI": ":shield:"}):
+            with self.assertRaisesRegex(RuntimeError, "rate limited"):
+                notify_slack.lambda_handler(event, {})
 
 
 if __name__ == "__main__":

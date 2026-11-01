@@ -98,27 +98,30 @@ variable "delivery_failure" {
 }
 
 variable "finding_delivery" {
-  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Cutover defaults to first apply time."
+  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time."
   type = object({
-    enabled               = optional(bool, false)
-    cutover_at            = optional(string)
-    opsgenie_endpoint     = optional(string)
-    opsgenie_api_key      = optional(string)
-    opsgenie_api_url      = optional(string, "https://api.opsgenie.com")
-    opsgenie_alert_prefix = optional(string, "Security Hub")
+    enabled               = optional(bool, false)                        # Enable durable Security Hub finding delivery.
+    cutover_at            = optional(string)                             # UTC creation timestamp before which findings are ignored.
+    notification_mode     = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
+    opsgenie_endpoint     = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
+    opsgenie_api_key      = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
+    opsgenie_api_url      = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_alert_prefix = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
   })
   default = {}
 
   validation {
     condition = !var.finding_delivery.enabled || (
       (var.finding_delivery.cutover_at == null || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.finding_delivery.cutover_at))) &&
+      contains(["per_finding", "grouped"], var.finding_delivery.notification_mode) &&
+      (var.finding_delivery.notification_mode != "grouped" || var.finding_delivery.opsgenie_api_key != null) &&
       ((var.finding_delivery.opsgenie_endpoint != null) != (var.finding_delivery.opsgenie_api_key != null)) &&
       (var.finding_delivery.opsgenie_endpoint == null || can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))) &&
       (var.finding_delivery.opsgenie_api_key == null || try(length(trimspace(var.finding_delivery.opsgenie_api_key)) > 0, false)) &&
       contains(["https://api.opsgenie.com", "https://api.eu.opsgenie.com"], var.finding_delivery.opsgenie_api_url) &&
       try(length(trimspace(var.finding_delivery.opsgenie_alert_prefix)) > 0, false)
     )
-    error_message = "Enabled finding_delivery requires exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."
+    error_message = "Enabled finding_delivery requires per_finding or grouped mode, an API key for grouped mode, exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."
   }
 }
 

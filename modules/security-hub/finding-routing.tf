@@ -87,11 +87,12 @@ module "finding_router" {
   timeout       = 30
 
   environment_variables = {
-    DELIVERY_TABLE_NAME = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT  = local.finding_cutover_at
-    SLACK_TOPIC_ARN     = module.alarm_actions[0].topic_arn
-    HIGH_TOPIC_ARN      = module.high_severity_actions[0].topic_arn
-    OPSGENIE_API_MODE   = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
+    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT    = local.finding_cutover_at
+    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
+    HIGH_TOPIC_ARN        = module.high_severity_actions[0].topic_arn
+    OPSGENIE_API_MODE     = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
+    GROUPED_DELIVERY_MODE = local.grouped_delivery_enabled ? "true" : "false"
   }
 
   attach_policy_json        = true
@@ -109,7 +110,7 @@ module "opsgenie_api_notifier" {
   description   = "Create and close per-finding Opsgenie alerts"
   runtime       = "python3.12"
   handler       = "opsgenie_notifier.lambda_handler"
-  source_path   = "${path.module}/functions/opsgenie_notifier.py"
+  source_path   = "${path.module}/functions"
   timeout       = 30
 
   environment_variables = {
@@ -119,6 +120,56 @@ module "opsgenie_api_notifier" {
   }
 
   dead_letter_target_arn    = module.high_severity_actions[0].dead_letter_queue_arn
+  attach_dead_letter_policy = true
+}
+
+data "aws_iam_policy_document" "finding_group_digest" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  statement {
+    sid       = "ReconcileSecurityHubFindings"
+    actions   = ["securityhub:GetFindings"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadAndUpdateFindingLedger"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
+    resources = [aws_dynamodb_table.finding_delivery[0].arn]
+  }
+
+  statement {
+    sid       = "PublishSecurityDigest"
+    actions   = ["sns:Publish"]
+    resources = [module.alarm_actions[0].topic_arn]
+  }
+}
+
+module "finding_group_digest" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "6.8.0"
+  count   = local.grouped_delivery_enabled ? 1 : 0
+
+  function_name = substr("${var.name}-finding-group-digest", 0, 64)
+  description   = "Reconcile all Security Hub findings and notify by remediation group"
+  runtime       = "python3.12"
+  handler       = "group_digest.lambda_handler"
+  source_path   = "${path.module}/functions"
+  timeout       = 300
+  memory_size   = 512
+
+  environment_variables = {
+    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT    = local.finding_cutover_at
+    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
+    OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+  }
+
+  attach_policy_json        = true
+  policy_json               = data.aws_iam_policy_document.finding_group_digest[0].json
+  dead_letter_target_arn    = aws_sqs_queue.eventbridge_failed_delivery[0].arn
   attach_dead_letter_policy = true
 }
 
@@ -150,6 +201,42 @@ resource "aws_lambda_permission" "finding_router_events" {
   function_name = module.finding_router[0].lambda_function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.automated_alerts.arn
+}
+
+resource "aws_cloudwatch_event_rule" "finding_group_digest" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  name                = substr("${var.name}-finding-group-digest", 0, 64)
+  description         = "Reconcile Security Hub and deliver one digest per remediation group"
+  schedule_expression = "rate(15 minutes)"
+}
+
+resource "aws_lambda_permission" "finding_group_digest_events" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  statement_id  = "AllowSecurityHubGroupDigestSchedule"
+  action        = "lambda:InvokeFunction"
+  function_name = module.finding_group_digest[0].lambda_function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.finding_group_digest[0].arn
+}
+
+resource "aws_cloudwatch_event_target" "finding_group_digest" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  rule = aws_cloudwatch_event_rule.finding_group_digest[0].name
+  arn  = module.finding_group_digest[0].lambda_function_arn
+
+  retry_policy {
+    maximum_event_age_in_seconds = 86400
+    maximum_retry_attempts       = 185
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.eventbridge_failed_delivery[0].arn
+  }
+
+  depends_on = [aws_lambda_permission.finding_group_digest_events, aws_sqs_queue_policy.eventbridge_failed_delivery]
 }
 
 # A failed Slack/Lambda or Opsgenie/HTTPS subscription must alert the security
@@ -202,6 +289,13 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
         namespace   = "AWS/Lambda"
         metric_name = "Errors"
         dimensions  = { FunctionName = module.opsgenie_api_notifier[0].lambda_function_name }
+      }
+    },
+    length(module.finding_group_digest) == 0 ? {} : {
+      group-digest-lambda = {
+        namespace   = "AWS/Lambda"
+        metric_name = "Errors"
+        dimensions  = { FunctionName = module.finding_group_digest[0].lambda_function_name }
       }
     },
     { for key, name in module.alarm_actions[0].slack_lambda_names : "slack-lambda-${key}" => {
