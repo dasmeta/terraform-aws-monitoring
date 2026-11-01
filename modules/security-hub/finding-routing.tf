@@ -155,6 +155,7 @@ module "finding_group_digest" {
   runtime       = "python3.12"
   handler       = "group_digest.lambda_handler"
   source_path   = "${path.module}/functions"
+  hash_extra    = "finding-group-digest"
   timeout       = 300
   memory_size   = 512
 
