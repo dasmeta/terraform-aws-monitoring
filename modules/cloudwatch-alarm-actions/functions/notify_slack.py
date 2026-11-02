@@ -136,7 +136,9 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
     active = digest["active_count"]
     closing = digest["closing"]
     label = digest["label"]
-    if digest.get("baseline"):
+    if digest.get("digest_kind") == "daily":
+        title = f"Security Hub daily brief: {new_count} actionable, {digest.get('routine_count', 0)} routine"
+    elif digest.get("baseline"):
         title = f"Security Hub baseline: {new_count} findings across {digest.get('groups_changed_total', 0)} groups"
     elif digest.get("groups_changed_total"):
         title = f"Security Hub digest: {new_count} new or escalated; {digest.get('groups_cleared_total', 0)} groups cleared"
@@ -153,6 +155,21 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         {"title": "Top active findings", "value": top_titles[:1500], "short": False},
         {"title": "All finding records", "value": digest["finding_url"], "short": False},
     ]
+    if digest.get("digest_kind") == "daily":
+        fields = [
+            {"title": "New active findings", "value": f"{new_count} ({severity_lines})", "short": True},
+            {"title": "Routine controls and archived items", "value": str(digest.get("routine_count", 0)), "short": True},
+            {"title": "Groups cleared", "value": str(digest.get("groups_cleared_total", 0)), "short": True},
+        ]
+        changed = digest.get("groups_changed", [])
+        if changed:
+            lines = [f"{item['label']}: +{item['new']}, {item['active']} active" for item in changed]
+            remaining = digest.get("groups_changed_total", len(changed)) - len(changed)
+            if remaining:
+                lines.append(f"...and {remaining} more groups in Security Hub")
+            fields.append({"title": "Top remediation groups", "value": "\n".join(lines)[:2500], "short": False})
+        fields.append({"title": "Review every finding", "value": digest["finding_url"], "short": False})
+        return {"color": "#439FE0", "fallback": title, "text": title, "fields": fields}
     if digest["sample_new_ids"]:
         fields.insert(-1, {"title": "Sample new IDs", "value": "\n".join(digest["sample_new_ids"][:10])[:1200], "short": False})
     changed = digest.get("groups_changed", [])
@@ -169,6 +186,25 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         "fallback": title,
         "text": title,
         "fields": fields,
+    }
+
+
+def format_group_urgent(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Show the first urgent finding in a remediation group immediately."""
+    finding = message["detail"]["findings"][0]
+    group = message["_dasmeta_group"]
+    title = finding.get("Title", "Security finding")
+    target = group["label"]
+    severity = finding.get("Severity", {}).get("Label", "HIGH")
+    url = f"https://console.aws.amazon.com/securityhub/home?region={group['region']}#/findings"
+    return {
+        "color": "danger",
+        "fallback": f"Urgent {severity} security finding: {title}",
+        "text": f"Urgent {severity} security finding: {title}",
+        "fields": [
+            {"title": "Remediation target", "value": target[:500], "short": False},
+            {"title": "Security Hub", "value": url, "short": False},
+        ],
     }
 
 
@@ -597,6 +633,8 @@ def parse_notification(message: Dict[str, Any], subject: Optional[str], region: 
     :params region: AWS region where the event originated from
     :returns: Slack message payload
     """
+    if isinstance(message, Dict) and "_dasmeta_group_urgent" in message:
+        return format_group_urgent(message)
     if isinstance(message, Dict) and "_dasmeta_group_digest" in message:
         return format_group_digest(message)
     if "AlarmName" in message:

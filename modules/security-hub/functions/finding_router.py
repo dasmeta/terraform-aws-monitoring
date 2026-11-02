@@ -80,6 +80,7 @@ def _compact_finding(finding):
         "vulnerability_ids": sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")}),
         "exploit_available": "YES" if any(v.get("ExploitAvailable") == "YES" for v in vulnerabilities) else "NO",
         "severity": finding.get("Severity", {}).get("Label", "UNKNOWN"),
+        "compliance_status": (finding.get("Compliance") or {}).get("Status", ""),
         "record_state": finding.get("RecordState", "UNKNOWN"),
         "workflow": finding.get("Workflow", {}).get("Status", "UNKNOWN"),
         "created_at": finding["CreatedAt"],
@@ -292,7 +293,7 @@ def route_event(event, table, sns, now=None):
     cutoff = _timestamp(os.environ["FINDING_CUTOVER_AT"])
     now = int(time.time() if now is None else now)
     if os.environ.get("GROUPED_DELIVERY_MODE") == "true":
-        counts = {"recorded": 0, "urgent": 0, "skipped": 0}
+        counts = {"recorded": 0, "urgent": 0, "urgent_slack": 0, "skipped": 0}
         for finding in event.get("detail", {}).get("findings", []):
             if _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
@@ -302,7 +303,9 @@ def route_event(event, table, sns, now=None):
             urgent = severity == "CRITICAL" or (severity == "HIGH" and any(
                 vulnerability.get("ExploitAvailable") == "YES" for vulnerability in finding.get("Vulnerabilities") or []
             ))
-            if urgent and finding.get("RecordState") == "ACTIVE" and finding.get("Workflow", {}).get("Status") in {"NEW", "NOTIFIED"}:
+            if (urgent and (finding.get("Compliance") or {}).get("Status") != "PASSED"
+                    and finding.get("RecordState") == "ACTIVE"
+                    and finding.get("Workflow", {}).get("Status") in {"NEW", "NOTIFIED"}):
                 item = _get_item(table, _finding_key(finding))
                 if item.get("notification_updated_at") != finding.get("UpdatedAt", finding["CreatedAt"]) or item.get("notification_state") != "ACTIVE":
                     continue
@@ -311,6 +314,27 @@ def route_event(event, table, sns, now=None):
                 payload = {**event, "detail": {**event["detail"], "findings": [finding]}, "_dasmeta_group_urgent": True, "_dasmeta_group": group}
                 if _publish_once(table, sns, group_key, "urgent", os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
+                if _publish_once(table, sns, group_key, "urgent_slack", os.environ["SLACK_TOPIC_ARN"], payload, now):
+                    counts["urgent_slack"] += 1
+                    table.update_item(
+                        TableName=os.environ["DELIVERY_TABLE_NAME"],
+                        Key={"finding_key": {"S": group_key}},
+                        UpdateExpression="SET #open = :open",
+                        ExpressionAttributeNames={"#open": "slack_open"},
+                        ExpressionAttributeValues={":open": {"S": "1"}},
+                    )
+                    try:
+                        table.update_item(
+                            TableName=os.environ["DELIVERY_TABLE_NAME"],
+                            Key={"finding_key": {"S": _finding_key(finding)}},
+                            UpdateExpression="SET #pending = :done",
+                            ConditionExpression="#updated = :updated",
+                            ExpressionAttributeNames={"#pending": "notification_pending", "#updated": "notification_updated_at"},
+                            ExpressionAttributeValues={":done": {"S": "0"}, ":updated": {"S": item["notification_updated_at"]}},
+                        )
+                    except ClientError as error:
+                        if not _conditional_failure(error):
+                            raise
         LOG.info("Security Hub grouped intake counts: %s", counts)
         return counts
     api_mode = os.environ.get("OPSGENIE_API_MODE") == "true"

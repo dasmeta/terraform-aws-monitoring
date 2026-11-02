@@ -71,7 +71,7 @@ class GroupedFindingTests(unittest.TestCase):
         self.assertEqual(group["active_count"], 1)
         self.assertEqual(group["high_count"], 1)
         self.assertEqual(group["affected_resources"], 1)
-        self.assertEqual(group["priority"], "P2")
+        self.assertIsNone(group["priority"])
         self.assertFalse(group["cleared"])
         self.assertEqual(group["new_severities"]["HIGH"], 2)
 
@@ -84,7 +84,7 @@ class GroupedFindingTests(unittest.TestCase):
         self.assertFalse(group["cleared"])
         first["record_state"] = "ARCHIVED"
         group = DIGEST.summarize_group([first, second])
-        self.assertEqual(group["priority"], "P2")
+        self.assertIsNone(group["priority"])
         self.assertEqual(group["high_count"], 1)
         self.assertFalse(group["cleared"])
 
@@ -184,7 +184,7 @@ class GroupedFlowTests(unittest.TestCase):
         self.assertEqual(first["slack_digests"], 1)
         self.assertEqual(second["slack_digests"], 0)
         self.assertEqual(self.sns.messages[0]["_dasmeta_group_digest"]["new_count"], 2)
-        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 1)
+        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 0)
         self.assertEqual(sum("notification_kind" in value for value in self.table.items.values()), 2)
 
     def test_one_archived_node_keeps_group_open_then_last_archive_closes_once(self):
@@ -200,9 +200,9 @@ class GroupedFlowTests(unittest.TestCase):
             self.assertFalse(any("/close?" in call[1] for call in calls))
             two["RecordState"] = "ARCHIVED"
             two["UpdatedAt"] = "2026-11-01T13:20:00Z"
-            DIGEST.run(self.table, hub, self.sns, now=self.now + 7200)
-            DIGEST.run(self.table, hub, self.sns, now=self.now + 8100)
-        self.assertEqual(len([call for call in calls if "/close?" in call[1]]), 1)
+            DIGEST.run(self.table, hub, self.sns, now=self.now + 86400)
+            DIGEST.run(self.table, hub, self.sns, now=self.now + 87300)
+        self.assertEqual(len([call for call in calls if "/close?" in call[1]]), 0)
         self.assertEqual(len(self.sns.messages), 2)
         self.assertEqual(self.sns.messages[-1]["_dasmeta_group_digest"]["groups_cleared_total"], 1)
 
@@ -214,8 +214,10 @@ class GroupedFlowTests(unittest.TestCase):
         second = ROUTER.route_event(event, self.table, self.sns, now=self.now + 10)
         self.assertEqual(first["urgent"], 1)
         self.assertEqual(second["urgent"], 0)
-        self.assertEqual(len(self.sns.messages), 1)
+        self.assertEqual(len(self.sns.messages), 2)
         self.assertTrue(self.sns.messages[0]["_dasmeta_group_urgent"])
+        self.assertEqual(first["urgent_slack"], 1)
+        self.assertEqual(second["urgent_slack"], 0)
         self.assertEqual(sum("notification_kind" in value for value in self.table.items.values()), 2)
 
     def test_low_exploitable_finding_stays_in_slack_digest_without_opsgenie(self):
@@ -242,7 +244,7 @@ class GroupedFlowTests(unittest.TestCase):
         DIGEST._clear_urgent_claim(self.table, "group#" + old_group)
         stale = ROUTER.route_event(event(original), self.table, self.sns, now=self.now + 1000)
         self.assertEqual(stale["urgent"], 0)
-        self.assertEqual(len(self.sns.messages), 1)
+        self.assertEqual(len(self.sns.messages), 2)
 
     def test_legacy_per_finding_alert_closes_after_group_alert_exists(self):
         one = finding("i-one")
@@ -253,7 +255,7 @@ class GroupedFlowTests(unittest.TestCase):
             result = DIGEST.run(self.table, FakeSecurityHub([one]), self.sns, now=self.now)
         self.assertEqual(result["legacy_alerts_migrated"], 1)
         self.assertEqual(self.table.items[key]["legacy_group_migrated"], "1")
-        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 1)
+        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 0)
         self.assertEqual(len([call for call in calls if "/close?" in call[1]]), 1)
 
     def test_first_run_combines_multiple_groups_into_one_slack_baseline(self):
@@ -263,7 +265,7 @@ class GroupedFlowTests(unittest.TestCase):
             result = DIGEST.run(self.table, hub, self.sns, now=self.now)
         self.assertEqual(result["groups"], 2)
         self.assertEqual(result["slack_digests"], 1)
-        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 2)
+        self.assertEqual(len([call for call in calls if call[1] == "/v2/alerts"]), 0)
         self.assertIn("2 remediation groups", self.sns.messages[0]["_dasmeta_group_digest"]["label"])
 
     def test_subsequent_new_fallback_findings_share_one_slack_digest(self):
@@ -272,7 +274,9 @@ class GroupedFlowTests(unittest.TestCase):
             DIGEST.run(self.table, FakeSecurityHub([first]), self.sns, now=self.now)
             second = finding("i-two", ami=None, updated="2026-11-01T13:10:00Z")
             third = finding("i-three", ami=None, updated="2026-11-01T13:10:00Z")
-            result = DIGEST.run(self.table, FakeSecurityHub([first, second, third]), self.sns, now=self.now + 900)
+            early = DIGEST.run(self.table, FakeSecurityHub([first, second, third]), self.sns, now=self.now + 900)
+            result = DIGEST.run(self.table, FakeSecurityHub([first, second, third]), self.sns, now=self.now + 86400)
+        self.assertEqual(early["slack_digests"], 0)
         self.assertEqual(result["slack_digests"], 1)
         self.assertEqual(len(self.sns.messages), 2)
         digest = self.sns.messages[-1]["_dasmeta_group_digest"]
@@ -281,7 +285,7 @@ class GroupedFlowTests(unittest.TestCase):
         self.assertEqual(len(digest["groups_changed"]), 2)
 
     def test_opsgenie_failure_does_not_block_slack_and_is_retried(self):
-        one = finding("i-one")
+        one = finding("i-one", severity="CRITICAL")
         hub = FakeSecurityHub([one])
         with patch.object(DIGEST, "_ops_action", side_effect=RuntimeError("Opsgenie 403")):
             with self.assertRaisesRegex(RuntimeError, "Opsgenie group actions failed"):
@@ -310,6 +314,43 @@ class GroupedFlowTests(unittest.TestCase):
         archived["UpdatedAt"] = "2026-11-01T13:20:00Z"
         ROUTER._record_grouped(self.table, archived)
         self.assertEqual(self.table.items[key]["notification_pending"], "1")
+
+    def test_information_only_is_counted_once_daily_and_never_pages(self):
+        first = finding("control-one", severity="INFORMATIONAL")
+        first["Compliance"] = {"Status": "PASSED"}
+        first["RecordState"] = "ARCHIVED"
+        second = finding("control-two", severity="INFORMATIONAL", updated="2026-11-01T13:10:00Z")
+        second["Compliance"] = {"Status": "NOT_AVAILABLE"}
+        with patch.object(DIGEST, "_ops_action") as actions:
+            DIGEST.run(self.table, FakeSecurityHub([first]), self.sns, now=self.now)
+            DIGEST.run(self.table, FakeSecurityHub([first, second]), self.sns, now=self.now + 900)
+            DIGEST.run(self.table, FakeSecurityHub([first, second]), self.sns, now=self.now + 86400)
+        self.assertEqual(len(self.sns.messages), 2)
+        self.assertEqual([message["_dasmeta_group_digest"]["routine_count"] for message in self.sns.messages], [1, 1])
+        self.assertEqual([message["_dasmeta_group_digest"]["new_count"] for message in self.sns.messages], [0, 0])
+        self.assertFalse(any(call.args[1] == "/v2/alerts" for call in actions.call_args_list))
+
+    def test_high_without_exploit_does_not_page_and_existing_p2_closes(self):
+        record = ROUTER._compact_finding(finding("i-one"))
+        summary = DIGEST.summarize_group([record])
+        self.assertIsNone(summary["priority"])
+        marker = "group#" + summary["group"]["key"]
+        self.table.items[marker] = {"opsgenie_open": "1", "opsgenie_priority": "P2"}
+        with patch.object(DIGEST, "_ops_action") as action:
+            DIGEST.sync_opsgenie(self.table, summary, dict(self.table.items[marker]), self.now)
+        self.assertEqual(action.call_count, 1)
+        self.assertIn("/close?", action.call_args.args[1])
+        self.assertEqual(self.table.items[marker]["opsgenie_open"], "0")
+
+    def test_urgent_title_names_patch_target_and_fallback_names_finding(self):
+        grouped = ROUTER._compact_finding(finding("i-one", severity="CRITICAL"))
+        message = DIGEST._opsgenie_message(DIGEST.summarize_group([grouped]))
+        self.assertIn("Patch example-prod/general node image ami-123", message)
+        self.assertNotIn("resources", message)
+        fallback = ROUTER._compact_finding(finding("i-one", severity="CRITICAL", pool=None))
+        message = DIGEST._opsgenie_message(DIGEST.summarize_group([fallback]))
+        self.assertIn("CVE-2026-56855", message)
+        self.assertIn("i-one", message)
 
 
 if __name__ == "__main__":

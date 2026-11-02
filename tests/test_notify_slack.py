@@ -130,6 +130,31 @@ class SecurityHubFormatterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "rate limited"):
                 notify_slack.lambda_handler(event, {})
 
+    def test_daily_brief_shows_actionable_and_routine_without_finding_ids(self):
+        message = {"_dasmeta_group_digest": {
+            "digest_kind": "daily", "new_count": 3, "new_severities": {"HIGH": 1, "MEDIUM": 2},
+            "routine_count": 268, "groups_cleared_total": 1,
+            "groups_changed": [{"label": "Inspector | cluster/pool | ami-123", "new": 3, "active": 4}],
+            "groups_changed_total": 1,
+            "finding_url": "https://console.aws.amazon.com/securityhub/home?region=eu-central-1#/findings",
+            "active_count": 4, "active_severities": {"HIGH": 2, "MEDIUM": 2},
+            "affected_resources": 2, "vulnerability_count": 2, "top_titles": [],
+            "sample_new_ids": ["finding-one"], "closing": False, "label": "Security Hub daily brief",
+        }}
+        result = notify_slack.parse_notification(message, "Security Hub finding digest", "eu-central-1")
+        self.assertIn("3 actionable, 268 routine", result["text"])
+        self.assertNotIn("finding-one", str(result))
+        self.assertIn("Top remediation groups", [field["title"] for field in result["fields"]])
+
+    def test_urgent_group_notification_names_remediation_target(self):
+        finding = {"Title": "CVE-2026-56855", "Severity": {"Label": "CRITICAL"}}
+        message = {"_dasmeta_group_urgent": True, "_dasmeta_group": {
+            "label": "Inspector | cluster/pool | ami-123", "region": "eu-central-1",
+        }, "detail": {"findings": [finding]}}
+        result = notify_slack.parse_notification(message, "Security Hub finding", "eu-central-1")
+        self.assertIn("Urgent CRITICAL", result["text"])
+        self.assertIn("ami-123", str(result["fields"]))
+
 
 if __name__ == "__main__":
     unittest.main()

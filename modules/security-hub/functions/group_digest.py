@@ -1,6 +1,7 @@
 """Reconcile Security Hub and send bounded remediation-group notifications."""
 
 import collections
+import hashlib
 import json
 import logging
 import os
@@ -23,6 +24,8 @@ MAX_LEDGER_ITEMS = 100000
 MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
+DAILY_SLACK_SECONDS = 86400
+OPSGENIE_FORMAT_VERSION = "2"
 
 
 def _decode(item):
@@ -119,7 +122,9 @@ def summarize_group(records):
     new = [record for record in records if record.get("pending", True)]
     active = [record for record in records if record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}]
     high = [record for record in active if record["severity"] in HIGH_SEVERITIES]
-    priority = "P1" if any(record["severity"] == "CRITICAL" or record["exploit_available"] == "YES" for record in high) else "P2" if high else None
+    urgent = [record for record in high if record.get("compliance_status") != "PASSED"
+              and (record["severity"] == "CRITICAL" or record["exploit_available"] == "YES")]
+    priority = "P1" if urgent else None
     titles = collections.Counter(record["title"] for record in active)
     return {
         "group": records[0]["group"],
@@ -128,6 +133,15 @@ def summarize_group(records):
         "new_severities": dict(collections.Counter(record["severity"] for record in new)),
         "active_count": len(active),
         "high_count": len(high),
+        "urgent_count": len(urgent),
+        "high_severities": dict(collections.Counter(record["severity"] for record in high)),
+        "urgent_titles": collections.Counter(record["title"] for record in urgent).most_common(3),
+        "urgent_vulnerability_ids": sorted({identifier for record in urgent for identifier in record["vulnerability_ids"]}),
+        "urgent_signature": hashlib.sha256(json.dumps(
+            sorted({(record["title"], tuple(record["vulnerability_ids"])) for record in urgent}),
+            separators=(",", ":"),
+        ).encode("utf-8")).hexdigest(),
+        "sample_resource": next((record["resource"] for record in high if record["resource"]), ""),
         "active_severities": dict(collections.Counter(record["severity"] for record in active)),
         "affected_resources": len({record["resource"] for record in active if record["resource"]}),
         "vulnerability_ids": sorted({identifier for record in active for identifier in record["vulnerability_ids"]}),
@@ -153,9 +167,14 @@ def _opsgenie_details(summary):
 
 def _opsgenie_message(summary):
     group = summary["group"]
-    scope = f"{group['cluster']}/{group['nodepool']}" if group["cluster"] else group["label"]
-    image = f" | {group['image']}" if group["image"] else ""
-    return f"{os.environ.get('OPSGENIE_ALERT_PREFIX', 'Security Hub')} | {summary['priority']} | {scope}{image} | {summary['affected_resources']} resources"[:130]
+    prefix = os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub")
+    if group["cluster"] and group["nodepool"] and group["image"]:
+        action = f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
+    else:
+        title = summary["urgent_titles"][0][0] if summary["urgent_titles"] else group["label"]
+        resource = summary["sample_resource"].rsplit("/", 1)[-1]
+        action = f"Investigate {title}" + (f" on {resource}" if resource else "")
+    return f"{prefix} Security {summary['priority']}: {action}"[:130]
 
 
 def _securityhub_url(group):
@@ -164,13 +183,16 @@ def _securityhub_url(group):
 
 def _opsgenie_description(summary):
     group = summary["group"]
-    top = ", ".join(summary["vulnerability_ids"][:10]) or ", ".join(title for title, _ in summary["top_titles"])
+    top = ", ".join(summary["urgent_vulnerability_ids"][:10]) or ", ".join(title for title, _ in summary["urgent_titles"])
     return (
-        f"Remediation group: {group['label']}\n"
-        f"Active findings: {summary['active_count']} on {summary['affected_resources']} resources\n"
-        f"Vulnerabilities: {top}\n"
+        f"Action: {_opsgenie_message(summary)}\n"
+        f"Urgent findings: {summary['urgent_count']}; HIGH/CRITICAL findings: {summary['high_count']} ({summary['high_severities']})\n"
+        f"Affected resources: {summary['affected_resources']}\n"
+        f"Remediation target: {group['label']}\n"
+        f"Urgent vulnerabilities or controls: {top}\n"
+        f"Example resource: {summary['sample_resource'] or 'n/a'}\n"
         f"Security Hub: {_securityhub_url(group)}\n"
-        "Investigate the shared remediation target; do not treat a terminated node as a vulnerability fix."
+        "Patch the shared image or control; verify the finding resolves in Security Hub before closing this alert."
     )[:15000]
 
 
@@ -186,8 +208,9 @@ def _clear_urgent_claim(table, marker):
     table.update_item(
         TableName=os.environ["DELIVERY_TABLE_NAME"],
         Key={"finding_key": {"S": marker}},
-        UpdateExpression="REMOVE #state, #lease, #token",
-        ExpressionAttributeNames={"#state": "urgent_state", "#lease": "urgent_lease", "#token": "urgent_token"},
+        UpdateExpression="REMOVE #state, #lease, #token, #slack_state, #slack_lease, #slack_token",
+        ExpressionAttributeNames={"#state": "urgent_state", "#lease": "urgent_lease", "#token": "urgent_token",
+                                  "#slack_state": "urgent_slack_state", "#slack_lease": "urgent_slack_lease", "#slack_token": "urgent_slack_token"},
     )
 
 
@@ -216,25 +239,38 @@ def sync_opsgenie(table, summary, state, now):
                 _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
                 _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                 _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
-            _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority})
+            _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority,
+                                        "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
+                                        "opsgenie_urgent_signature": summary["urgent_signature"],
+                                        "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
         else:
+            reformat = state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION
+            changed_urgent = state.get("opsgenie_urgent_signature") != summary["urgent_signature"]
+            last_update = state.get("opsgenie_last_update_at")
+            daily_update = not last_update or now - _timestamp(last_update).timestamp() >= DAILY_SLACK_SECONDS
             if priority != state.get("opsgenie_priority"):
                 _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
-                _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
                 _set_fields(table, marker, {"opsgenie_priority": priority})
-                if priority == "P2":
-                    _clear_urgent_claim(table, marker)
-            if summary["new_count"] or str(summary["active_count"]) != state.get("opsgenie_active_count"):
+            if priority != state.get("opsgenie_priority") or reformat:
+                _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
+            if changed_urgent or daily_update or reformat or priority != state.get("opsgenie_priority"):
                 _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                 _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
-        _set_fields(table, marker, {"opsgenie_active_count": str(summary["active_count"])})
+                _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
+                                            "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                                            "opsgenie_active_count": str(summary["active_count"])})
+            if reformat:
+                _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
         return
-    if state.get("opsgenie_open") == "1" and now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS:
+    below_threshold = state.get("opsgenie_priority") == "P2"
+    if state.get("opsgenie_open") == "1" and (below_threshold or now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS):
         _ops_action("POST", path + "/close?identifierType=alias", {
             "user": "Security Hub grouped digest", "source": "AWS Security Hub",
-            "note": "No active HIGH/CRITICAL findings remain in this remediation group after the quiet period",
+            "note": ("Below paging threshold; all findings remain in Security Hub and the daily security brief"
+                     if below_threshold else "No active CRITICAL or exploitable HIGH findings remain after the quiet period"),
         })
-        _set_fields(table, marker, {"opsgenie_open": "0", "opsgenie_priority": "", "opsgenie_active_count": "0"})
+        _set_fields(table, marker, {"opsgenie_open": "0", "opsgenie_priority": "", "opsgenie_active_count": "0",
+                                    "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": ""})
         _clear_urgent_claim(table, marker)
 
 
@@ -271,6 +307,8 @@ def _slack_payload(summary, closing):
             "product": group["product"], "cluster": group["cluster"],
             "nodepool": group["nodepool"], "image": group["image"],
             "new_count": summary["new_count"], "new_severities": summary["new_severities"],
+            "routine_count": summary.get("routine_count", 0),
+            "routine_severities": summary.get("routine_severities", {}),
             "active_count": summary["active_count"], "active_severities": summary["active_severities"],
             "affected_resources": summary["affected_resources"],
             "vulnerability_count": len(summary["vulnerability_ids"]),
@@ -312,46 +350,72 @@ def _publish_slack(sns, summary, closing=False):
     )
 
 
+def _actionable(record):
+    return (record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}
+            and record["severity"] not in {"INFORMATIONAL", "UNKNOWN"}
+            and record.get("compliance_status") != "PASSED")
+
+
+def _batch_due(checkpoint, field, seconds, now):
+    previous = checkpoint.get(field)
+    return not previous or now - _timestamp(previous).timestamp() >= seconds
+
+
 def send_slack_batch(table, sns, groups, now, initial=False):
-    """Bound Slack noise to one message per run, even for fallback groups."""
+    """Send one daily brief with actionable groups and routine counts."""
     changed = []
     cleared = []
     close_keys = set()
     affected = []
+    actionable_new = []
+    routine_new = []
     states = {}
     for key, records in groups.items():
         summary = summarize_group(records)
         state = _get_item(table, "group#" + key)
         states[key] = state
-        closing = state.get("slack_open") == "1" and summary["cleared"] and now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS
+        selected = [record for record in records if record.get("pending") and _actionable(record)]
+        routine = [record for record in records if record.get("pending") and not _actionable(record)]
+        actionable_new.extend(selected)
+        routine_new.extend(routine)
+        closing = (state.get("slack_open") == "1" and not any(_actionable(record) for record in records)
+                   and now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS)
         if closing:
             cleared.append(summary["group"]["label"])
             close_keys.add(key)
-        if summary["new_count"] or closing:
-            changed.append({"label": summary["group"]["label"], "new": summary["new_count"], "active": summary["active_count"]})
-            affected.extend(records)
+        if selected or closing:
+            changed.append({"label": summary["group"]["label"], "new": len(selected), "active": summary["active_count"]})
+        if selected or routine or closing:
+            affected.extend({**record, "pending": record in selected} for record in records)
     if not affected:
         if initial:
             for key, records in groups.items():
-                if states[key].get("slack_open") != "1" and any(record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"} for record in records):
+                if states[key].get("slack_open") != "1" and any(_actionable(record) for record in records):
                     _set_fields(table, "group#" + key, {"slack_open": "1"})
         return False
     summary = summarize_group(affected)
+    summary["new_count"] = len(actionable_new)
+    summary["new_records"] = actionable_new
+    summary["new_severities"] = dict(collections.Counter(record["severity"] for record in actionable_new))
+    summary["routine_count"] = len(routine_new)
+    summary["routine_severities"] = dict(collections.Counter(record["severity"] for record in routine_new))
     first = summary["group"]
     summary["group"] = {
         **first,
-        "label": f"Security Hub baseline across {len(groups)} remediation groups" if initial else "Security Hub scheduled digest",
+        "label": f"Security Hub baseline across {len(groups)} remediation groups" if initial else "Security Hub daily brief",
         "account": first["account"] if len({record["account"] for record in affected}) == 1 else "multiple",
         "cluster": "", "nodepool": "", "image": "", "product": "Security Hub",
     }
     summary["groups_changed"] = sorted(changed, key=lambda item: (-item["new"], item["label"]))
     summary["groups_cleared"] = cleared
     summary["baseline"] = initial
+    summary["digest_kind"] = "daily"
     _publish_slack(sns, summary)
-    _acknowledge_new(table, summary["new_records"])
+    _acknowledge_new(table, actionable_new + routine_new)
+    _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
     for key, records in groups.items():
         state = states[key]
-        if any(record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"} for record in records):
+        if any(_actionable(record) for record in records):
             desired = "1"
         elif key in close_keys and state.get("slack_open") == "1":
             desired = "0"
@@ -364,7 +428,8 @@ def send_slack_batch(table, sns, groups, now, initial=False):
 
 def run(table, securityhub, sns, now=None):
     now = int(time.time() if now is None else now)
-    initial = not _get_item(table, "group#checkpoint").get("reconciled_through")
+    checkpoint_state = _get_item(table, "group#checkpoint")
+    initial = not checkpoint_state.get("reconciled_through")
     seen, changed, full = reconcile_findings(table, securityhub, now)
     groups = collections.defaultdict(list)
     for record in scan_findings(table):
@@ -380,7 +445,8 @@ def run(table, securityhub, sns, now=None):
         except Exception as error:
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)
-    sent += int(send_slack_batch(table, sns, groups, now, initial=initial))
+    if _batch_due(checkpoint_state, "last_daily_slack_at", DAILY_SLACK_SECONDS, now):
+        sent += int(send_slack_batch(table, sns, groups, now, initial=initial))
     remaining = MAX_LEGACY_MIGRATIONS_PER_RUN
     for key, records in groups.items():
         if remaining <= 0:
