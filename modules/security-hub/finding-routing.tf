@@ -37,9 +37,12 @@ module "high_severity_actions" {
   source = "../cloudwatch-alarm-actions"
   count  = local.finding_delivery_enabled ? 1 : 0
 
-  topic_name               = "${var.name}-high-severity-findings"
-  create_topic             = true
-  web_endpoints            = var.finding_delivery.opsgenie_endpoint == null ? [] : [var.finding_delivery.opsgenie_endpoint]
+  topic_name    = "${var.name}-high-severity-findings"
+  create_topic  = true
+  web_endpoints = var.finding_delivery.opsgenie_endpoint == null ? [] : [var.finding_delivery.opsgenie_endpoint]
+  slack_webhooks = [for index, webhook in var.alarm_actions.slack_webhooks : merge(webhook, {
+    instance_key = "security-high-${index}"
+  })]
   enable_dead_letter_queue = true
 }
 
