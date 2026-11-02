@@ -39,14 +39,14 @@ run "explicit_instance_key_survives_channel_change" {
     enable_dead_letter_queue = false
     slack_webhooks = [{
       hook_url     = sensitive("https://hooks.slack.com/services/example-security")
-      channel      = "project-spm-security-alerts"
+      channel      = "example-security-alerts"
       username     = "security-hub"
-      instance_key = "proejct-spm-monitoring-security-hub"
+      instance_key = "stable-security-webhook"
     }]
   }
 
   assert {
-    condition     = contains(keys(module.notify_slack), "proejct-spm-monitoring-security-hub") && !contains(keys(module.notify_slack), "project-spm-security-alerts-security-hub")
+    condition     = contains(keys(module.notify_slack), "stable-security-webhook") && !contains(keys(module.notify_slack), "example-security-alerts-security-hub")
     error_message = "Changing the channel must preserve the explicit Terraform instance key."
   }
 }

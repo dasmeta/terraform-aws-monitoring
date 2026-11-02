@@ -162,7 +162,7 @@ class GroupedFlowTests(unittest.TestCase):
             "GROUPED_DELIVERY_MODE": "true",
             "SLACK_TOPIC_ARN": "arn:aws:sns:eu-central-1:111122223333:security",
             "HIGH_TOPIC_ARN": "arn:aws:sns:eu-central-1:111122223333:opsgenie",
-            "OPSGENIE_ALERT_PREFIX": "SPM",
+            "OPSGENIE_ALERT_PREFIX": "Example",
         })
         self.env.start()
         self.addCleanup(self.env.stop)

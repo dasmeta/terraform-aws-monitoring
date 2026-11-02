@@ -133,9 +133,15 @@ resource "aws_sqs_queue" "eventbridge_failed_delivery" {
       condition = (
         try(split(":", local.delivery_failure_escalation_topic_arn)[3], "") == data.aws_region.current.name &&
         try(split(":", local.delivery_failure_escalation_topic_arn)[4], "") == data.aws_caller_identity.current.account_id &&
-        try(local.delivery_failure_escalation_topic_arn, "") != module.alarm_actions[0].topic_arn
+        try(local.delivery_failure_escalation_topic_arn, "") != module.alarm_actions[0].topic_arn &&
+        (
+          length(var.alarm_actions.slack_webhooks) +
+          length(var.alarm_actions.email_addresses) + length(var.alarm_actions.fallback_email_addresses) +
+          length(var.alarm_actions.phone_numbers) + length(var.alarm_actions.fallback_phone_numbers) +
+          length(var.alarm_actions.teams_webhooks)
+        ) > 0
       )
-      error_message = "Enabled Security Hub alerting requires a separate same-account/Region failure SNS topic."
+      error_message = "Enabled Security Hub alerting requires a separate same-account/Region failure SNS topic and at least one Slack, email, SMS, or Teams recipient for failure alarms."
     }
   }
 }

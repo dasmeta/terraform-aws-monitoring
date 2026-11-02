@@ -37,3 +37,23 @@ jobs:
       - name: Validate Terraform
         working-directory: ${{ matrix.path }}
         run: terraform validate -no-color
+      - name: Test Security Hub routing
+        if: matrix.path == 'modules/security-hub'
+        working-directory: ${{ matrix.path }}
+        run: terraform test -filter=tests/cspm_alerting.tftest.hcl -no-color
+      - name: Test sensitive Slack subscriptions
+        if: matrix.path == 'modules/cloudwatch-alarm-actions'
+        working-directory: ${{ matrix.path }}
+        run: terraform test -filter=tests/sensitive-slack.tftest.hcl -no-color
+
+  python-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install boto3
+      - name: Test Security Hub delivery and Slack formatting
+        run: python -m unittest discover -s tests -p 'test_*.py'

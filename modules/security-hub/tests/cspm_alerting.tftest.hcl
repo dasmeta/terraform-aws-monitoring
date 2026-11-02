@@ -107,7 +107,7 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       enabled               = true
       notification_mode     = "grouped"
       opsgenie_api_key      = sensitive("example-api-key")
-      opsgenie_alert_prefix = "SPM"
+      opsgenie_alert_prefix = "Example"
     }
   }
 
@@ -143,14 +143,14 @@ run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
       topic_name   = "example-security-alerts"
       slack_webhooks = [{
         hook_url = sensitive("https://hooks.slack.com/services/example")
-        channel  = "project-spm-security-alerts"
+        channel  = "example-security-alerts"
         username = "security-hub"
       }]
     }
     finding_delivery = {
       enabled               = true
       opsgenie_api_key      = sensitive("example-api-key")
-      opsgenie_alert_prefix = "SPM"
+      opsgenie_alert_prefix = "Example"
     }
   }
 
@@ -199,9 +199,10 @@ run "enabled_has_current_finding_filter_and_failure_capture" {
     macie                                  = { enabled = false }
     enabled_standards                      = []
     alarm_actions = {
-      enabled      = true
-      create_topic = false
-      topic_name   = "example-security-alerts"
+      enabled         = true
+      create_topic    = false
+      topic_name      = "example-security-alerts"
+      email_addresses = ["security@example.com"]
     }
   }
 
@@ -254,7 +255,7 @@ run "first_delivery_routes_all_severities_without_general_monitoring" {
       topic_name   = "example-security-alerts"
       slack_webhooks = [{
         hook_url = sensitive("https://hooks.slack.com/services/example")
-        channel  = "project-spm-security-alerts"
+        channel  = "example-security-alerts"
         username = "security-hub"
       }]
     }
@@ -299,9 +300,10 @@ run "create_separate_failure_topic_without_owner_metadata" {
     macie                                  = { enabled = false }
     enabled_standards                      = []
     alarm_actions = {
-      enabled      = true
-      create_topic = false
-      topic_name   = "example-security-alerts"
+      enabled         = true
+      create_topic    = false
+      topic_name      = "example-security-alerts"
+      email_addresses = ["security@example.com"]
     }
   }
 
@@ -314,4 +316,26 @@ run "create_separate_failure_topic_without_owner_metadata" {
     )
     error_message = "Alert delivery failures must use a separate module-owned SNS topic without client owner metadata."
   }
+}
+
+run "reject_delivery_failure_topic_without_recipients" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions = {
+      enabled      = true
+      create_topic = false
+      topic_name   = "example-security-alerts"
+    }
+  }
+
+  expect_failures = [aws_sqs_queue.eventbridge_failed_delivery]
 }

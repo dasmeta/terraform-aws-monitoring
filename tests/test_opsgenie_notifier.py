@@ -29,12 +29,12 @@ def finding(identifier):
 
 class NotifierTests(unittest.TestCase):
     def test_distinct_findings_have_distinct_aliases_and_bounded_title(self):
-        with patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": "SPM"}):
+        with patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": "Example"}):
             first = finding("one")
             second = finding("two")
             self.assertNotEqual(NOTIFIER.finding_alias(first), NOTIFIER.finding_alias(second))
             self.assertEqual(len(NOTIFIER.alert_message(first)), 130)
-            self.assertTrue(NOTIFIER.alert_message(first).startswith("SPM | HIGH | Inspector | "))
+            self.assertTrue(NOTIFIER.alert_message(first).startswith("Example | HIGH | Inspector | "))
 
     def test_create_and_close_use_same_alias_and_confirm_async_result(self):
         item = finding("one")
@@ -47,7 +47,7 @@ class NotifierTests(unittest.TestCase):
                 return {"data": {"isSuccess": True}}
             return {"requestId": "request-1"}
 
-        with patch.object(NOTIFIER, "_request", side_effect=request), patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": "SPM"}):
+        with patch.object(NOTIFIER, "_request", side_effect=request), patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": "Example"}):
             NOTIFIER.deliver(event)
             NOTIFIER.deliver({**event, "_dasmeta_opsgenie_action": "close"})
         self.assertEqual(calls[0][2]["alias"], NOTIFIER.finding_alias(item))
