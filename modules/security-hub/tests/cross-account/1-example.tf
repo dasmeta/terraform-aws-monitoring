@@ -3,8 +3,7 @@
 module "this" {
   source = "../../"
 
-  name             = "test-teams"
-  delivery_failure = var.delivery_failure
+  name = "test-teams"
 
   securityhub_members = {
     # email and account id

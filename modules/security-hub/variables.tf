@@ -26,10 +26,11 @@ variable "alarm_actions" {
     lambda_arns                      = optional(list(string), []) # List of Lambda function ARNs to invoke when Security Hub findings are received. Note: Lambda functions must be in the same region as the SNS topic
     fallback_lambda_arns             = optional(list(string), []) # List of fallback Lambda function ARNs when primary channels fail
     slack_webhooks = optional(list(object({
-      hook_url = string # Slack webhook URL
-      channel  = string # Slack channel name (e.g., "#security-alerts")
-      username = string # Bot username for Slack messages
-    })), [])            # List of Slack webhook configurations for sending notifications to Slack channels
+      hook_url     = string           # Slack webhook URL
+      channel      = string           # Slack channel name (e.g., "#security-alerts")
+      username     = string           # Bot username for Slack messages
+      instance_key = optional(string) # Stable, non-secret Terraform identity for the Slack destination
+    })), [])                          # List of Slack webhook configurations for sending notifications to Slack channels
     servicenow_webhooks = optional(list(object({
       domain = string                           # ServiceNow instance domain (e.g., "yourcompany.service-now.com")
       path   = string                           # API endpoint path
@@ -76,23 +77,31 @@ variable "alarm_actions" {
   description = "CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.)."
 }
 
-# Enabling alert actions now requires an independently owned failure path.
-variable "delivery_failure" {
-  description = "Required operator response for enabled Security Hub alert delivery: owner, same-account escalation SNS topic, and HTTPS drain/replay runbook."
+variable "finding_delivery" {
+  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time."
   type = object({
-    owner                = string
-    escalation_topic_arn = string
-    runbook_url          = string
+    enabled               = optional(bool, false)                        # Enable durable Security Hub finding delivery.
+    cutover_at            = optional(string)                             # UTC creation timestamp before which findings are ignored.
+    notification_mode     = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
+    opsgenie_endpoint     = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
+    opsgenie_api_key      = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
+    opsgenie_api_url      = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_alert_prefix = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
   })
-  default = null
+  default = {}
 
   validation {
-    condition = var.delivery_failure == null ? true : (
-      try(trimspace(var.delivery_failure.owner), "") != "" &&
-      can(regex("^arn:aws(-us-gov|-cn)?:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]+$", var.delivery_failure.escalation_topic_arn)) &&
-      can(regex("^https://[^ ]+$", var.delivery_failure.runbook_url))
+    condition = !var.finding_delivery.enabled || (
+      (var.finding_delivery.cutover_at == null || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.finding_delivery.cutover_at))) &&
+      contains(["per_finding", "grouped"], var.finding_delivery.notification_mode) &&
+      (var.finding_delivery.notification_mode != "grouped" || var.finding_delivery.opsgenie_api_key != null) &&
+      ((var.finding_delivery.opsgenie_endpoint != null) != (var.finding_delivery.opsgenie_api_key != null)) &&
+      (var.finding_delivery.opsgenie_endpoint == null || can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))) &&
+      (var.finding_delivery.opsgenie_api_key == null || try(length(trimspace(var.finding_delivery.opsgenie_api_key)) > 0, false)) &&
+      contains(["https://api.opsgenie.com", "https://api.eu.opsgenie.com"], var.finding_delivery.opsgenie_api_url) &&
+      try(length(trimspace(var.finding_delivery.opsgenie_alert_prefix)) > 0, false)
     )
-    error_message = "delivery_failure requires an owner, an exact SNS topic ARN, and an HTTPS drain/replay runbook."
+    error_message = "Enabled finding_delivery requires per_finding or grouped mode, an API key for grouped mode, exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."
   }
 }
 

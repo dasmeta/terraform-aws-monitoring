@@ -2,8 +2,7 @@
 module "this" {
   source = "../../"
 
-  name             = "test-teams"
-  delivery_failure = var.delivery_failure
+  name = "test-teams"
 
   alarm_actions = {
     enabled        = true

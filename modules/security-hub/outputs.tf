@@ -41,9 +41,9 @@ output "eventbridge_failed_delivery_alarm_arns" {
   ) : {}
 }
 
-output "delivery_failure_response" {
-  description = "Owner, escalation topic, and drain/replay runbook for Security Hub alert delivery failures"
-  value       = var.alarm_actions.enabled ? var.delivery_failure : null
+output "delivery_failure_topic_arn" {
+  description = "Dedicated SNS topic for Security Hub alert delivery failures"
+  value       = local.delivery_failure_escalation_topic_arn
 }
 
 output "alarm_actions" {

@@ -1,0 +1,163 @@
+"""Deliver Security Hub finding lifecycle events to the Opsgenie Alert API."""
+
+import hashlib
+import json
+import logging
+import os
+import time
+import urllib.parse
+import urllib.error
+import urllib.request
+
+
+LOG = logging.getLogger(__name__)
+LOG.setLevel(logging.INFO)
+
+
+def finding_alias(finding):
+    identity = "|".join((finding["AwsAccountId"], finding["ProductArn"], finding["Id"]))
+    return "securityhub-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def alert_message(finding):
+    parts = (
+        os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"),
+        finding.get("Severity", {}).get("Label", "UNKNOWN"),
+        finding.get("ProductName", "Security Hub"),
+        finding.get("Title", "Security finding"),
+    )
+    return " | ".join(parts)[:130]
+
+
+def _request(method, path, payload=None):
+    base = os.environ["OPSGENIE_API_URL"].rstrip("/")
+    request = urllib.request.Request(
+        base + path,
+        data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+        headers={
+            "Authorization": "GenieKey " + os.environ["OPSGENIE_API_KEY"],
+            "Content-Type": "application/json",
+        },
+        method=method,
+    )
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                body = json.loads(response.read())
+                if response.status not in (200, 202):
+                    raise RuntimeError(f"Opsgenie API returned HTTP {response.status}")
+                return body
+        except urllib.error.HTTPError as error:
+            # Permission propagation, rate limiting, and transient server
+            # failures must be retried; persistent failures reach the DLQ.
+            if error.code not in (403, 429, 500, 502, 503, 504) or attempt == 3:
+                raise
+            retry_after = error.headers.get("Retry-After") if error.headers else None
+            delay = float(retry_after) if retry_after and retry_after.isdigit() else 0.5 * (attempt + 1)
+            time.sleep(min(delay, 5))
+
+
+def _wait_for_request(request_id):
+    path = "/v2/alerts/requests/" + urllib.parse.quote(request_id, safe="")
+    for attempt in range(8):
+        try:
+            result = _request("GET", path)
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            result = {}
+        data = result.get("data", {})
+        if "isSuccess" in data:
+            if not data["isSuccess"]:
+                raise RuntimeError("Opsgenie rejected alert action: " + data.get("status", "unknown"))
+            return
+        time.sleep(min(0.25 * (attempt + 1), 1))
+    raise RuntimeError("Opsgenie alert action has no confirmed result")
+
+
+def deliver(message):
+    finding = message["detail"]["findings"][0]
+    if message.get("_dasmeta_group_urgent"):
+        from finding_router import _group_identity
+
+        group = message.get("_dasmeta_group") or _group_identity(finding)
+        alias = "securityhub-group-" + group["key"]
+        path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+        try:
+            existing = _request("GET", path + "?identifierType=alias").get("data")
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            existing = None
+        if existing and existing.get("priority") == "P1":
+            LOG.info("Opsgenie urgent group already has P1 priority: %s", alias)
+            return
+        if existing:
+            result = _request("PUT", path + "/priority?identifierType=alias", {"priority": "P1"})
+        else:
+            if group["cluster"] and group["nodepool"] and group["image"]:
+                action = f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
+            else:
+                resource = (finding.get("Resources") or [{}])[0].get("Id", "").rsplit("/", 1)[-1]
+                action = f"Investigate {finding.get('Title', 'Security finding')}" + (f" on {resource}" if resource else "")
+            result = _request("POST", "/v2/alerts", {
+                "message": f"{os.environ.get('OPSGENIE_ALERT_PREFIX', 'Security Hub')} Security P1: {action}"[:130],
+                "alias": alias,
+                "description": (
+                    f"Urgent Security Hub finding: {finding.get('Title', 'Security finding')}\n"
+                    f"Resource: {(finding.get('Resources') or [{}])[0].get('Id', 'unknown')}\n"
+                    f"Finding ID: {finding['Id']}\n"
+                    "The scheduled group digest will reconcile all affected resources."
+                )[:15000],
+                "priority": "P1",
+                "source": "AWS Security Hub",
+                "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
+                "details": {
+                    "AWS account": finding["AwsAccountId"],
+                    "Cluster": (group["cluster"] or "n/a")[:50],
+                    "Node pool": (group["nodepool"] or "n/a")[:50],
+                    "AMI": (group["image"] or "n/a")[:50],
+                },
+            })
+        request_id = result.get("requestId")
+        if not request_id:
+            raise RuntimeError("Opsgenie urgent group action returned no request ID")
+        _wait_for_request(request_id)
+        LOG.info("Opsgenie urgent group action confirmed for %s", alias)
+        return
+    alias = finding_alias(finding)
+    action = message.get("_dasmeta_opsgenie_action", "create")
+    if action == "close":
+        path = "/v2/alerts/" + urllib.parse.quote(alias, safe="") + "/close?identifierType=alias"
+        result = _request("POST", path, {
+            "user": "Security Hub finding router",
+            "source": "AWS Security Hub",
+            "note": "Finding resolved or archived in Security Hub",
+        })
+    elif action == "create":
+        severity = finding.get("Severity", {}).get("Label", "UNKNOWN")
+        result = _request("POST", "/v2/alerts", {
+            "message": alert_message(finding),
+            "alias": alias,
+            "description": (finding.get("Description") or "Security Hub finding")[:15000],
+            "priority": {"CRITICAL": "P1", "HIGH": "P2"}.get(severity, "P3"),
+            "source": "AWS Security Hub",
+            "details": {
+                "AWS account": finding["AwsAccountId"],
+                "Finding ID": finding["Id"],
+                "Product ARN": finding["ProductArn"],
+                "Record state": finding.get("RecordState", "UNKNOWN"),
+            },
+        })
+    else:
+        raise ValueError("Unknown Opsgenie action")
+    request_id = result.get("requestId")
+    if not request_id:
+        raise RuntimeError("Opsgenie action returned no request ID")
+    _wait_for_request(request_id)
+    LOG.info("Opsgenie %s confirmed for finding alias %s", action, alias)
+
+
+def lambda_handler(event, context):
+    for record in event.get("Records", []):
+        deliver(json.loads(record["Sns"]["Message"]))
