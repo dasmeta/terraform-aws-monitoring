@@ -77,26 +77,6 @@ variable "alarm_actions" {
   description = "CloudWatch Alarm Actions configuration for Security Hub findings notifications. When enabled, creates SNS topic and subscriptions for various notification channels (email, SMS, Slack, Teams, ServiceNow, Jira, etc.)."
 }
 
-# Enabling alert actions now requires an independently owned failure path.
-variable "delivery_failure" {
-  description = "Required operator response for enabled Security Hub alert delivery: owner, optional same-account escalation SNS topic for legacy routing, and HTTPS drain/replay runbook."
-  type = object({
-    owner                = string
-    escalation_topic_arn = optional(string)
-    runbook_url          = string
-  })
-  default = null
-
-  validation {
-    condition = var.delivery_failure == null ? true : (
-      try(trimspace(var.delivery_failure.owner), "") != "" &&
-      (var.delivery_failure.escalation_topic_arn == null || can(regex("^arn:aws(-us-gov|-cn)?:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_-]+$", var.delivery_failure.escalation_topic_arn))) &&
-      can(regex("^https://[^ ]+$", var.delivery_failure.runbook_url))
-    )
-    error_message = "delivery_failure requires an owner, an optional exact SNS topic ARN, and an HTTPS drain/replay runbook."
-  }
-}
-
 variable "finding_delivery" {
   description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time."
   type = object({

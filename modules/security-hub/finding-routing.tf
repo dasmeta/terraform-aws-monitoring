@@ -45,10 +45,13 @@ module "high_severity_actions" {
 
 module "security_failure_actions" {
   source = "../cloudwatch-alarm-actions"
-  count  = local.finding_delivery_enabled ? 1 : 0
+  count  = var.alarm_actions.enabled ? 1 : 0
 
-  topic_name   = "${var.name}-delivery-failures-alerts"
-  create_topic = true
+  topic_name      = "${var.name}-delivery-failures-alerts"
+  create_topic    = true
+  email_addresses = distinct(concat(var.alarm_actions.email_addresses, var.alarm_actions.fallback_email_addresses))
+  phone_numbers   = distinct(concat(var.alarm_actions.phone_numbers, var.alarm_actions.fallback_phone_numbers))
+  teams_webhooks  = var.alarm_actions.teams_webhooks
   slack_webhooks = [for index, webhook in var.alarm_actions.slack_webhooks : merge(webhook, {
     instance_key = "security-delivery-${index}"
   })]
@@ -249,7 +252,7 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_queue_nonempty" {
   } : {}
 
   alarm_name          = "${var.name}-${each.key}-delivery-dead-letter"
-  alarm_description   = "Security Hub ${each.key} delivery failed; ${var.delivery_failure.owner} investigates via ${var.delivery_failure.runbook_url}."
+  alarm_description   = "Security Hub ${each.key} delivery failed; inspect the destination dead-letter queue and subscription logs."
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
   dimensions          = { QueueName = each.value }
@@ -307,7 +310,7 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
   ) : {}
 
   alarm_name          = substr("${var.name}-${each.key}-new-failures", 0, 255)
-  alarm_description   = "New Security Hub ${each.key} delivery failure; ${var.delivery_failure.owner} investigates via ${var.delivery_failure.runbook_url}."
+  alarm_description   = "New Security Hub ${each.key} delivery failure; inspect the destination, subscription logs, and dead-letter queue."
   namespace           = each.value.namespace
   metric_name         = each.value.metric_name
   dimensions          = each.value.dimensions

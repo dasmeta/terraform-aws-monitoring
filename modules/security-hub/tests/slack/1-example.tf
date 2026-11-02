@@ -1,8 +1,7 @@
 module "this" {
   source = "../../"
 
-  name             = "sh-slack-test"
-  delivery_failure = var.delivery_failure
+  name = "sh-slack-test"
 
   alarm_actions = {
     enabled = true

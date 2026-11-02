@@ -131,13 +131,11 @@ resource "aws_sqs_queue" "eventbridge_failed_delivery" {
   lifecycle {
     precondition {
       condition = (
-        var.delivery_failure != null &&
         try(split(":", local.delivery_failure_escalation_topic_arn)[3], "") == data.aws_region.current.name &&
         try(split(":", local.delivery_failure_escalation_topic_arn)[4], "") == data.aws_caller_identity.current.account_id &&
-        try(local.delivery_failure_escalation_topic_arn, "") != module.alarm_actions[0].topic_arn &&
-        (!local.finding_delivery_enabled || length(var.alarm_actions.slack_webhooks) > 0)
+        try(local.delivery_failure_escalation_topic_arn, "") != module.alarm_actions[0].topic_arn
       )
-      error_message = "Enabled Security Hub alerting requires delivery_failure owner, a separate same-account/Region escalation topic, and a drain/replay runbook."
+      error_message = "Enabled Security Hub alerting requires a separate same-account/Region failure SNS topic."
     }
   }
 }
@@ -178,7 +176,7 @@ resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_delivery_queue_nonemp
   count = var.alarm_actions.enabled ? 1 : 0
 
   alarm_name          = "${var.name}-eventbridge-failures-queued"
-  alarm_description   = "Security Hub delivery failures await investigation by ${try(var.delivery_failure.owner, "unassigned")}; ${try(var.delivery_failure.runbook_url, "missing runbook")}."
+  alarm_description   = "Security Hub EventBridge delivery failed; inspect the failure queue and rule targets."
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
   dimensions          = { QueueName = aws_sqs_queue.eventbridge_failed_delivery[0].name }
@@ -188,14 +186,14 @@ resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_delivery_queue_nonemp
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1
   treat_missing_data  = "notBreaching"
-  alarm_actions       = var.delivery_failure == null ? [] : [local.delivery_failure_escalation_topic_arn]
+  alarm_actions       = [local.delivery_failure_escalation_topic_arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_delivery_metric" {
   for_each = local.security_hub_delivery_failure_metrics
 
   alarm_name          = "${var.name}-${each.key}"
-  alarm_description   = "Security Hub ${each.value.metric}; ${try(var.delivery_failure.owner, "unassigned")} investigates and replays via ${try(var.delivery_failure.runbook_url, "missing runbook")}."
+  alarm_description   = "Security Hub ${each.value.metric}; inspect the EventBridge rule, target, and failure queue."
   namespace           = "AWS/Events"
   metric_name         = each.value.metric
   dimensions          = { RuleName = each.value.rule_name }
@@ -205,5 +203,5 @@ resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_delivery_metric" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1
   treat_missing_data  = "notBreaching"
-  alarm_actions       = var.delivery_failure == null ? [] : [local.delivery_failure_escalation_topic_arn]
+  alarm_actions       = [local.delivery_failure_escalation_topic_arn]
 }

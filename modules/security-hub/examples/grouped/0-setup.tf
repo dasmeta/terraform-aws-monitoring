@@ -29,8 +29,3 @@ variable "security_opsgenie_api_key" {
   sensitive   = true
   description = "Opsgenie Alert API integration key with create, update, read, and close permissions."
 }
-
-variable "security_runbook_url" {
-  type        = string
-  description = "HTTPS runbook for security delivery failure investigation and replay."
-}

@@ -19,8 +19,4 @@ module "security_hub" {
     opsgenie_alert_prefix = "Example"
   }
 
-  delivery_failure = {
-    owner       = "security-operations"
-    runbook_url = var.security_runbook_url
-  }
 }

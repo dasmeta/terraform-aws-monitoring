@@ -109,10 +109,6 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       opsgenie_api_key      = sensitive("example-api-key")
       opsgenie_alert_prefix = "SPM"
     }
-    delivery_failure = {
-      owner       = "security-operations"
-      runbook_url = "https://example.com/runbooks/security-hub-delivery"
-    }
   }
 
   assert {
@@ -155,10 +151,6 @@ run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
       enabled               = true
       opsgenie_api_key      = sensitive("example-api-key")
       opsgenie_alert_prefix = "SPM"
-    }
-    delivery_failure = {
-      owner       = "security-operations"
-      runbook_url = "https://example.com/runbooks/security-hub-delivery"
     }
   }
 
@@ -211,11 +203,6 @@ run "enabled_has_current_finding_filter_and_failure_capture" {
       create_topic = false
       topic_name   = "example-security-alerts"
     }
-    delivery_failure = {
-      owner                = "security-operations"
-      escalation_topic_arn = "arn:aws:sns:eu-central-1:111122223333:security-escalation"
-      runbook_url          = "https://example.com/runbooks/security-hub-delivery"
-    }
   }
 
   assert {
@@ -238,12 +225,12 @@ run "enabled_has_current_finding_filter_and_failure_capture" {
       aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric["manual-InvocationsSentToDlq"].dimensions.RuleName == aws_cloudwatch_event_rule.manual_alerts[0].name &&
       aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].metric_name == "ApproximateNumberOfMessagesVisible" &&
       length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions) == 1 &&
-      contains(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions, var.delivery_failure.escalation_topic_arn) &&
+      contains(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions, module.security_failure_actions[0].topic_arn) &&
       length(output.eventbridge_failed_delivery_alarm_arns) == 5 &&
       output.eventbridge_failed_delivery_queue_arn == aws_sqs_queue.eventbridge_failed_delivery[0].arn &&
       output.eventbridge_failed_delivery_queue_url == aws_sqs_queue.eventbridge_failed_delivery[0].url &&
       output.manual_eventbridge_rule_arn == aws_cloudwatch_event_rule.manual_alerts[0].arn &&
-      output.delivery_failure_response.owner == "security-operations"
+      output.delivery_failure_topic_arn == module.security_failure_actions[0].topic_arn
     )
     error_message = "Enabled critical/high alerting must filter unresolved findings and retain failed deliveries for both targets."
   }
@@ -275,10 +262,6 @@ run "first_delivery_routes_all_severities_without_general_monitoring" {
       enabled           = true
       opsgenie_endpoint = sensitive("https://api.opsgenie.com/v1/json/integrations/webhooks/amazonsecurityhub?apiKey=example")
     }
-    delivery_failure = {
-      owner       = "security-operations"
-      runbook_url = "https://example.com/runbooks/security-hub-delivery"
-    }
   }
 
   assert {
@@ -303,7 +286,7 @@ run "first_delivery_routes_all_severities_without_general_monitoring" {
   }
 }
 
-run "reject_enabled_alerting_without_failure_owner" {
+run "create_separate_failure_topic_without_owner_metadata" {
   command = plan
 
   variables {
@@ -322,32 +305,13 @@ run "reject_enabled_alerting_without_failure_owner" {
     }
   }
 
-  expect_failures = [aws_sqs_queue.eventbridge_failed_delivery]
-}
-
-run "reject_shared_failure_escalation_topic" {
-  command = plan
-
-  variables {
-    name                                   = "example-security-hub"
-    enable_security_hub                    = false
-    enable_security_hub_finding_aggregator = false
-    config                                 = { enabled = false }
-    inspector                              = { enabled = false }
-    guardduty                              = { enabled = false }
-    macie                                  = { enabled = false }
-    enabled_standards                      = []
-    alarm_actions = {
-      enabled      = true
-      create_topic = false
-      topic_name   = "example-security-alerts"
-    }
-    delivery_failure = {
-      owner                = "security-operations"
-      escalation_topic_arn = "arn:aws:sns:eu-central-1:111122223333:example-security-alerts"
-      runbook_url          = "https://example.com/runbooks/security-hub-delivery"
-    }
+  assert {
+    condition = (
+      length(module.security_failure_actions) == 1 &&
+      module.security_failure_actions[0].topic_arn != module.alarm_actions[0].topic_arn &&
+      contains(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty[0].alarm_actions, module.security_failure_actions[0].topic_arn) &&
+      output.delivery_failure_topic_arn == module.security_failure_actions[0].topic_arn
+    )
+    error_message = "Alert delivery failures must use a separate module-owned SNS topic without client owner metadata."
   }
-
-  expect_failures = [aws_sqs_queue.eventbridge_failed_delivery]
 }
