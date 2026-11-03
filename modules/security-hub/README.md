@@ -32,6 +32,19 @@ By default, Config and Inspector are enabled (`config.enabled = true`, `inspecto
 
 When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the same EC2 instance and AMI, ECR repository and image digest, or Lambda function version share one remediation group and one immediate urgent notification claim. Tagged EKS node-pool AMIs keep their existing shared group. Findings without a stable resource identity remain separate. A finding already recorded in the delivery ledger keeps its original group for the rest of that finding's lifecycle; the corrected grouping applies to newly recorded findings.
 
+### Microsoft Teams destinations
+
+Set `finding_delivery.teams_webhooks` to one or more Teams webhook URLs and select `finding_delivery.teams_delivery`:
+
+| Value | Teams receives |
+| --- | --- |
+| `none` (default) | No new Teams subscription |
+| `slack` | Normal finding, digest, and urgent messages from the Slack topic |
+| `opsgenie` | Urgent messages from the high-severity Opsgenie topic |
+| `both` | Both topic streams |
+
+For `both`, the same urgent finding reaches the webhook through both topics and produces two Teams messages. The configured Teams webhook also receives delivery-failure alarms. Existing `alarm_actions.teams_webhooks` subscriptions continue to work and require no migration. Keep webhook URLs in sensitive variables.
+
 ## 🌍 Multi-Region Support and Finding Aggregation
 
 ### Region-Specific Services

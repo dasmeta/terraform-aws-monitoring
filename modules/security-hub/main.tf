@@ -93,7 +93,7 @@ module "alarm_actions" {
   fallback_lambda_arns     = var.alarm_actions.fallback_lambda_arns
   slack_webhooks           = var.alarm_actions.slack_webhooks
   servicenow_webhooks      = var.alarm_actions.servicenow_webhooks
-  teams_webhooks           = var.alarm_actions.teams_webhooks
+  teams_webhooks           = distinct(concat(var.alarm_actions.teams_webhooks, local.finding_teams_to_slack))
   jira_config              = var.alarm_actions.jira_config
   log_group_retention_days = var.alarm_actions.log_group_retention_days
   enable_dead_letter_queue = var.alarm_actions.enable_dead_letter_queue

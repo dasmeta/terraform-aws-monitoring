@@ -25,7 +25,7 @@ module "fallback-topic" {
   source  = "dasmeta/sns/aws//modules/topic"
   version = "1.2.7"
 
-  count = length(var.teams_webhooks) > 0 || length(var.slack_webhooks) > 0 || length(var.servicenow_webhooks) > 0 ? 1 : 0
+  count = local.teams_webhook_count > 0 || length(var.slack_webhooks) > 0 || length(var.servicenow_webhooks) > 0 ? 1 : 0
 
   name            = "fallback-${var.topic_name}"
   delivery_policy = var.delivery_policy

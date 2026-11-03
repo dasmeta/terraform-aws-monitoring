@@ -2,6 +2,7 @@ data "aws_region" "current" {}
 
 locals {
   slack_webhooks_by_name = { for webhook in var.slack_webhooks : coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}") => webhook }
+  teams_webhook_count    = try(nonsensitive(length(var.teams_webhooks)), length(var.teams_webhooks))
 }
 
 # slack notify subscription
@@ -67,7 +68,7 @@ module "notify_servicenow" {
 module "notify_teams" {
   source = "./modules/lambda-subscription"
 
-  for_each = { for key, webhook in var.teams_webhooks : key => webhook }
+  for_each = { for index in range(local.teams_webhook_count) : tostring(index) => index }
 
   # sns/subscription configs
   sns_topic_name          = module.topic.name
@@ -83,7 +84,7 @@ module "notify_teams" {
   ]
 
   environment_variables = {
-    WEBHOOK_URL = sensitive(each.value)
+    WEBHOOK_URL = sensitive(var.teams_webhooks[each.value])
     REGION      = data.aws_region.current.name
     LOG_LEVEL   = var.log_level
   }

@@ -40,6 +40,7 @@ module "high_severity_actions" {
   topic_name               = "${var.name}-high-severity-findings"
   create_topic             = true
   web_endpoints            = var.finding_delivery.opsgenie_endpoint == null ? [] : [var.finding_delivery.opsgenie_endpoint]
+  teams_webhooks           = local.finding_teams_to_opsgenie
   enable_dead_letter_queue = true
 }
 
@@ -51,7 +52,7 @@ module "security_failure_actions" {
   create_topic    = true
   email_addresses = distinct(concat(var.alarm_actions.email_addresses, var.alarm_actions.fallback_email_addresses))
   phone_numbers   = distinct(concat(var.alarm_actions.phone_numbers, var.alarm_actions.fallback_phone_numbers))
-  teams_webhooks  = var.alarm_actions.teams_webhooks
+  teams_webhooks  = distinct(concat(var.alarm_actions.teams_webhooks, var.finding_delivery.teams_webhooks))
   slack_webhooks = [for index, webhook in var.alarm_actions.slack_webhooks : merge(webhook, {
     instance_key = "security-delivery-${index}"
   })]

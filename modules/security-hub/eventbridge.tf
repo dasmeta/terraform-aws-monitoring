@@ -138,7 +138,7 @@ resource "aws_sqs_queue" "eventbridge_failed_delivery" {
           length(var.alarm_actions.slack_webhooks) +
           length(var.alarm_actions.email_addresses) + length(var.alarm_actions.fallback_email_addresses) +
           length(var.alarm_actions.phone_numbers) + length(var.alarm_actions.fallback_phone_numbers) +
-          length(var.alarm_actions.teams_webhooks)
+          length(var.alarm_actions.teams_webhooks) + length(var.finding_delivery.teams_webhooks)
         ) > 0
       )
       error_message = "Enabled Security Hub alerting requires a separate same-account/Region failure SNS topic and at least one Slack, email, SMS, or Teams recipient for failure alarms."

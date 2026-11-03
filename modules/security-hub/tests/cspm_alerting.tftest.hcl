@@ -339,3 +339,87 @@ run "reject_delivery_failure_topic_without_recipients" {
 
   expect_failures = [aws_sqs_queue.eventbridge_failed_delivery]
 }
+
+run "teams_follow_normal_slack_stream" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "slack"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 1 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 0
+    error_message = "Slack Teams mode must subscribe only to the normal topic."
+  }
+}
+
+run "teams_follow_urgent_opsgenie_stream" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "opsgenie"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 0 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 1
+    error_message = "Opsgenie Teams mode must subscribe only to the urgent topic."
+  }
+}
+
+run "teams_follow_both_streams" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "both"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 1 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 1
+    error_message = "Both Teams mode must subscribe to both topics."
+  }
+}

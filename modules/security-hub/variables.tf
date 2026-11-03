@@ -78,7 +78,7 @@ variable "alarm_actions" {
 }
 
 variable "finding_delivery" {
-  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time."
+  description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time. Optional Teams webhooks can follow the Slack topic, Opsgenie topic, or both."
   type = object({
     enabled               = optional(bool, false)                        # Enable durable Security Hub finding delivery.
     cutover_at            = optional(string)                             # UTC creation timestamp before which findings are ignored.
@@ -87,6 +87,8 @@ variable "finding_delivery" {
     opsgenie_api_key      = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
     opsgenie_api_url      = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
     opsgenie_alert_prefix = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
+    teams_delivery        = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
+    teams_webhooks        = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
   })
   default = {}
 
@@ -102,6 +104,14 @@ variable "finding_delivery" {
       try(length(trimspace(var.finding_delivery.opsgenie_alert_prefix)) > 0, false)
     )
     error_message = "Enabled finding_delivery requires per_finding or grouped mode, an API key for grouped mode, exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."
+  }
+
+  validation {
+    condition = contains(["none", "slack", "opsgenie", "both"], var.finding_delivery.teams_delivery) && (
+      var.finding_delivery.teams_delivery == "none" ? length(var.finding_delivery.teams_webhooks) == 0 :
+      var.finding_delivery.enabled && length(var.finding_delivery.teams_webhooks) > 0
+    )
+    error_message = "Teams delivery requires none with no webhooks, or slack, opsgenie, or both with enabled finding delivery and at least one Teams webhook."
   }
 }
 
