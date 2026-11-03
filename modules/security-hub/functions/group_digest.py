@@ -89,11 +89,13 @@ def reconcile_findings(table, securityhub, now):
 
 def scan_findings(table):
     items = []
+    active_markers = set()
+    closed_markers = set()
     token = None
     while True:
         request = {
             "TableName": os.environ["DELIVERY_TABLE_NAME"],
-            "ProjectionExpression": "notification_kind, notification_payload, notification_pending, notification_updated_at, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated",
+            "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_updated_at, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, superseded_group_closed",
             "ConsistentRead": True,
         }
         if token:
@@ -101,6 +103,13 @@ def scan_findings(table):
         page = table.scan(**request)
         for item in page.get("Items", []):
             row = _decode(item)
+            marker = row.get("finding_key", "")
+            if marker.startswith("group#"):
+                if row.get("opsgenie_open") == "1" or row.get("urgent_state") == "SENT":
+                    active_markers.add(marker.removeprefix("group#"))
+                if row.get("superseded_group_closed") == "1":
+                    closed_markers.add(marker.removeprefix("group#"))
+                continue
             if row.get("notification_kind") != "finding":
                 continue
             record = json.loads(row["notification_payload"])
@@ -113,7 +122,11 @@ def scan_findings(table):
                 raise RuntimeError("Security Hub finding ledger exceeded 100000 items; partition the digest before continuing")
         token = page.get("LastEvaluatedKey")
         if not token:
-            return items
+            return items, active_markers, closed_markers
+
+
+def _needs_opsgenie_sync(summary, key, active_markers):
+    return bool(summary["priority"] or key in active_markers)
 
 
 def summarize_group(records):
@@ -204,6 +217,28 @@ def _ops_action(method, path, payload):
     _wait_for_request(request_id)
 
 
+def _close_opsgenie_alias(alias, note):
+    path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+    try:
+        alert = _request("GET", path + "?identifierType=alias").get("data")
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+        return
+    if not alert or alert.get("status") == "closed":
+        return
+    _ops_action("POST", path + "/close?identifierType=alias", {
+        "user": "Security Hub grouped digest", "source": "AWS Security Hub", "note": note,
+    })
+
+
+def _ensure_opsgenie_priority(alias, priority):
+    path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+    alert = _request("GET", path + "?identifierType=alias").get("data") or {}
+    if alert.get("priority") != priority:
+        _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
+
+
 def _clear_urgent_claim(table, marker):
     table.update_item(
         TableName=os.environ["DELIVERY_TABLE_NAME"],
@@ -222,6 +257,8 @@ def sync_opsgenie(table, summary, state, now):
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
     if priority:
+        if state.get("opsgenie_no_urgent_since"):
+            _set_fields(table, marker, {"opsgenie_no_urgent_since": ""})
         if state.get("opsgenie_open") != "1":
             _ops_action("POST", "/v2/alerts", {
                 "message": _opsgenie_message(summary),
@@ -232,14 +269,16 @@ def sync_opsgenie(table, summary, state, now):
                 "tags": ["securityhub-grouped", summary["group"]["product"].lower().replace(" ", "-")],
                 "details": _opsgenie_details(summary),
             })
+            # Record confirmed creation before optional enrichment. A failed
+            # update then retries the update, not the create notification.
+            _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority})
             if state.get("urgent_state") == "SENT":
                 # An immediate P1 action may already have created this alias.
                 # Enrich it with the complete group on the first reconciliation.
                 _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
                 _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                 _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
-            _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority,
-                                        "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
+            _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
                                         "opsgenie_urgent_signature": summary["urgent_signature"],
                                         "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
         else:
@@ -248,7 +287,7 @@ def sync_opsgenie(table, summary, state, now):
             last_update = state.get("opsgenie_last_update_at")
             daily_update = not last_update or now - _timestamp(last_update).timestamp() >= DAILY_SLACK_SECONDS
             if priority != state.get("opsgenie_priority"):
-                _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
+                _ensure_opsgenie_priority(alias, priority)
                 _set_fields(table, marker, {"opsgenie_priority": priority})
             if priority != state.get("opsgenie_priority") or reformat:
                 _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
@@ -262,14 +301,19 @@ def sync_opsgenie(table, summary, state, now):
                 _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
         return
     below_threshold = state.get("opsgenie_priority") == "P2"
-    if state.get("opsgenie_open") == "1" and (below_threshold or now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS):
-        _ops_action("POST", path + "/close?identifierType=alias", {
-            "user": "Security Hub grouped digest", "source": "AWS Security Hub",
-            "note": ("Below paging threshold; all findings remain in Security Hub and the daily security brief"
-                     if below_threshold else "No active CRITICAL or exploitable HIGH findings remain after the quiet period"),
-        })
+    if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
+        quiet_since = state.get("opsgenie_no_urgent_since")
+        if not below_threshold and not quiet_since:
+            _set_fields(table, marker, {"opsgenie_no_urgent_since": datetime.fromtimestamp(now, timezone.utc).isoformat()})
+            return
+        if not below_threshold and now - _timestamp(quiet_since).timestamp() < QUIET_CLOSE_SECONDS:
+            return
+        _close_opsgenie_alias(alias,
+            "Below paging threshold; all findings remain in Security Hub and the daily security brief"
+            if below_threshold else "No active CRITICAL or exploitable HIGH findings remain after the quiet period")
         _set_fields(table, marker, {"opsgenie_open": "0", "opsgenie_priority": "", "opsgenie_active_count": "0",
-                                    "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": ""})
+                                    "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": "",
+                                    "opsgenie_no_urgent_since": ""})
         _clear_urgent_claim(table, marker)
 
 
@@ -298,9 +342,10 @@ def migrate_legacy_alerts(table, records, summary, limit=MAX_LEGACY_MIGRATIONS_P
     return moved
 
 
-def migrate_previous_groups(table, groups):
+def migrate_previous_groups(table, groups, closed_markers=None):
     """Close a stale fallback alert after its new remediation group is open."""
     active_keys = set(groups)
+    closed_markers = closed_markers or set()
     moved = 0
     for key, records in groups.items():
         old_keys = {record.get("previous_group_key") for record in records}
@@ -310,21 +355,15 @@ def migrate_previous_groups(table, groups):
         if _get_item(table, "group#" + key).get("opsgenie_open") != "1":
             continue
         for old_key in old_keys - active_keys:
+            if old_key in closed_markers:
+                continue
             marker = "group#" + old_key
             state = _get_item(table, marker)
             if state.get("superseded_group_closed") == "1":
                 continue
             if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
-                alias = "securityhub-group-" + old_key
-                path = "/v2/alerts/" + urllib.parse.quote(alias, safe="") + "/close?identifierType=alias"
-                try:
-                    _ops_action("POST", path, {
-                        "user": "Security Hub grouped digest", "source": "AWS Security Hub",
-                        "note": "Replaced by a remediation-group alert for the same resource",
-                    })
-                except urllib.error.HTTPError as error:
-                    if error.code != 404:
-                        raise
+                _close_opsgenie_alias("securityhub-group-" + old_key,
+                                      "Replaced by a remediation-group alert for the same resource")
             _set_fields(table, marker, {"opsgenie_open": "0", "superseded_group_closed": "1"})
             moved += 1
     return moved
@@ -468,13 +507,16 @@ def run(table, securityhub, sns, now=None):
     initial = not checkpoint_state.get("reconciled_through")
     seen, changed, full = reconcile_findings(table, securityhub, now)
     groups = collections.defaultdict(list)
-    for record in scan_findings(table):
+    records, active_markers, closed_markers = scan_findings(table)
+    for record in records:
         groups[record["group"]["key"]].append(record)
     sent = 0
     migrated = 0
     failures = []
     for key, records in groups.items():
         summary = summarize_group(records)
+        if not _needs_opsgenie_sync(summary, key, active_markers):
+            continue
         state = _get_item(table, "group#" + key)
         try:
             sync_opsgenie(table, summary, state, now)
@@ -495,7 +537,7 @@ def run(table, securityhub, sns, now=None):
             LOG.exception("Opsgenie legacy migration failed for %s", key)
             failures.append(error)
     try:
-        migrated += migrate_previous_groups(table, groups)
+        migrated += migrate_previous_groups(table, groups, closed_markers)
     except Exception as error:
         LOG.exception("Opsgenie fallback-group migration failed")
         failures.append(error)

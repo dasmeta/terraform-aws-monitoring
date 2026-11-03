@@ -6,20 +6,28 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
   name        = "${var.name}-automated-trigger"
   description = "EventBridge rule for automated Security Hub findings - captures CRITICAL and HIGH severity findings for Networking, IAM, and EC2/EKS vulnerabilities"
 
-  # Legacy callers retain the HIGH/CRITICAL filter. Opt-in routing sends all
-  # active findings to a durable per-destination router, which selects Opsgenie
-  # only for HIGH/CRITICAL and suppresses repeated scan updates.
+  # Grouped mode routes only potentially urgent findings immediately; its
+  # scheduled digest reconciles routine and resolved findings. Per-finding API
+  # mode retains all events so it can deliver finding resolutions.
   event_pattern = jsonencode(merge({
     "source" : ["aws.securityhub"],
     "detail-type" : ["Security Hub Findings - Imported"],
-    }, local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null) ? {} : {
+    }, local.grouped_delivery_enabled ? {
+    "detail" : {
+      "findings" : {
+        "RecordState" : ["ACTIVE"],
+        "Workflow" : { "Status" : ["NEW", "NOTIFIED"] },
+        "Severity" : { "Label" : ["CRITICAL", "HIGH"] }
+      }
+    }
+    } : {}, !local.grouped_delivery_enabled && !(local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null)) ? {
     "detail" : {
       "findings" : merge({
         "RecordState" : ["ACTIVE"],
         "Workflow" : { "Status" : ["NEW", "NOTIFIED"] }
       }, local.finding_delivery_enabled ? {} : { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } })
     }
-  }))
+  } : {}))
 }
 
 # EventBridge target for automated findings notifications via SNS (alarm_actions module)

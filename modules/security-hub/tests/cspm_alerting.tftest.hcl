@@ -118,10 +118,15 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       aws_cloudwatch_event_rule.finding_group_digest[0].schedule_expression == "rate(15 minutes)" &&
       length(aws_cloudwatch_event_target.finding_group_digest) == 1 &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].metric_name == "Errors" &&
+      length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 1 &&
+      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 240000 &&
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
-      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail")
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.RecordState, "ACTIVE") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Workflow.Status, "NEW") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Severity.Label, "HIGH") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Severity.Label, "CRITICAL")
     )
-    error_message = "Grouped mode must reconcile all finding severities and monitor scheduled digest delivery."
+    error_message = "Grouped mode must route urgent findings immediately, reconcile routine findings on schedule, and monitor digest delivery."
   }
 }
 
@@ -159,6 +164,7 @@ run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
       length(module.opsgenie_api_notifier) == 1 &&
       length(aws_sns_topic_subscription.opsgenie_api) == 1 &&
       length(aws_cloudwatch_event_target.automated_alerts_router) == 1 &&
+      length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 0 &&
       !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail") &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["opsgenie-api-lambda"].metric_name == "Errors"
     )
@@ -181,7 +187,7 @@ run "disabled_has_no_delivery_target_or_queue" {
   }
 
   assert {
-    condition     = length(aws_cloudwatch_event_target.automated_alerts_sns) == 0 && length(aws_sqs_queue.eventbridge_failed_delivery) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric) == 0
+    condition     = length(aws_cloudwatch_event_target.automated_alerts_sns) == 0 && length(aws_sqs_queue.eventbridge_failed_delivery) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric) == 0 && length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 0
     error_message = "Disabled alerting must create neither an SNS target nor a delivery failure queue."
   }
 }

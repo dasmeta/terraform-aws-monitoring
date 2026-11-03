@@ -30,7 +30,11 @@ By default, Config and Inspector are enabled (`config.enabled = true`, `inspecto
 
 ### Grouped Inspector notifications
 
-When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the same EC2 instance and AMI, ECR repository and image digest, or Lambda function version share one remediation group and one immediate urgent notification claim. Tagged EKS node-pool AMIs keep their existing shared group. Findings without a stable resource identity remain separate. A finding already recorded in the delivery ledger keeps its original group for the rest of that finding's lifecycle; the corrected grouping applies to newly recorded findings.
+When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the same EC2 instance and AMI, ECR repository and image digest, or Lambda function version share one remediation group and one immediate urgent notification claim. Tagged EKS node-pool AMIs keep their existing shared group. Findings without a stable resource identity remain separate. Previously recorded finding-specific fallback groups move to a stable remediation group when the finding is reconciled; the old alert closes after the replacement group opens.
+
+The immediate EventBridge router receives active HIGH and CRITICAL findings. It pages for CRITICAL or exploitable HIGH findings once per group. The scheduled digest reconciles all severities and resolved findings every 15 minutes, sends one daily Slack brief, and closes an Opsgenie alert after a full hour without urgent findings. Routine updates do not extend that quiet hour. Grouped delivery keeps a DynamoDB record for each finding. A duration alarm warns through the delivery-failure topic when a digest takes 240 seconds, before its 300-second timeout. Monitor ledger growth against the current 100,000-finding digest limit.
+
+Slack incoming webhooks post to the channel selected when the webhook was created. The `channel` field in `alarm_actions.slack_webhooks` names the module's subscription but cannot redirect a modern webhook. Create the webhook for the intended channel; see [Slack's incoming webhook documentation](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/).
 
 ### Microsoft Teams destinations
 
@@ -39,7 +43,7 @@ Set `finding_delivery.teams_webhooks` to one or more Teams webhook URLs and sele
 | Value | Teams receives |
 | --- | --- |
 | `none` (default) | No new Teams subscription |
-| `slack` | Normal finding, digest, and urgent messages from the Slack topic |
+| `slack` | Daily routine brief and immediate urgent messages from the Slack topic |
 | `opsgenie` | Urgent messages from the high-severity Opsgenie topic |
 | `both` | Both topic streams |
 

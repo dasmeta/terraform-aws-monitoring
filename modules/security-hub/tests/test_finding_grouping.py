@@ -7,6 +7,7 @@ import os
 import pathlib
 import sys
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 
@@ -73,16 +74,54 @@ class InspectorGroupingTests(unittest.TestCase):
             digest.sync_opsgenie(object(), summary, {"urgent_state": "SENT"}, 1793698200)
         self.assertFalse(any("/priority?" in call.args[1] for call in action.call_args_list))
 
+    def test_partial_enrichment_retries_without_recreating_alert(self):
+        summary = {"group": {"key": "group", "product": "Inspector"}, "priority": "P1",
+                   "urgent_signature": "signature", "active_count": 2}
+        with patch.object(digest, "_ops_action", side_effect=[None, RuntimeError("update failed")]), \
+             patch.object(digest, "_set_fields") as set_fields, \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"):
+            with self.assertRaisesRegex(RuntimeError, "update failed"):
+                digest.sync_opsgenie(object(), summary, {"urgent_state": "SENT"}, 1793698200)
+        self.assertEqual(len(set_fields.call_args_list), 1)
+        self.assertEqual(set_fields.call_args.args[2], {"opsgenie_open": "1", "opsgenie_priority": "P1"})
+
+    def test_priority_reconciliation_reads_remote_before_updating(self):
+        with patch.object(digest, "_request", return_value={"data": {"priority": "P1"}}), \
+             patch.object(digest, "_ops_action") as action:
+            digest._ensure_opsgenie_priority("securityhub-group-test", "P1")
+        action.assert_not_called()
+        with patch.object(digest, "_request", return_value={"data": {"priority": "P2"}}), \
+             patch.object(digest, "_ops_action") as action:
+            digest._ensure_opsgenie_priority("securityhub-group-test", "P1")
+        self.assertIn("/priority?", action.call_args.args[1])
+
+    def test_closing_missing_alias_is_idempotent(self):
+        missing = urllib.error.HTTPError("https://example.test", 404, "missing", {}, None)
+        with patch.object(digest, "_request", side_effect=missing), \
+             patch.object(digest, "_ops_action") as action:
+            digest._close_opsgenie_alias("securityhub-group-test", "cleared")
+        action.assert_not_called()
+
     def test_superseded_group_closes_after_replacement_opens(self):
         groups = {"new-group": [{"previous_group_key": "old-group"}]}
         def get_item(_table, key):
             return {"opsgenie_open": "1"} if key == "group#new-group" else {"urgent_state": "SENT"}
         with patch.object(digest, "_get_item", side_effect=get_item), \
-             patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_close_opsgenie_alias") as close, \
              patch.object(digest, "_set_fields") as set_fields:
             self.assertEqual(digest.migrate_previous_groups(object(), groups), 1)
-        self.assertIn("securityhub-group-old-group/close", action.call_args.args[1])
+        self.assertEqual(close.call_args.args[0], "securityhub-group-old-group")
         self.assertEqual(set_fields.call_args.args[1], "group#old-group")
+
+    def test_closed_legacy_group_is_skipped_without_another_read(self):
+        groups = {"new-group": [{"previous_group_key": "old-group"}]}
+        with patch.object(digest, "_get_item", return_value={"opsgenie_open": "1"}) as get_item, \
+             patch.object(digest, "_close_opsgenie_alias") as close:
+            self.assertEqual(digest.migrate_previous_groups(object(), groups, {"old-group"}), 0)
+        self.assertEqual(get_item.call_count, 1)
+        close.assert_not_called()
 
     def test_migration_triggers_one_slack_brief_until_acknowledged(self):
         record = {"previous_group_key": "old-group", "migration_brief_pending": True, "pending": True}
@@ -92,6 +131,69 @@ class InspectorGroupingTests(unittest.TestCase):
         record["pending"] = True
         record.pop("migration_brief_pending")
         self.assertFalse(digest._migration_slack_due({"new-group": [record]}))
+
+    def test_ledger_scan_identifies_groups_that_may_need_opsgenie_action(self):
+        class Table:
+            def scan(self, **_kwargs):
+                return {"Items": [
+                    {"finding_key": {"S": "finding"}, "notification_kind": {"S": "finding"},
+                     "notification_payload": {"S": json.dumps({"created_at": "2026-11-03T09:30:00Z"})}},
+                    {"finding_key": {"S": "group#open"}, "opsgenie_open": {"S": "1"}},
+                    {"finding_key": {"S": "group#urgent"}, "urgent_state": {"S": "SENT"}},
+                    {"finding_key": {"S": "group#idle"}, "opsgenie_open": {"S": "0"}},
+                    {"finding_key": {"S": "group#old"}, "superseded_group_closed": {"S": "1"}},
+                ]}
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test-table", "FINDING_CUTOVER_AT": "2026-11-03T08:30:00Z"}):
+            records, active_markers, closed_markers = digest.scan_findings(Table())
+        self.assertEqual(len(records), 1)
+        self.assertEqual(active_markers, {"open", "urgent"})
+        self.assertEqual(closed_markers, {"old"})
+        self.assertFalse(digest._needs_opsgenie_sync({"priority": None}, "idle", active_markers))
+        self.assertTrue(digest._needs_opsgenie_sync({"priority": None}, "urgent", active_markers))
+        self.assertTrue(digest._needs_opsgenie_sync({"priority": "P1"}, "idle", active_markers))
+
+    def test_digest_skips_state_reads_for_routine_groups(self):
+        records = [{"group": {"key": str(index)}} for index in range(100)]
+        with patch.object(digest, "_get_item", return_value={}) as get_item, \
+             patch.object(digest, "reconcile_findings", return_value=(0, 0, False)), \
+             patch.object(digest, "scan_findings", return_value=(records, set(), set())), \
+             patch.object(digest, "summarize_group", return_value={"priority": None}), \
+             patch.object(digest, "_batch_due", return_value=False), \
+             patch.object(digest, "migrate_legacy_alerts", return_value=0), \
+             patch.object(digest, "migrate_previous_groups", return_value=0), \
+             patch.object(digest, "_set_fields"), \
+             patch.object(digest, "sync_opsgenie") as sync:
+            digest.run(object(), object(), object(), now=1793698200)
+        self.assertEqual(get_item.call_count, 1)
+        sync.assert_not_called()
+
+    def test_urgent_only_alert_closes_after_stable_quiet_hour(self):
+        summary = {"group": {"key": "group"}, "priority": None,
+                   "latest_updated_at": "2026-11-03T09:45:00Z"}
+        start = 1793698200
+        with patch.object(digest, "_set_fields") as set_fields, \
+             patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_clear_urgent_claim") as clear:
+            digest.sync_opsgenie(object(), summary, {"urgent_state": "SENT"}, start)
+            self.assertEqual(set_fields.call_args.args[2]["opsgenie_no_urgent_since"],
+                             digest.datetime.fromtimestamp(start, digest.timezone.utc).isoformat())
+            close.assert_not_called()
+            state = {"urgent_state": "SENT", "opsgenie_no_urgent_since":
+                     digest.datetime.fromtimestamp(start, digest.timezone.utc).isoformat()}
+            summary["latest_updated_at"] = "2026-11-03T10:45:00Z"
+            digest.sync_opsgenie(object(), summary, state, start + digest.QUIET_CLOSE_SECONDS + 1)
+            close.assert_called_once()
+            clear.assert_called_once()
+            self.assertEqual(set_fields.call_args.args[2]["opsgenie_open"], "0")
+
+    def test_closed_group_does_not_close_again(self):
+        summary = {"group": {"key": "group"}, "priority": None,
+                   "latest_updated_at": "2026-11-03T09:45:00Z"}
+        with patch.object(digest, "_set_fields") as set_fields, \
+             patch.object(digest, "_close_opsgenie_alias") as close:
+            digest.sync_opsgenie(object(), summary, {"opsgenie_open": "0"}, 1793698200)
+        set_fields.assert_not_called()
+        close.assert_not_called()
 
     def test_ec2_cves_on_same_instance_share_group(self):
         resource = {"Type": "AwsEc2Instance", "Id": "arn:aws:ec2:eu-central-1:123456789012:instance/i-1",

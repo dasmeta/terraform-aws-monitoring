@@ -178,6 +178,25 @@ module "finding_group_digest" {
   attach_dead_letter_policy = true
 }
 
+# Surface scaling pressure before the 300-second digest timeout causes missed
+# reconciliation cycles. Delivery uses the existing failure notification path.
+resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  alarm_name          = "${var.name}-finding-group-digest-duration"
+  alarm_description   = "Security Hub grouped digest exceeded 240 seconds; review finding volume and reconciliation capacity."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Duration"
+  dimensions          = { FunctionName = module.finding_group_digest[0].lambda_function_name }
+  statistic           = "Maximum"
+  period              = 900
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 240000
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [local.delivery_failure_escalation_topic_arn]
+}
+
 resource "aws_lambda_permission" "opsgenie_api_sns" {
   count = length(module.opsgenie_api_notifier)
 
