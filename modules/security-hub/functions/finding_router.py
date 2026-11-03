@@ -125,6 +125,7 @@ def _record_grouped(table, finding):
         # remediation identity unless it was a finding-specific fallback.
         if migrate_group:
             record["previous_group_key"] = fallback_key
+            record["migration_brief_pending"] = True
         else:
             record["group"] = previous["group"]
             if previous.get("previous_group_key"):

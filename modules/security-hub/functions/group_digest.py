@@ -393,7 +393,7 @@ def _batch_due(checkpoint, field, seconds, now):
 
 
 def _migration_slack_due(groups):
-    return any(record.get("previous_group_key") and record.get("pending")
+    return any(record.get("migration_brief_pending") and record.get("pending")
                for records in groups.values() for record in records)
 
 

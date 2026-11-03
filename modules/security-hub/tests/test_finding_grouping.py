@@ -58,6 +58,7 @@ class InspectorGroupingTests(unittest.TestCase):
         values = table.request["ExpressionAttributeValues"]
         updated = json.loads(values[":payload"]["S"])
         self.assertEqual(updated["previous_group_key"], old_key)
+        self.assertTrue(updated["migration_brief_pending"])
         self.assertEqual(updated["group"]["label"], "Inspector | api | sha256:aaaaaaaaaaaa")
         self.assertEqual(values[":pending"]["S"], "1")
 
@@ -84,9 +85,12 @@ class InspectorGroupingTests(unittest.TestCase):
         self.assertEqual(set_fields.call_args.args[1], "group#old-group")
 
     def test_migration_triggers_one_slack_brief_until_acknowledged(self):
-        record = {"previous_group_key": "old-group", "pending": True}
+        record = {"previous_group_key": "old-group", "migration_brief_pending": True, "pending": True}
         self.assertTrue(digest._migration_slack_due({"new-group": [record]}))
         record["pending"] = False
+        self.assertFalse(digest._migration_slack_due({"new-group": [record]}))
+        record["pending"] = True
+        record.pop("migration_brief_pending")
         self.assertFalse(digest._migration_slack_due({"new-group": [record]}))
 
     def test_ec2_cves_on_same_instance_share_group(self):
