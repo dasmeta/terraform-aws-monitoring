@@ -235,7 +235,6 @@ def sync_opsgenie(table, summary, state, now):
             if state.get("urgent_state") == "SENT":
                 # An immediate P1 action may already have created this alias.
                 # Enrich it with the complete group on the first reconciliation.
-                _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
                 _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
                 _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                 _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
@@ -296,6 +295,38 @@ def migrate_legacy_alerts(table, records, summary, limit=MAX_LEGACY_MIGRATIONS_P
                 raise
         _set_fields(table, record["finding_key"], {"legacy_group_migrated": "1"})
         moved += 1
+    return moved
+
+
+def migrate_previous_groups(table, groups):
+    """Close a stale fallback alert after its new remediation group is open."""
+    active_keys = set(groups)
+    moved = 0
+    for key, records in groups.items():
+        old_keys = {record.get("previous_group_key") for record in records}
+        old_keys.discard(None)
+        if not old_keys:
+            continue
+        if _get_item(table, "group#" + key).get("opsgenie_open") != "1":
+            continue
+        for old_key in old_keys - active_keys:
+            marker = "group#" + old_key
+            state = _get_item(table, marker)
+            if state.get("superseded_group_closed") == "1":
+                continue
+            if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
+                alias = "securityhub-group-" + old_key
+                path = "/v2/alerts/" + urllib.parse.quote(alias, safe="") + "/close?identifierType=alias"
+                try:
+                    _ops_action("POST", path, {
+                        "user": "Security Hub grouped digest", "source": "AWS Security Hub",
+                        "note": "Replaced by a remediation-group alert for the same resource",
+                    })
+                except urllib.error.HTTPError as error:
+                    if error.code != 404:
+                        raise
+            _set_fields(table, marker, {"opsgenie_open": "0", "superseded_group_closed": "1"})
+            moved += 1
     return moved
 
 
@@ -458,6 +489,11 @@ def run(table, securityhub, sns, now=None):
         except Exception as error:
             LOG.exception("Opsgenie legacy migration failed for %s", key)
             failures.append(error)
+    try:
+        migrated += migrate_previous_groups(table, groups)
+    except Exception as error:
+        LOG.exception("Opsgenie fallback-group migration failed")
+        failures.append(error)
     if failures:
         raise RuntimeError(f"{len(failures)} Opsgenie group actions failed; Slack digests were processed") from failures[0]
     checkpoint = {"reconciled_through": datetime.fromtimestamp(now, timezone.utc).isoformat()}

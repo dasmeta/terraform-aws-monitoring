@@ -1,9 +1,11 @@
 """Regression tests for remediation groups used by urgent finding delivery."""
 
 import importlib.util
+import hashlib
 import json
 import os
 import pathlib
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -12,6 +14,8 @@ ROUTER = pathlib.Path(__file__).resolve().parents[1] / "functions" / "finding_ro
 spec = importlib.util.spec_from_file_location("finding_router", ROUTER)
 router = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(router)
+sys.path.insert(0, str(ROUTER.parent))
+import group_digest as digest
 
 
 def finding(identifier, resource, product="Inspector"):
@@ -26,6 +30,59 @@ def finding(identifier, resource, product="Inspector"):
 
 
 class InspectorGroupingTests(unittest.TestCase):
+    def test_existing_fallback_group_migrates_on_same_finding_timestamp(self):
+        resource = {"Type": "AwsEcrContainerImage", "Id":
+                    "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64}
+        item = finding("CVE-1", resource)
+        item.update({"CreatedAt": "2026-11-03T09:30:00Z", "UpdatedAt": "2026-11-03T09:30:00Z",
+                     "RecordState": "ACTIVE", "Workflow": {"Status": "NEW"},
+                     "Severity": {"Label": "CRITICAL"}})
+        key = router._finding_key(item)
+        old_key = hashlib.sha256("|".join((item["AwsAccountId"], "eu-central-1", "Inspector", key))
+                                 .encode()).hexdigest()
+        previous = router._compact_finding(item)
+        previous["group"] = {**previous["group"], "key": old_key, "label": "Inspector | CVE-1"}
+
+        class Table:
+            request = None
+
+            def update_item(self, **kwargs):
+                self.request = kwargs
+
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test-table"}), \
+             patch.object(router, "_get_item", return_value={"notification_updated_at": item["UpdatedAt"],
+                          "notification_payload": json.dumps(previous), "notification_pending": "0",
+                          "notification_state": "ACTIVE"}):
+            self.assertTrue(router._record_grouped(table, item))
+        values = table.request["ExpressionAttributeValues"]
+        updated = json.loads(values[":payload"]["S"])
+        self.assertEqual(updated["previous_group_key"], old_key)
+        self.assertEqual(updated["group"]["label"], "Inspector | api | sha256:aaaaaaaaaaaa")
+        self.assertEqual(values[":pending"]["S"], "0")
+
+    def test_urgent_reconciliation_skips_same_priority_update(self):
+        summary = {"group": {"key": "new-group", "product": "Inspector"}, "priority": "P1",
+                   "urgent_signature": "signature", "active_count": 2}
+        with patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_set_fields"), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"):
+            digest.sync_opsgenie(object(), summary, {"urgent_state": "SENT"}, 1793698200)
+        self.assertFalse(any("/priority?" in call.args[1] for call in action.call_args_list))
+
+    def test_superseded_group_closes_after_replacement_opens(self):
+        groups = {"new-group": [{"previous_group_key": "old-group"}]}
+        def get_item(_table, key):
+            return {"opsgenie_open": "1"} if key == "group#new-group" else {"urgent_state": "SENT"}
+        with patch.object(digest, "_get_item", side_effect=get_item), \
+             patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_set_fields") as set_fields:
+            self.assertEqual(digest.migrate_previous_groups(object(), groups), 1)
+        self.assertIn("securityhub-group-old-group/close", action.call_args.args[1])
+        self.assertEqual(set_fields.call_args.args[1], "group#old-group")
+
     def test_ec2_cves_on_same_instance_share_group(self):
         resource = {"Type": "AwsEc2Instance", "Id": "arn:aws:ec2:eu-central-1:123456789012:instance/i-1",
                     "Details": {"AwsEc2Instance": {"ImageId": "ami-1"}}}

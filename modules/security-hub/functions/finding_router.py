@@ -111,13 +111,24 @@ def _record_grouped(table, finding):
     record = _compact_finding(finding)
     key = record["finding_key"]
     current = _get_item(table, key)
-    if current.get("notification_updated_at", "") >= record["updated_at"]:
+    previous = json.loads(current["notification_payload"]) if current.get("notification_payload") else None
+    fallback_key = hashlib.sha256("|".join((
+        record["account"], record["group"]["region"], record["group"]["product"], key,
+    )).encode("utf-8")).hexdigest()
+    migrate_group = bool(previous and previous["group"]["key"] == fallback_key
+                         and record["group"]["key"] != fallback_key)
+    if current.get("notification_updated_at", "") > record["updated_at"] or (
+            current.get("notification_updated_at", "") == record["updated_at"] and not migrate_group):
         return False
     if current.get("notification_payload"):
         # Archive events may omit EC2 tags or image details. Keep the first
-        # remediation identity so the original group can be closed correctly.
-        previous = json.loads(current["notification_payload"])
-        record["group"] = previous["group"]
+        # remediation identity unless it was a finding-specific fallback.
+        if migrate_group:
+            record["previous_group_key"] = fallback_key
+        else:
+            record["group"] = previous["group"]
+            if previous.get("previous_group_key"):
+                record["previous_group_key"] = previous["previous_group_key"]
     pending = current.get("notification_pending", "1")
     if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
         pending = "1"
@@ -130,7 +141,7 @@ def _record_grouped(table, finding):
             TableName=os.environ["DELIVERY_TABLE_NAME"],
             Key={"finding_key": {"S": key}},
             UpdateExpression="SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #state = :state, #pending = :pending",
-            ConditionExpression="attribute_not_exists(#updated) OR #updated < :updated",
+            ConditionExpression="attribute_not_exists(#updated) OR #updated < :updated OR (#updated = :updated AND #group = :old_group)",
             ExpressionAttributeNames={
                 "#kind": "notification_kind", "#group": "notification_group_key",
                 "#payload": "notification_payload", "#updated": "notification_updated_at",
@@ -140,6 +151,7 @@ def _record_grouped(table, finding):
                 ":kind": {"S": "finding"}, ":group": {"S": record["group"]["key"]},
                 ":payload": {"S": json.dumps(record, separators=(",", ":"))},
                 ":updated": {"S": record["updated_at"]},
+                ":old_group": {"S": fallback_key},
                 ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
             },
         )
