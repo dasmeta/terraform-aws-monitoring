@@ -40,6 +40,12 @@ class InspectorGroupingTests(unittest.TestCase):
         self.assertNotEqual(first["key"], router._group_identity(finding("CVE-3", image("api", "sha256:bbb")))["key"])
         self.assertNotEqual(first["key"], router._group_identity(finding("CVE-4", image("web", "sha256:aaa")))["key"])
 
+    def test_ecr_image_id_without_details_shares_group(self):
+        image_id = "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64
+        resource = {"Type": "AwsEcrContainerImage", "Id": image_id}
+        self.assertEqual(router._group_identity(finding("CVE-1", resource))["key"],
+                         router._group_identity(finding("CVE-2", resource))["key"])
+
     def test_lambda_cves_share_resource(self):
         resource = {"Type": "AwsLambdaFunction", "Id": "arn:aws:lambda:eu-central-1:123456789012:function:worker:3"}
         self.assertEqual(router._group_identity(finding("CVE-1", resource))["key"],

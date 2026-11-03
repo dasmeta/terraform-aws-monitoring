@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -45,6 +46,13 @@ def _group_identity(finding):
     region = resource_id.split(":")[3] if resource_id.startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
     account = finding["AwsAccountId"]
     control = (finding.get("Compliance") or {}).get("SecurityControlId") or (finding.get("ProductFields") or {}).get("ControlId")
+    ecr_details = resource.get("Details", {}).get("AwsEcrContainerImage", {})
+    ecr_image_id = re.fullmatch(
+        r"arn:[^:]+:ecr:[^:]+:[0-9]{12}:repository/(.+)/sha256:([0-9a-fA-F]{64})",
+        resource_id,
+    ) if resource.get("Type") == "AwsEcrContainerImage" and product == "Inspector" else None
+    ecr_digest = ecr_details.get("ImageDigest") or (f"sha256:{ecr_image_id.group(2)}" if ecr_image_id else None)
+    ecr_repository = ecr_details.get("RepositoryName") or (ecr_image_id.group(1) if ecr_image_id else resource_id)
     if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
         parts = (account, region, product, cluster, pool, image)
         label = f"{product} | {cluster}/{pool} | {image}"
@@ -54,12 +62,9 @@ def _group_identity(finding):
     elif product == "Inspector" and resource.get("Type") == "AwsEc2Instance" and resource_id:
         parts = (account, region, product, "ec2", resource_id, image or "")
         label = f"Inspector | {resource_id.rsplit('/', 1)[-1]} | {image or 'instance'}"
-    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and (
-        digest := resource.get("Details", {}).get("AwsEcrContainerImage", {}).get("ImageDigest")
-    ):
-        repository = resource["Details"]["AwsEcrContainerImage"].get("RepositoryName") or resource_id
-        parts = (account, region, product, "ecr", repository, digest)
-        label = f"Inspector | {repository} | {digest[:19]}"
+    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and ecr_digest and ecr_repository:
+        parts = (account, region, product, "ecr", ecr_repository, ecr_digest)
+        label = f"Inspector | {ecr_repository} | {ecr_digest[:19]}"
     elif product == "Inspector" and resource.get("Type") == "AwsLambdaFunction" and resource_id:
         parts = (account, region, product, "lambda", resource_id)
         label = f"Inspector | {resource_id.split(':function:', 1)[-1]}"
