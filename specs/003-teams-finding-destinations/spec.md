@@ -11,6 +11,7 @@ An operator can send Security Hub notifications to a Microsoft Teams webhook usi
 - Require a nonempty Teams webhook list when a destination is selected; reject unused webhook lists and unsupported modes.
 - Preserve existing `alarm_actions.teams_webhooks` behavior and its Terraform resource addresses.
 - Accept sensitive Teams webhook values without exposing them in Terraform `for_each` keys.
+- Present Security Hub events as concise Teams cards and propagate webhook rejection as a Lambda failure for retry and dead-letter handling.
 - Document that `both` sends an urgent event through both topics, so one webhook receives two urgent messages.
 
 ## Acceptance

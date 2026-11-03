@@ -43,7 +43,7 @@ Set `finding_delivery.teams_webhooks` to one or more Teams webhook URLs and sele
 | `opsgenie` | Urgent messages from the high-severity Opsgenie topic |
 | `both` | Both topic streams |
 
-For `both`, the same urgent finding reaches the webhook through both topics and produces two Teams messages. The configured Teams webhook also receives delivery-failure alarms. Existing `alarm_actions.teams_webhooks` subscriptions continue to work and require no migration. Keep webhook URLs in sensitive variables.
+For `both`, the same urgent finding reaches the webhook through both topics and produces two Teams messages. Teams cards summarize Security Hub findings and link to the console. The configured Teams webhook also receives delivery-failure alarms. Existing `alarm_actions.teams_webhooks` subscriptions continue to work and require no migration. Keep webhook URLs in sensitive variables.
 
 ## 🌍 Multi-Region Support and Finding Aggregation
 

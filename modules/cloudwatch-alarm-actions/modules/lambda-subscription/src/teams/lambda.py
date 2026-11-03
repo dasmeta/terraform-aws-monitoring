@@ -14,10 +14,45 @@ logger = logging.getLogger()
 logger.setLevel(getattr(logging, LOGLEVEL))
 
 logger.info("log level: {}".format(LOGLEVEL))
+
+def security_hub_message(raw_message):
+    """Keep Security Hub Teams cards readable and below webhook payload limits."""
+    try:
+        event = json.loads(raw_message)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(event, dict):
+        return None
+    digest = event.get("_dasmeta_group_digest")
+    if isinstance(digest, dict):
+        return (
+            f"Security Hub digest: {digest.get('label', 'remediation group')}\n"
+            f"New or escalated: {digest.get('new_count', 0)}; active: {digest.get('active_count', 0)}\n"
+            f"{digest.get('finding_url', '')}"
+        )[:1500]
+    if event.get("detail-type") != "Security Hub Findings - Imported":
+        return None
+    findings = event.get("detail", {}).get("findings") or []
+    if not findings:
+        return None
+    finding = findings[0]
+    group = event.get("_dasmeta_group") or {}
+    resource = (finding.get("Resources") or [{}])[0].get("Id", "")
+    severity = finding.get("Severity", {}).get("Label", "UNKNOWN")
+    kind = "Urgent security finding" if event.get("_dasmeta_group_urgent") else "Security finding"
+    region = event.get("region") or os.environ.get("REGION", "unknown")
+    url = f"https://console.aws.amazon.com/securityhub/home?region={region}#/findings"
+    return (
+        f"{kind}: {severity} - {finding.get('Title', 'Finding')[:180]}\n"
+        f"Remediation target: {group.get('label') or resource[:250]}\n"
+        f"Security Hub: {url}"
+    )[:1500]
+
 def handle_notification(event):
     # Function to handle notification logic
-    subject = event['Sns'].get('Subject')
-    message = event['Sns'].get('Message')
+    subject = event['Sns'].get('Subject') or FALLBACK_SUBJECT
+    message = event['Sns'].get('Message') or ''
+    message = security_hub_message(message) or message
     items = [
             {
                 "type": "FactSet",
@@ -186,7 +221,7 @@ def handler(event, context):
     except HTTPError as e:
         logger.debug(e)
         logger.error("Request failed: %d %s", e.code, e.reason)
-        return e
+        raise
     except URLError as e:
         logger.error("Server connection failed: %s", e.reason)
-        return e
+        raise
