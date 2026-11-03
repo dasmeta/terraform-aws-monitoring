@@ -34,6 +34,8 @@ When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the sa
 
 The immediate EventBridge router receives active HIGH and CRITICAL findings. It pages for CRITICAL or exploitable HIGH findings once per group. The scheduled digest reconciles all severities and resolved findings every 15 minutes, sends one daily Slack brief, and closes an Opsgenie alert after a full hour without urgent findings. Routine updates do not extend that quiet hour. Grouped delivery keeps a DynamoDB record for each finding. A duration alarm warns through the delivery-failure topic when a digest takes 240 seconds, before its 300-second timeout. Monitor ledger growth against the current 100,000-finding digest limit.
 
+Grouped Opsgenie titles identify the remediation target: node image, ECR container image, or EC2 instance and AMI. The immediate alert includes the first finding and Security Hub link; the digest enriches the same alert with group counts and vulnerabilities. Both stages use the same title and alias. Existing open alerts receive one silent format update when this module version is deployed; previously posted ChatOps messages retain their original text.
+
 Slack incoming webhooks post to the channel selected when the webhook was created. The `channel` field in `alarm_actions.slack_webhooks` names the module's subscription but cannot redirect a modern webhook. Create the webhook for the intended channel; see [Slack's incoming webhook documentation](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/).
 
 ### Microsoft Teams destinations

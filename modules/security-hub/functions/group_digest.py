@@ -14,6 +14,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from finding_router import _record_grouped, _timestamp
+from group_alert_format import description_header, group_message, securityhub_url
 from opsgenie_notifier import _request, _wait_for_request
 
 
@@ -25,7 +26,7 @@ MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
 DAILY_SLACK_SECONDS = 86400
-OPSGENIE_FORMAT_VERSION = "2"
+OPSGENIE_FORMAT_VERSION = "3"
 
 
 def _decode(item):
@@ -179,29 +180,22 @@ def _opsgenie_details(summary):
 
 
 def _opsgenie_message(summary):
-    group = summary["group"]
     prefix = os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub")
-    if group["cluster"] and group["nodepool"] and group["image"]:
-        action = f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
-    else:
-        title = summary["urgent_titles"][0][0] if summary["urgent_titles"] else group["label"]
-        resource = summary["sample_resource"].rsplit("/", 1)[-1]
-        action = f"Investigate {title}" + (f" on {resource}" if resource else "")
-    return f"{prefix} Security {summary['priority']}: {action}"[:130]
+    return group_message(summary["group"], prefix, summary["priority"])
 
 
 def _securityhub_url(group):
-    return f"https://console.aws.amazon.com/securityhub/home?region={urllib.parse.quote(group['region'])}#/findings"
+    return securityhub_url(group)
 
 
 def _opsgenie_description(summary):
     group = summary["group"]
     top = ", ".join(summary["urgent_vulnerability_ids"][:10]) or ", ".join(title for title, _ in summary["urgent_titles"])
+    severities = ", ".join(f"{label} {summary['high_severities'].get(label, 0)}" for label in ("CRITICAL", "HIGH"))
     return (
-        f"Action: {_opsgenie_message(summary)}\n"
-        f"Urgent findings: {summary['urgent_count']}; HIGH/CRITICAL findings: {summary['high_count']} ({summary['high_severities']})\n"
+        description_header(group)
+        + f"Urgent findings: {summary['urgent_count']}; HIGH/CRITICAL findings: {summary['high_count']} ({severities})\n"
         f"Affected resources: {summary['affected_resources']}\n"
-        f"Remediation target: {group['label']}\n"
         f"Urgent vulnerabilities or controls: {top}\n"
         f"Example resource: {summary['sample_resource'] or 'n/a'}\n"
         f"Security Hub: {_securityhub_url(group)}\n"

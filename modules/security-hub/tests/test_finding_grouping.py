@@ -17,6 +17,8 @@ router = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(router)
 sys.path.insert(0, str(ROUTER.parent))
 import group_digest as digest
+import group_alert_format as alert_format
+import opsgenie_notifier as notifier
 
 
 def finding(identifier, resource, product="Inspector"):
@@ -31,6 +33,68 @@ def finding(identifier, resource, product="Inspector"):
 
 
 class InspectorGroupingTests(unittest.TestCase):
+    def test_group_titles_are_stable_and_actionable(self):
+        cases = [
+            ({"label": "Inspector | example-cluster/workers | ami-123", "product": "Inspector",
+              "cluster": "example-cluster", "nodepool": "workers", "image": "ami-123"},
+             "Example Security P1: Patch example-cluster/workers node image ami-123"),
+            ({"label": "Inspector | example-api | sha256:abcdef123456", "product": "Inspector"},
+             "Example Security P1: Patch container image example-api@sha256:abcdef123456"),
+            ({"label": "Inspector | i-123 | ami-456", "product": "Inspector"},
+             "Example Security P1: Patch EC2 instance i-123 image ami-456"),
+            ({"label": "Custom | Check encryption", "product": "Custom"},
+             "Example Security P1: Investigate Custom | Check encryption"),
+        ]
+        for group, expected in cases:
+            with self.subTest(group=group["label"]):
+                prefix = "Example"
+                self.assertEqual(alert_format.group_message(group, prefix, "P1"), expected)
+                with patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": prefix}):
+                    self.assertEqual(digest._opsgenie_message({"group": group, "priority": "P1"}), expected)
+
+    def test_immediate_alert_uses_same_group_title_and_useful_description(self):
+        group = {"key": "test", "label": "Inspector | api | sha256:abcdef123456", "product": "Inspector",
+                 "account": "123456789012", "region": "eu-central-1", "cluster": "", "nodepool": "", "image": ""}
+        item = finding("CVE-123", {"Id": "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:abcdef"})
+        requests = []
+        def request(method, path, payload=None):
+            requests.append((method, path, payload))
+            return {"data": None} if method == "GET" else {"requestId": "confirmed"}
+        with patch.dict(os.environ, {"OPSGENIE_ALERT_PREFIX": "Example"}), \
+             patch.object(notifier, "_request", side_effect=request), \
+             patch.object(notifier, "_wait_for_request"):
+            notifier.deliver({"detail": {"findings": [item]}, "_dasmeta_group_urgent": True, "_dasmeta_group": group})
+        created = next(payload for method, path, payload in requests if method == "POST" and path == "/v2/alerts")
+        self.assertEqual(created["message"], alert_format.group_message(group, "Example", "P1"))
+        self.assertIn("Remediation target: Inspector | api | sha256:abcdef123456", created["description"])
+        self.assertIn("Finding ID: CVE-123", created["description"])
+        self.assertIn("Security Hub: https://", created["description"])
+
+    def test_digest_description_uses_readable_severity_counts(self):
+        group = {"label": "Inspector | api | sha256:abcdef123456", "product": "Inspector", "region": "eu-central-1"}
+        summary = {"group": group, "urgent_vulnerability_ids": ["CVE-123"], "urgent_titles": [],
+                   "urgent_count": 2, "high_count": 5, "high_severities": {"CRITICAL": 1, "HIGH": 4},
+                   "affected_resources": 1, "sample_resource": "arn:aws:ecr:eu-central-1:123456789012:repository/api"}
+        description = digest._opsgenie_description(summary)
+        self.assertIn("HIGH/CRITICAL findings: 5 (CRITICAL 1, HIGH 4)", description)
+        self.assertIn("Action: Patch container image api@sha256:abcdef123456", description)
+        self.assertNotIn("{'CRITICAL'", description)
+
+    def test_existing_alert_reformats_without_creating_another(self):
+        summary = {"group": {"key": "test", "product": "Inspector"}, "priority": "P1",
+                   "urgent_signature": "same", "active_count": 2}
+        state = {"opsgenie_open": "1", "opsgenie_priority": "P1", "opsgenie_format_version": "2",
+                 "opsgenie_urgent_signature": "same", "opsgenie_last_update_at": "2026-11-03T11:00:00Z"}
+        with patch.object(digest, "_ops_action") as action, patch.object(digest, "_set_fields"), \
+             patch.object(digest, "_opsgenie_message", return_value="new title"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="new description"):
+            digest.sync_opsgenie(object(), summary, state, 1793703600)
+        paths = [call.args[1] for call in action.call_args_list]
+        self.assertNotIn("/v2/alerts", paths)
+        self.assertTrue(any("/message?" in path for path in paths))
+        self.assertTrue(any("/description?" in path for path in paths))
+
     def test_existing_fallback_group_migrates_on_same_finding_timestamp(self):
         resource = {"Type": "AwsEcrContainerImage", "Id":
                     "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64}

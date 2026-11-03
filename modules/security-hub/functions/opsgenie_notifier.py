@@ -9,6 +9,8 @@ import urllib.parse
 import urllib.error
 import urllib.request
 
+from group_alert_format import description_header, group_message, securityhub_url
+
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
@@ -95,18 +97,16 @@ def deliver(message):
         if existing:
             result = _request("PUT", path + "/priority?identifierType=alias", {"priority": "P1"})
         else:
-            if group["cluster"] and group["nodepool"] and group["image"]:
-                action = f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
-            else:
-                resource = (finding.get("Resources") or [{}])[0].get("Id", "").rsplit("/", 1)[-1]
-                action = f"Investigate {finding.get('Title', 'Security finding')}" + (f" on {resource}" if resource else "")
+            resource = (finding.get("Resources") or [{}])[0].get("Id", "unknown")
             result = _request("POST", "/v2/alerts", {
-                "message": f"{os.environ.get('OPSGENIE_ALERT_PREFIX', 'Security Hub')} Security P1: {action}"[:130],
+                "message": group_message(group, os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"), "P1"),
                 "alias": alias,
                 "description": (
-                    f"Urgent Security Hub finding: {finding.get('Title', 'Security finding')}\n"
-                    f"Resource: {(finding.get('Resources') or [{}])[0].get('Id', 'unknown')}\n"
+                    description_header(group)
+                    + f"Urgent finding: {finding.get('Title', 'Security finding')}\n"
+                    f"Resource: {resource}\n"
                     f"Finding ID: {finding['Id']}\n"
+                    f"Security Hub: {securityhub_url(group)}\n"
                     "The scheduled group digest will reconcile all affected resources."
                 )[:15000],
                 "priority": "P1",
