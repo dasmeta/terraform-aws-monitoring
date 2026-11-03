@@ -363,7 +363,7 @@ run "teams_follow_normal_slack_stream" {
   }
 
   assert {
-    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 1 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 0
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 1 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 0
     error_message = "Slack Teams mode must subscribe only to the normal topic."
   }
 }
@@ -391,7 +391,7 @@ run "teams_follow_urgent_opsgenie_stream" {
   }
 
   assert {
-    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 0 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 1
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 0 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 1
     error_message = "Opsgenie Teams mode must subscribe only to the urgent topic."
   }
 }
@@ -419,7 +419,7 @@ run "teams_follow_both_streams" {
   }
 
   assert {
-    condition     = length(nonsensitive(local.finding_teams_to_slack)) == 1 && length(nonsensitive(local.finding_teams_to_opsgenie)) == 1
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 1 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 1
     error_message = "Both Teams mode must subscribe to both topics."
   }
 }
