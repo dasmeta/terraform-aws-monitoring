@@ -41,7 +41,8 @@ def _group_identity(finding):
          if key.startswith("kubernetes.io/cluster/")), None
     )
     product = finding.get("ProductName", "Security Hub")
-    region = resource.get("Id", "").split(":")[3] if resource.get("Id", "").startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
+    resource_id = resource.get("Id", "")
+    region = resource_id.split(":")[3] if resource_id.startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
     account = finding["AwsAccountId"]
     control = (finding.get("Compliance") or {}).get("SecurityControlId") or (finding.get("ProductFields") or {}).get("ControlId")
     if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
@@ -50,6 +51,18 @@ def _group_identity(finding):
     elif resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Security Hub" and control:
         parts = (account, region, product, control, cluster, pool, image)
         label = f"{control} | {cluster}/{pool} | {image}"
+    elif product == "Inspector" and resource.get("Type") == "AwsEc2Instance" and resource_id:
+        parts = (account, region, product, "ec2", resource_id, image or "")
+        label = f"Inspector | {resource_id.rsplit('/', 1)[-1]} | {image or 'instance'}"
+    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and (
+        digest := resource.get("Details", {}).get("AwsEcrContainerImage", {}).get("ImageDigest")
+    ):
+        repository = resource["Details"]["AwsEcrContainerImage"].get("RepositoryName") or resource_id
+        parts = (account, region, product, "ecr", repository, digest)
+        label = f"Inspector | {repository} | {digest[:19]}"
+    elif product == "Inspector" and resource.get("Type") == "AwsLambdaFunction" and resource_id:
+        parts = (account, region, product, "lambda", resource_id)
+        label = f"Inspector | {resource_id.split(':function:', 1)[-1]}"
     else:
         parts = (account, region, product, _finding_key(finding))
         label = f"{product} | {finding.get('Title', 'Security finding')[:80]}"

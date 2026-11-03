@@ -28,6 +28,10 @@ This module enables AWS Security Hub with comprehensive security monitoring and 
 
 By default, Config and Inspector are enabled (`config.enabled = true`, `inspector.enabled = true`), while GuardDuty and Macie are disabled (`guardduty.enabled = false`, `macie.enabled = false`).
 
+### Grouped Inspector notifications
+
+When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the same EC2 instance and AMI, ECR repository and image digest, or Lambda function version share one remediation group and one immediate urgent notification claim. Tagged EKS node-pool AMIs keep their existing shared group. Findings without a stable resource identity remain separate. A finding already recorded in the delivery ledger keeps its original group for the rest of that finding's lifecycle; the corrected grouping applies to newly recorded findings.
+
 ## 🌍 Multi-Region Support and Finding Aggregation
 
 ### Region-Specific Services
