@@ -59,7 +59,7 @@ class InspectorGroupingTests(unittest.TestCase):
         updated = json.loads(values[":payload"]["S"])
         self.assertEqual(updated["previous_group_key"], old_key)
         self.assertEqual(updated["group"]["label"], "Inspector | api | sha256:aaaaaaaaaaaa")
-        self.assertEqual(values[":pending"]["S"], "0")
+        self.assertEqual(values[":pending"]["S"], "1")
 
     def test_urgent_reconciliation_skips_same_priority_update(self):
         summary = {"group": {"key": "new-group", "product": "Inspector"}, "priority": "P1",
@@ -82,6 +82,12 @@ class InspectorGroupingTests(unittest.TestCase):
             self.assertEqual(digest.migrate_previous_groups(object(), groups), 1)
         self.assertIn("securityhub-group-old-group/close", action.call_args.args[1])
         self.assertEqual(set_fields.call_args.args[1], "group#old-group")
+
+    def test_migration_triggers_one_slack_brief_until_acknowledged(self):
+        record = {"previous_group_key": "old-group", "pending": True}
+        self.assertTrue(digest._migration_slack_due({"new-group": [record]}))
+        record["pending"] = False
+        self.assertFalse(digest._migration_slack_due({"new-group": [record]}))
 
     def test_ec2_cves_on_same_instance_share_group(self):
         resource = {"Type": "AwsEc2Instance", "Id": "arn:aws:ec2:eu-central-1:123456789012:instance/i-1",

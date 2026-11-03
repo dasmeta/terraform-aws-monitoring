@@ -129,7 +129,7 @@ def _record_grouped(table, finding):
             record["group"] = previous["group"]
             if previous.get("previous_group_key"):
                 record["previous_group_key"] = previous["previous_group_key"]
-    pending = current.get("notification_pending", "1")
+    pending = "1" if migrate_group else current.get("notification_pending", "1")
     if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
         pending = "1"
     if current.get("notification_payload"):

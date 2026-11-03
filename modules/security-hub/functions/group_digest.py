@@ -392,6 +392,11 @@ def _batch_due(checkpoint, field, seconds, now):
     return not previous or now - _timestamp(previous).timestamp() >= seconds
 
 
+def _migration_slack_due(groups):
+    return any(record.get("previous_group_key") and record.get("pending")
+               for records in groups.values() for record in records)
+
+
 def send_slack_batch(table, sns, groups, now, initial=False):
     """Send one daily brief with actionable groups and routine counts."""
     changed = []
@@ -476,7 +481,7 @@ def run(table, securityhub, sns, now=None):
         except Exception as error:
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)
-    if _batch_due(checkpoint_state, "last_daily_slack_at", DAILY_SLACK_SECONDS, now):
+    if _migration_slack_due(groups) or _batch_due(checkpoint_state, "last_daily_slack_at", DAILY_SLACK_SECONDS, now):
         sent += int(send_slack_batch(table, sns, groups, now, initial=initial))
     remaining = MAX_LEGACY_MIGRATIONS_PER_RUN
     for key, records in groups.items():
