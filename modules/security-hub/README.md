@@ -65,6 +65,12 @@ When you enable Config, GuardDuty, or Macie in multiple regions, their findings 
 
 This setup provides comprehensive security coverage across all regions while maintaining a centralized Security Hub dashboard.
 
+### Grouped Inspector image notifications
+
+With `finding_delivery.notification_mode = "grouped"`, Inspector findings for the same ECR repository and immutable image digest share one remediation group. Multiple exploitable CVEs on that image produce one immediate urgent Opsgenie alert and one immediate Slack notice; later findings appear in the group digest. Different images, repositories, accounts, and Regions remain separate. Inspector EC2 findings retain their cluster, node pool, and AMI grouping.
+
+This grouping applies to new finding records. Existing delivery records keep their original group identity, and already opened alerts need operator review before consolidation or closure. During a rollout from a per-finding ECR grouping version, keep automated routing paused until the module upgrade is applied and existing urgent alerts are reviewed.
+
 ## Requirements
 
 | Name                                                                   | Version |

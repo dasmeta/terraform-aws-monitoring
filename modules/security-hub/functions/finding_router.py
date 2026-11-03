@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -41,15 +42,23 @@ def _group_identity(finding):
          if key.startswith("kubernetes.io/cluster/")), None
     )
     product = finding.get("ProductName", "Security Hub")
-    region = resource.get("Id", "").split(":")[3] if resource.get("Id", "").startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
+    resource_id = resource.get("Id", "")
+    region = resource_id.split(":")[3] if resource_id.startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
     account = finding["AwsAccountId"]
     control = (finding.get("Compliance") or {}).get("SecurityControlId") or (finding.get("ProductFields") or {}).get("ControlId")
+    ecr_image = re.fullmatch(
+        r"arn:[^:]+:ecr:[^:]+:[0-9]{12}:repository/(.+)/sha256:([0-9a-fA-F]{64})",
+        resource_id,
+    ) if resource.get("Type") == "AwsEcrContainerImage" and product == "Inspector" else None
     if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
         parts = (account, region, product, cluster, pool, image)
         label = f"{product} | {cluster}/{pool} | {image}"
     elif resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Security Hub" and control:
         parts = (account, region, product, control, cluster, pool, image)
         label = f"{control} | {cluster}/{pool} | {image}"
+    elif ecr_image:
+        parts = (account, region, product, resource_id)
+        label = f"{product} | {ecr_image.group(1)} | sha256:{ecr_image.group(2)[:12]}"
     else:
         parts = (account, region, product, _finding_key(finding))
         label = f"{product} | {finding.get('Title', 'Security finding')[:80]}"
