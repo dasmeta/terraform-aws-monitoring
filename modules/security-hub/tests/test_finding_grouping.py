@@ -1,8 +1,11 @@
 """Regression tests for remediation groups used by urgent finding delivery."""
 
 import importlib.util
+import json
+import os
 import pathlib
 import unittest
+from unittest.mock import patch
 
 
 ROUTER = pathlib.Path(__file__).resolve().parents[1] / "functions" / "finding_router.py"
@@ -45,6 +48,43 @@ class InspectorGroupingTests(unittest.TestCase):
         resource = {"Type": "AwsEcrContainerImage", "Id": image_id}
         self.assertEqual(router._group_identity(finding("CVE-1", resource))["key"],
                          router._group_identity(finding("CVE-2", resource))["key"])
+
+    def test_ecr_cves_publish_one_urgent_claim_per_image(self):
+        resource = {"Type": "AwsEcrContainerImage", "Id":
+                    "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64}
+        findings = [finding("CVE-1", resource), finding("CVE-2", resource)]
+        for item in findings:
+            item.update({"CreatedAt": "2026-11-03T09:30:00Z", "UpdatedAt": "2026-11-03T09:30:00Z",
+                         "RecordState": "ACTIVE", "Workflow": {"Status": "NEW"},
+                         "Severity": {"Label": "CRITICAL"}})
+        by_key = {router._finding_key(item): item for item in findings}
+        published = set()
+
+        class Table:
+            def update_item(self, **_kwargs):
+                pass
+
+        def get_item(_table, key):
+            item = by_key[key]
+            return {"notification_updated_at": item["UpdatedAt"], "notification_state": "ACTIVE",
+                    "notification_payload": json.dumps({"group": router._group_identity(item)})}
+
+        def publish_once(_table, _sns, key, destination, *_args):
+            identity = (key, destination)
+            if identity in published:
+                return False
+            published.add(identity)
+            return True
+
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": findings}}
+        env = {"FINDING_CUTOVER_AT": "2026-11-03T08:30:00Z", "GROUPED_DELIVERY_MODE": "true",
+               "HIGH_TOPIC_ARN": "high-topic", "SLACK_TOPIC_ARN": "slack-topic", "DELIVERY_TABLE_NAME": "test-table"}
+        with patch.dict(os.environ, env), patch.object(router, "_record_grouped", return_value=True), \
+             patch.object(router, "_get_item", side_effect=get_item), \
+             patch.object(router, "_publish_once", side_effect=publish_once):
+            counts = router.route_event(event, Table(), object(), now=1793698200)
+        self.assertEqual(counts, {"recorded": 2, "urgent": 1, "urgent_slack": 1, "skipped": 0})
 
     def test_lambda_cves_share_resource(self):
         resource = {"Type": "AwsLambdaFunction", "Id": "arn:aws:lambda:eu-central-1:123456789012:function:worker:3"}

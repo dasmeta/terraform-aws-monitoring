@@ -10,7 +10,7 @@ module "notify_slack" {
   version = "6.7.0"
 
   # Instance keys stay public and stable when the Slack channel changes.
-  for_each = toset(nonsensitive(keys(local.slack_webhooks_by_name)))
+  for_each = toset(try(nonsensitive(keys(local.slack_webhooks_by_name)), keys(local.slack_webhooks_by_name)))
 
   # sns/subscription configs
   sns_topic_name       = module.topic.name
