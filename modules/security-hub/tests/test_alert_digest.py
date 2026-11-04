@@ -251,6 +251,20 @@ class AlertDigestTests(unittest.TestCase):
             digest.send_slack_batch(object(), object(), {}, after)
         self.assertEqual(payloads[0]["active_count"], 0)
 
+    def test_empty_event_is_safe_and_malformed_finding_retries(self):
+        base = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported"}
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}):
+            self.assertEqual(router.route_event({**base, "detail": {"findings": []}}, object(), object())["recorded"], 0)
+            with self.assertRaisesRegex(ValueError, "missing CreatedAt"):
+                router.route_event({**base, "detail": {"findings": [{"Id": "malformed"}]}}, object(), object())
+
+    def test_missing_vulnerability_metadata_keeps_region_link(self):
+        item = finding()
+        item.pop("Vulnerabilities")
+        compact = router._compact_finding(item)
+        self.assertEqual(compact["vulnerability_ids"], [])
+        self.assertIn("region=eu-central-1", digest._securityhub_url(compact["group"]))
+
     def test_slack_messages_are_short_and_do_not_list_finding_ids(self):
         group_data = group("one", "GuardDuty")
         group_data.update({"finding_type": "Recon:EC2/PortProbeUnprotectedPort", "source_ip": "203.0.113.10", "target_port": 22})

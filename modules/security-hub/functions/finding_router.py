@@ -386,7 +386,9 @@ def route_event(event, table, sns, now=None):
     if os.environ.get("GROUPED_DELIVERY_MODE") == "true":
         counts = {"recorded": 0, "urgent": 0, "urgent_slack": 0, "skipped": 0}
         for finding in event.get("detail", {}).get("findings", []):
-            if not finding.get("CreatedAt") or _timestamp(finding["CreatedAt"]) < cutoff:
+            if not finding.get("CreatedAt"):
+                raise ValueError("Security Hub finding is missing CreatedAt; retry delivery")
+            if _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
                 continue
             recorded = _record_grouped(table, finding)
