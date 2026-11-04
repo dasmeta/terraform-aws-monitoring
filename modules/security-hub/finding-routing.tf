@@ -93,6 +93,7 @@ module "finding_router" {
   runtime       = "python3.12"
   handler       = "finding_router.lambda_handler"
   source_path   = "${path.module}/functions"
+  hash_extra    = "finding-router"
   timeout       = 30
 
   environment_variables = {
@@ -127,6 +128,7 @@ module "opsgenie_api_notifier" {
   runtime       = "python3.12"
   handler       = "opsgenie_notifier.lambda_handler"
   source_path   = "${path.module}/functions"
+  hash_extra    = "opsgenie-api-notifier"
   timeout       = 30
 
   environment_variables = {
