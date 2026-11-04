@@ -17,6 +17,9 @@ module "notify_slack" {
   sns_topic_name       = module.topic.name
   create_sns_topic     = false
   lambda_function_name = substr(replace("${each.key}-slack", ".", "-"), 0, 63)
+  # Multiple subscriptions package the same source concurrently. Keep each
+  # archive filename distinct without changing the Lambda resource address.
+  hash_extra = "${var.topic_name}-${each.key}"
 
   # lambda configs
   slack_webhook_url = sensitive(local.slack_webhooks_by_name[each.key].hook_url)
