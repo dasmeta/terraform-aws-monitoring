@@ -101,9 +101,9 @@ def _group_identity(finding):
         "cluster": cluster or "",
         "nodepool": pool or "",
         "image": image or "",
-        "finding_type": finding_type if product == "GuardDuty" else "",
-        "source_ip": source_ip if product == "GuardDuty" else "",
-        "target_port": target_port if product == "GuardDuty" else None,
+        "finding_type": finding_type if is_guardduty(finding) else "",
+        "source_ip": source_ip if is_guardduty(finding) else "",
+        "target_port": target_port if is_guardduty(finding) else None,
         "environment": environment(finding),
     }
 

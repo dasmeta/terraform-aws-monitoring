@@ -231,7 +231,7 @@ def format_group_urgent(message: Dict[str, Any]) -> Dict[str, Any]:
         lines.append(f"*Last detected:* {safe(finding.get('LastObservedAt') or finding['UpdatedAt'])}")
     lines.append("*Status:* Active")
     action = ("Review source IP, target port, network exposure and related activity."
-              if product == "GuardDuty" else f"Investigate and remediate {group['label'][:110]}.")
+              if product in {"GuardDuty", "Amazon GuardDuty"} else f"Investigate and remediate {group['label'][:110]}.")
     lines.append(f"*Recommended action:* {safe(action)}")
     lines.append(f"<{url}|View findings in Security Hub>")
     return {

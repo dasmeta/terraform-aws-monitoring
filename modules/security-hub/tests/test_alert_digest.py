@@ -183,6 +183,8 @@ class AlertDigestTests(unittest.TestCase):
         self.assertEqual(router._group_identity(first)["key"], router._group_identity(second)["key"])
         second["Action"]["PortProbeAction"]["PortProbeDetails"][0]["RemoteIpDetails"]["IpAddressV4"] = "203.0.113.11"
         self.assertNotEqual(router._group_identity(first)["key"], router._group_identity(second)["key"])
+        first["ProductName"] = "Amazon GuardDuty"
+        self.assertEqual(router._group_identity(first)["finding_type"], "Recon:EC2/PortProbeUnprotectedPort")
 
     def test_multi_resource_count_is_distinct(self):
         item = finding()
