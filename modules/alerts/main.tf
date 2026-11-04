@@ -73,7 +73,10 @@ module "cloudwatch_metric-alarm" {
       id          = "m1"
       return_data = each.value.fill_insufficient_data ? false : true
 
-      account_id = each.value.account_id == null ? data.aws_caller_identity.project.account_id : each.value.account_id
+      # Omit account_id for same-account alarms. Supplying a computed caller
+      # identity here can make the AWS provider fail to correlate metric_query
+      # set elements when apply resolves values that were unknown during plan.
+      account_id = each.value.account_id
 
       metric = [{
         dimensions  = each.value.filters
@@ -117,7 +120,10 @@ module "cloudwatch_metric-alarm_with_anomalydetection" {
       id          = "m1"
       return_data = true
 
-      account_id = each.value.account_id == null ? data.aws_caller_identity.project.account_id : each.value.account_id
+      # Omit account_id for same-account alarms. Supplying a computed caller
+      # identity here can make the AWS provider fail to correlate metric_query
+      # set elements when apply resolves values that were unknown during plan.
+      account_id = each.value.account_id
 
       metric = [{
         dimensions  = each.value.filters
