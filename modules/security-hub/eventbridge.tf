@@ -17,7 +17,10 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
       "findings" : {
         "RecordState" : ["ACTIVE"],
         "Workflow" : { "Status" : ["NEW", "NOTIFIED"] },
-        "Severity" : { "Label" : ["CRITICAL", "HIGH"] }
+        "$or" : [
+          { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } },
+          { "ProductName" : ["GuardDuty", "Amazon GuardDuty"] }
+        ]
       }
     }
     } : {}, !local.grouped_delivery_enabled && !(local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null)) ? {

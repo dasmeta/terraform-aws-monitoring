@@ -85,31 +85,41 @@ def deliver(message):
         group = message.get("_dasmeta_group") or _group_identity(finding)
         alias = "securityhub-group-" + group["key"]
         path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+        priority = message.get("_dasmeta_page_priority") or "P1"
         try:
             existing = _request("GET", path + "?identifierType=alias").get("data")
         except urllib.error.HTTPError as error:
             if error.code != 404:
                 raise
             existing = None
-        if existing and existing.get("priority") == "P1":
-            LOG.info("Opsgenie urgent group already has P1 priority: %s", alias)
-            return
         if existing:
-            result = _request("PUT", path + "/priority?identifierType=alias", {"priority": "P1"})
+            if existing.get("priority") != priority and priority == "P1":
+                result = _request("PUT", path + "/priority?identifierType=alias", {"priority": priority})
+                request_id = result.get("requestId")
+                if not request_id:
+                    raise RuntimeError("Opsgenie priority change returned no request ID")
+                _wait_for_request(request_id)
+            # New critical information in an existing group must be visible
+            # without creating another alert for the same remediation.
+            result = _request("POST", path + "/notes?identifierType=alias", {
+                "note": f"{finding.get('Severity', {}).get('Label', 'UNKNOWN')}: {finding.get('Title', 'Security finding')[:180]}",
+                "source": "AWS Security Hub",
+            })
         else:
-            resource = (finding.get("Resources") or [{}])[0].get("Id", "unknown")
+            resource = (finding.get("Resources") or [{}])[0].get("Id", "")
+            resource_label = resource.rsplit("/", 1)[-1][:120] if resource else "unknown"
             result = _request("POST", "/v2/alerts", {
-                "message": group_message(group, os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"), "P1"),
+                "message": group_message(group, os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"), priority),
                 "alias": alias,
                 "description": (
                     description_header(group)
-                    + f"Urgent finding: {finding.get('Title', 'Security finding')}\n"
-                    f"Resource: {resource}\n"
-                    f"Finding ID: {finding['Id']}\n"
+                    + f"Severity: {finding.get('Severity', {}).get('Label', 'UNKNOWN')}\n"
+                    f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
+                    f"Resource: {resource_label}\n"
                     f"Security Hub: {securityhub_url(group)}\n"
-                    "The scheduled group digest will reconcile all affected resources."
+                    "Review the finding and related resources in Security Hub."
                 )[:15000],
-                "priority": "P1",
+                "priority": priority,
                 "source": "AWS Security Hub",
                 "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
                 "details": {

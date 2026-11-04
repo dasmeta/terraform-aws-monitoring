@@ -12,10 +12,10 @@ from unittest.mock import patch
 
 
 ROUTER = pathlib.Path(__file__).resolve().parents[1] / "functions" / "finding_router.py"
+sys.path.insert(0, str(ROUTER.parent))
 spec = importlib.util.spec_from_file_location("finding_router", ROUTER)
 router = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(router)
-sys.path.insert(0, str(ROUTER.parent))
 import group_digest as digest
 import group_alert_format as alert_format
 import opsgenie_notifier as notifier
@@ -67,7 +67,8 @@ class InspectorGroupingTests(unittest.TestCase):
         created = next(payload for method, path, payload in requests if method == "POST" and path == "/v2/alerts")
         self.assertEqual(created["message"], alert_format.group_message(group, "Example", "P1"))
         self.assertIn("Remediation target: Inspector | api | sha256:abcdef123456", created["description"])
-        self.assertIn("Finding ID: CVE-123", created["description"])
+        self.assertIn("Finding: CVE-123", created["description"])
+        self.assertNotIn("Finding ID:", created["description"])
         self.assertIn("Security Hub: https://", created["description"])
 
     def test_digest_description_uses_readable_severity_counts(self):
@@ -222,7 +223,7 @@ class InspectorGroupingTests(unittest.TestCase):
              patch.object(digest, "reconcile_findings", return_value=(0, 0, False)), \
              patch.object(digest, "scan_findings", return_value=(records, set(), set())), \
              patch.object(digest, "summarize_group", return_value={"priority": None}), \
-             patch.object(digest, "_batch_due", return_value=False), \
+             patch.object(digest, "_daily_due", return_value=False), \
              patch.object(digest, "migrate_legacy_alerts", return_value=0), \
              patch.object(digest, "migrate_previous_groups", return_value=0), \
              patch.object(digest, "_set_fields"), \
@@ -298,7 +299,9 @@ class InspectorGroupingTests(unittest.TestCase):
                 pass
 
         def get_item(_table, key):
-            item = by_key[key]
+            item = by_key.get(key, {})
+            if not item:
+                return {}
             return {"notification_updated_at": item["UpdatedAt"], "notification_state": "ACTIVE",
                     "notification_payload": json.dumps({"group": router._group_identity(item)})}
 

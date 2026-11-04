@@ -80,15 +80,36 @@ variable "alarm_actions" {
 variable "finding_delivery" {
   description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time. Optional Teams webhooks can follow the Slack topic, Opsgenie topic, or both."
   type = object({
-    enabled               = optional(bool, false)                        # Enable durable Security Hub finding delivery.
-    cutover_at            = optional(string)                             # UTC creation timestamp before which findings are ignored.
-    notification_mode     = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
-    opsgenie_endpoint     = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
-    opsgenie_api_key      = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
-    opsgenie_api_url      = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
-    opsgenie_alert_prefix = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
-    teams_delivery        = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
-    teams_webhooks        = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
+    enabled                = optional(bool, false)                        # Enable durable Security Hub finding delivery.
+    cutover_at             = optional(string)                             # UTC creation timestamp before which findings are ignored.
+    notification_mode      = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
+    opsgenie_endpoint      = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
+    opsgenie_api_key       = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
+    opsgenie_api_url       = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_alert_prefix  = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
+    teams_delivery         = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
+    teams_webhooks         = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
+    environment_label      = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
+    account_label          = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
+    quiet_period_minutes   = optional(number, 60)                         # Time without actionable findings before a group is reported quiet.
+    finding_retention_days = optional(number, 365)                        # Days to keep resolved finding snapshots for deduplication and reopen tracking.
+    daily_digest = optional(object({
+      enabled    = optional(bool, true) # Publish the daily grouped Slack summary.
+      hour_utc   = optional(number, 8)  # Earliest UTC hour for the daily summary; reconciliation still runs every 15 minutes.
+      max_groups = optional(number, 5)  # Maximum actionable groups shown in the main Slack message.
+    }), {})
+    realtime = optional(object({
+      enabled                = optional(bool, true)     # Send immediate actionable Slack notifications.
+      guardduty_min_severity = optional(string, "HIGH") # Minimum GuardDuty severity for immediate Slack delivery.
+      high_requires_exploit  = optional(bool, true)     # Require known exploit availability for immediate Inspector HIGH alerts.
+    }), {})
+    paging = optional(object({
+      critical                = optional(bool, true)       # Page for active CRITICAL findings.
+      high_exploitable        = optional(bool, true)       # Page for active HIGH findings with known exploit availability.
+      guardduty_types         = optional(list(string), []) # GuardDuty finding-type prefixes eligible for paging.
+      environments            = optional(list(string), []) # Allowed environment labels; empty permits all.
+      require_public_exposure = optional(bool, false)      # Require explicit public exposure evidence for non-CRITICAL paging.
+    }), {})
   })
   default = {}
 
@@ -112,6 +133,22 @@ variable "finding_delivery" {
       var.finding_delivery.enabled && length(var.finding_delivery.teams_webhooks) > 0
     )
     error_message = "Teams delivery requires none with no webhooks, or slack, opsgenie, or both with enabled finding delivery and at least one Teams webhook."
+  }
+
+  validation {
+    condition = (
+      var.finding_delivery.quiet_period_minutes >= 1 && var.finding_delivery.quiet_period_minutes <= 1440 &&
+      floor(var.finding_delivery.quiet_period_minutes) == var.finding_delivery.quiet_period_minutes &&
+      var.finding_delivery.finding_retention_days >= 30 && var.finding_delivery.finding_retention_days <= 3650 &&
+      floor(var.finding_delivery.finding_retention_days) == var.finding_delivery.finding_retention_days &&
+      var.finding_delivery.daily_digest.hour_utc >= 0 && var.finding_delivery.daily_digest.hour_utc <= 23 &&
+      floor(var.finding_delivery.daily_digest.hour_utc) == var.finding_delivery.daily_digest.hour_utc &&
+      var.finding_delivery.daily_digest.max_groups >= 3 && var.finding_delivery.daily_digest.max_groups <= 5 &&
+      floor(var.finding_delivery.daily_digest.max_groups) == var.finding_delivery.daily_digest.max_groups &&
+      contains(["LOW", "MEDIUM", "HIGH", "CRITICAL"], var.finding_delivery.realtime.guardduty_min_severity) &&
+      alltrue([for prefix in var.finding_delivery.paging.guardduty_types : trimspace(prefix) != ""])
+    )
+    error_message = "Grouped delivery requires 1-1440 quiet minutes, UTC digest hour 0-23, 3-5 displayed groups, a valid GuardDuty severity, and nonempty paging type prefixes."
   }
 }
 

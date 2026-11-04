@@ -14,7 +14,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from finding_router import _record_grouped, _timestamp
-from group_alert_format import description_header, group_message, securityhub_url
+from group_alert_format import description_header, group_action, group_message, securityhub_url
 from opsgenie_notifier import _request, _wait_for_request
 
 
@@ -136,9 +136,14 @@ def summarize_group(records):
     new = [record for record in records if record.get("pending", True)]
     active = [record for record in records if record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}]
     high = [record for record in active if record["severity"] in HIGH_SEVERITIES]
-    urgent = [record for record in high if record.get("compliance_status") != "PASSED"
-              and (record["severity"] == "CRITICAL" or record["exploit_available"] == "YES")]
-    priority = "P1" if urgent else None
+    def page_priority(record):
+        if "page_priority" in record:
+            return record["page_priority"]
+        # Existing ledger rows predate the configurable policy.
+        return "P1" if record["severity"] == "CRITICAL" or (record["severity"] == "HIGH" and record["exploit_available"] == "YES") else None
+
+    urgent = [record for record in active if page_priority(record)]
+    priority = "P1" if any(page_priority(record) == "P1" for record in urgent) else "P2" if urgent else None
     titles = collections.Counter(record["title"] for record in active)
     return {
         "group": records[0]["group"],
@@ -157,7 +162,8 @@ def summarize_group(records):
         ).encode("utf-8")).hexdigest(),
         "sample_resource": next((record["resource"] for record in high if record["resource"]), ""),
         "active_severities": dict(collections.Counter(record["severity"] for record in active)),
-        "affected_resources": len({record["resource"] for record in active if record["resource"]}),
+        "affected_resources": len({resource for record in active for resource in record.get("resource_ids", [record["resource"]]) if resource}),
+        "public_exposure_count": sum(bool(record.get("public_exposure")) for record in active),
         "vulnerability_ids": sorted({identifier for record in active for identifier in record["vulnerability_ids"]}),
         "top_titles": titles.most_common(5),
         "priority": priority,
@@ -294,17 +300,15 @@ def sync_opsgenie(table, summary, state, now):
             if reformat:
                 _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
         return
-    below_threshold = state.get("opsgenie_priority") == "P2"
     if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
         quiet_since = state.get("opsgenie_no_urgent_since")
-        if not below_threshold and not quiet_since:
+        if not quiet_since:
             _set_fields(table, marker, {"opsgenie_no_urgent_since": datetime.fromtimestamp(now, timezone.utc).isoformat()})
             return
-        if not below_threshold and now - _timestamp(quiet_since).timestamp() < QUIET_CLOSE_SECONDS:
+        if now - _timestamp(quiet_since).timestamp() < int(os.environ.get("QUIET_PERIOD_SECONDS", str(QUIET_CLOSE_SECONDS))):
             return
         _close_opsgenie_alias(alias,
-            "Below paging threshold; all findings remain in Security Hub and the daily security brief"
-            if below_threshold else "No active CRITICAL or exploitable HIGH findings remain after the quiet period")
+            "No active findings meet the paging policy after the quiet period; review remaining findings in Security Hub")
         _set_fields(table, marker, {"opsgenie_open": "0", "opsgenie_priority": "", "opsgenie_active_count": "0",
                                     "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": "",
                                     "opsgenie_no_urgent_since": ""})
@@ -377,13 +381,20 @@ def _slack_payload(summary, closing):
             "affected_resources": summary["affected_resources"],
             "vulnerability_count": len(summary["vulnerability_ids"]),
             "top_titles": summary["top_titles"],
-            "sample_new_ids": [record["finding_id"] for record in summary["new_records"][:10]],
+            "sample_new_ids": [],
             "finding_url": _securityhub_url(group), "closing": closing,
             "groups_changed": summary.get("groups_changed", [])[:15],
-            "groups_changed_total": len(summary.get("groups_changed", [])),
+            "groups_changed_total": summary.get("groups_changed_total", len(summary.get("groups_changed", []))),
             "groups_cleared": summary.get("groups_cleared", [])[:10],
             "groups_cleared_total": len(summary.get("groups_cleared", [])),
             "baseline": summary.get("baseline", False),
+            "digest_kind": summary.get("digest_kind"),
+            "environment": summary.get("environment", group.get("environment", "Unknown")),
+            "account_label": summary.get("account_label", group["account"]),
+            "top_groups": summary.get("top_groups", []),
+            "quiet_count": summary.get("quiet_count", 0),
+            "resolved_count": summary.get("resolved_count", 0),
+            "regions": summary.get("regions", [group["region"]]),
         },
         "region": group["region"],
     }
@@ -430,68 +441,106 @@ def _migration_slack_due(groups):
                for records in groups.values() for record in records)
 
 
+def _daily_due(checkpoint, now):
+    if os.environ.get("DAILY_DIGEST_ENABLED", "true") != "true":
+        return False
+    current = datetime.fromtimestamp(now, timezone.utc)
+    if current.hour < int(os.environ.get("DAILY_DIGEST_HOUR_UTC", "8")):
+        return False
+    previous = checkpoint.get("last_daily_slack_at")
+    return not previous or _timestamp(previous).date() < current.date()
+
+
+def _group_rank(summary):
+    """Risk before volume: severity, active GuardDuty, exposure, then breadth and change."""
+    group = summary["group"]
+    severity = summary["active_severities"]
+    level = 4 if severity.get("CRITICAL") else 3 if severity.get("HIGH") else 2 if severity.get("MEDIUM") else 1
+    return (-level, -(group["product"] in {"GuardDuty", "Amazon GuardDuty"}),
+            -summary.get("public_exposure_count", 0), -summary["affected_resources"],
+            -summary["new_count"], group["label"], group["key"])
+
+
 def send_slack_batch(table, sns, groups, now, initial=False):
-    """Send one daily brief with actionable groups and routine counts."""
-    changed = []
-    cleared = []
-    close_keys = set()
-    affected = []
-    actionable_new = []
-    routine_new = []
+    """Publish one UTC daily view of all active groups and changes since the last brief."""
+    summaries = []
+    active_records = []
+    new_records = []
+    pending_records = []
+    quiet_groups = []
+    resolved_groups = []
     states = {}
+    quiet_seconds = int(os.environ.get("QUIET_PERIOD_SECONDS", str(QUIET_CLOSE_SECONDS)))
     for key, records in groups.items():
-        summary = summarize_group(records)
         state = _get_item(table, "group#" + key)
         states[key] = state
-        selected = [record for record in records if record.get("pending") and _actionable(record)]
-        routine = [record for record in records if record.get("pending") and not _actionable(record)]
-        actionable_new.extend(selected)
-        routine_new.extend(routine)
-        closing = (state.get("slack_open") == "1" and not any(_actionable(record) for record in records)
-                   and now - _timestamp(summary["latest_updated_at"]).timestamp() >= QUIET_CLOSE_SECONDS)
-        if closing:
-            cleared.append(summary["group"]["label"])
-            close_keys.add(key)
-        if selected or closing:
-            changed.append({"label": summary["group"]["label"], "new": len(selected), "active": summary["active_count"]})
-        if selected or routine or closing:
-            affected.extend({**record, "pending": record in selected} for record in records)
-    if not affected:
-        if initial:
-            for key, records in groups.items():
-                if states[key].get("slack_open") != "1" and any(_actionable(record) for record in records):
-                    _set_fields(table, "group#" + key, {"slack_open": "1"})
-        return False
-    summary = summarize_group(affected)
-    summary["new_count"] = len(actionable_new)
-    summary["new_records"] = actionable_new
-    summary["new_severities"] = dict(collections.Counter(record["severity"] for record in actionable_new))
-    summary["routine_count"] = len(routine_new)
-    summary["routine_severities"] = dict(collections.Counter(record["severity"] for record in routine_new))
-    first = summary["group"]
-    summary["group"] = {
-        **first,
-        "label": f"Security Hub baseline across {len(groups)} remediation groups" if initial else "Security Hub daily brief",
-        "account": first["account"] if len({record["account"] for record in affected}) == 1 else "multiple",
-        "cluster": "", "nodepool": "", "image": "", "product": "Security Hub",
+        active = [record for record in records if _actionable(record)]
+        active_records.extend(active)
+        pending_records.extend(record for record in records if record.get("pending"))
+        changed = [record for record in active if record.get("pending") and
+                   record.get("change_kind", "new") in {"new", "escalated", "reopened"}]
+        if not initial:
+            new_records.extend(changed)
+        if active:
+            summary = summarize_group(records)
+            summary["new_count"] = 0 if initial else len(changed)
+            summary["active_count"] = len(active)
+            summary["active_severities"] = dict(collections.Counter(record["severity"] for record in active))
+            summaries.append(summary)
+        elif state.get("slack_open") == "1" and now - _timestamp(max(record["updated_at"] for record in records)).timestamp() >= quiet_seconds:
+            quiet_groups.append(records[0]["group"]["label"])
+            if all(record["record_state"] != "ACTIVE" or record["workflow"] == "RESOLVED" for record in records):
+                resolved_groups.append(records[0]["group"]["label"])
+
+    summaries.sort(key=_group_rank)
+    max_groups = int(os.environ.get("DAILY_DIGEST_MAX_GROUPS", "5"))
+    selected = summaries[:max_groups]
+    sample = (active_records or [record for records in groups.values() for record in records])
+    first_group = sample[0]["group"] if sample else {
+        "key": "daily", "label": "Security Hub daily digest", "account": "unknown",
+        "region": os.environ.get("AWS_REGION", "unknown"), "product": "Security Hub",
+        "cluster": "", "nodepool": "", "image": "",
     }
-    summary["groups_changed"] = sorted(changed, key=lambda item: (-item["new"], item["label"]))
-    summary["groups_cleared"] = cleared
-    summary["baseline"] = initial
-    summary["digest_kind"] = "daily"
+    regions = sorted({record["group"]["region"] for record in active_records}) or [first_group["region"]]
+    accounts = {record["account"] for record in active_records}
+    resources = {resource for record in active_records for resource in record.get("resource_ids", [record["resource"]]) if resource}
+    vulnerabilities = {identifier for record in active_records for identifier in record["vulnerability_ids"]}
+    summary = {
+        "group": {**first_group, "label": "Security Hub daily digest", "product": "Security Hub",
+                  "account": next(iter(accounts)) if len(accounts) == 1 else "multiple" if accounts else first_group["account"]},
+        "new_count": len(new_records), "new_records": new_records,
+        "new_severities": dict(collections.Counter(record["severity"] for record in new_records)),
+        "routine_count": sum(record.get("pending", False) and not _actionable(record)
+                             for records in groups.values() for record in records),
+        "routine_severities": {}, "active_count": len(active_records),
+        "active_severities": dict(collections.Counter(record["severity"] for record in active_records)),
+        "affected_resources": len(resources), "vulnerability_ids": sorted(vulnerabilities),
+        "top_titles": [], "baseline": initial, "digest_kind": "daily",
+        "groups_changed": [{"label": item["group"]["label"], "new": item["new_count"],
+                            "active": item["active_count"]} for item in selected],
+        "groups_cleared": quiet_groups, "quiet_count": len(quiet_groups),
+        "resolved_count": len(resolved_groups), "regions": regions,
+        "environment": os.environ.get("SECURITY_ENVIRONMENT") or first_group.get("environment", "Unknown"),
+        "account_label": os.environ.get("SECURITY_ACCOUNT_LABEL") or
+                         (next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"]),
+        "top_groups": [{"label": item["group"]["label"], "product": item["group"]["product"],
+                        "new": item["new_count"], "active": item["active_count"],
+                        "resources": item["affected_resources"],
+                        "severity": next((level for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+                                          if item["active_severities"].get(level)), "UNKNOWN"),
+                        "action": group_action(item["group"]),
+                        "url": _securityhub_url(item["group"])} for item in selected],
+    }
+    summary["groups_changed_total"] = len(summaries)
     _publish_slack(sns, summary)
-    _acknowledge_new(table, actionable_new + routine_new)
+    _acknowledge_new(table, pending_records)
     _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
     for key, records in groups.items():
-        state = states[key]
-        if any(_actionable(record) for record in records):
-            desired = "1"
-        elif key in close_keys and state.get("slack_open") == "1":
-            desired = "0"
-        else:
-            continue
-        if state.get("slack_open") != desired:
+        desired = "1" if any(_actionable(record) for record in records) else "0" if records[0]["group"]["label"] in quiet_groups else None
+        if desired is not None and states[key].get("slack_open") != desired:
             _set_fields(table, "group#" + key, {"slack_open": desired})
+            if desired == "0":
+                _clear_urgent_claim(table, "group#" + key)
     return True
 
 
@@ -517,7 +566,7 @@ def run(table, securityhub, sns, now=None):
         except Exception as error:
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)
-    if _migration_slack_due(groups) or _batch_due(checkpoint_state, "last_daily_slack_at", DAILY_SLACK_SECONDS, now):
+    if _daily_due(checkpoint_state, now):
         sent += int(send_slack_batch(table, sns, groups, now, initial=initial))
     remaining = MAX_LEGACY_MIGRATIONS_PER_RUN
     for key, records in groups.items():

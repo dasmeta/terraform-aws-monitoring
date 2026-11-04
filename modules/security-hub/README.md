@@ -28,13 +28,75 @@ This module enables AWS Security Hub with comprehensive security monitoring and 
 
 By default, Config and Inspector are enabled (`config.enabled = true`, `inspector.enabled = true`), while GuardDuty and Macie are disabled (`guardduty.enabled = false`, `macie.enabled = false`).
 
-### Grouped Inspector notifications
+### Grouped security alerts and daily digest
 
-When `finding_delivery.notification_mode = "grouped"`, Inspector CVEs for the same EC2 instance and AMI, ECR repository and image digest, or Lambda function version share one remediation group and one immediate urgent notification claim. Tagged EKS node-pool AMIs keep their existing shared group. Findings without a stable resource identity remain separate. Previously recorded finding-specific fallback groups move to a stable remediation group when the finding is reconciled; the old alert closes after the replacement group opens.
+`finding_delivery.notification_mode = "grouped"` reuses the existing EventBridge router, DynamoDB ledger, two SNS topics, Slack subscription, Opsgenie API notifier, and 15-minute Security Hub reconciliation worker. It does not create a second alerting pipeline. Inspector findings group by stable workload or image target, GuardDuty by finding type, resource and observed source/port, and compliance findings by control and resource group. A finding with multiple resources contributes all resource IDs to the digest count. Unknown targets remain finding-specific.
 
-The immediate EventBridge router receives active HIGH and CRITICAL findings. It pages for CRITICAL or exploitable HIGH findings once per group. The scheduled digest reconciles all severities and resolved findings every 15 minutes, sends one daily Slack brief, and closes an Opsgenie alert after a full hour without urgent findings. Routine updates do not extend that quiet hour. Grouped delivery keeps a DynamoDB record for each finding. A duration alarm warns through the delivery-failure topic when a digest takes 240 seconds, before its 300-second timeout. Monitor ledger growth against the current 100,000-finding digest limit.
+Active Critical findings and qualifying High findings alert immediately. Active GuardDuty findings at or above `realtime.guardduty_min_severity` also reach Slack. Opsgenie paging follows `paging`: Critical and exploitable High preserve the current P1 defaults; GuardDuty paging requires an explicit finding-type prefix. Optional environment and known public-exposure conditions apply to non-Critical paging. A new qualifying finding in an open remediation group adds a new Slack message and, when it meets paging policy, an Opsgenie note under the existing alias. High-volume routine findings are summarized daily. Per-finding mode retains its previous behavior.
 
-Grouped Opsgenie titles identify the remediation target: node image, ECR container image, or EC2 instance and AMI. The immediate alert includes the first finding and Security Hub link; the digest enriches the same alert with group counts and vulnerabilities. Both stages use the same title and alias. Existing open alerts receive one silent format update when this module version is deployed; previously posted ChatOps messages retain their original text.
+The worker reconciles every 15 minutes and publishes at most one daily Slack digest after `daily_digest.hour_utc` (default 08:00 UTC). Its main message contains the severity distribution, active findings, distinct resources and vulnerabilities, quiet versus confirmed resolved groups, and the top `daily_digest.max_groups` remediation groups (default 5). An empty day still produces a zero-findings brief. The stable ranking is: highest active severity, active GuardDuty, explicit public exposure, affected resource count, new or escalated finding count, then group label and key. Finding volume cannot outrank a Critical group. A quiet group has no actionable finding after `quiet_period_minutes` (default 60); quiet does not imply remediation. Resolved finding snapshots remain in the ledger for `finding_retention_days` (default 365) before DynamoDB TTL can remove them; active snapshots do not expire.
+
+The existing worker has a 100,000-finding scan bound and a 300-second timeout. Its duration alarm fires at 240 seconds. Reconciliation or destination failure raises an error and uses the existing retry and dead-letter path. SNS and webhooks are at-least-once delivery, so a crash after publish can still cause a repeated message. Delivery to Slack or Opsgenie should be monitored through the existing dead-letter alarms.
+
+```hcl
+finding_delivery = {
+  enabled               = true
+  notification_mode     = "grouped"
+  opsgenie_api_key      = var.opsgenie_api_key
+  environment_label     = "Production"
+  account_label         = "Example production"
+  quiet_period_minutes  = 60
+  finding_retention_days = 365
+  daily_digest = {
+    enabled    = true
+    hour_utc   = 8
+    max_groups = 5
+  }
+  realtime = {
+    enabled                = true
+    guardduty_min_severity = "HIGH"
+  }
+  paging = {
+    critical         = true
+    high_exploitable = true
+    guardduty_types  = ["UnauthorizedAccess:", "Trojan:"]
+  }
+}
+```
+
+Example real-time Slack text (illustrative fields; runtime values come from the finding):
+
+```text
+🚨 Security Alert | GuardDuty
+Severity: High | Environment: Production | Region: eu-central-1
+AWS account: 123456789012
+Finding: EC2 port probing detected
+Resource: i-example
+Type: Recon:EC2/PortProbeUnprotectedPort
+Source IP: 203.0.113.10
+Target port: 22
+Status: Active
+Recommended action: Review source IP, target port, network exposure and related activity.
+View findings in Security Hub
+```
+
+Example daily Slack text:
+
+```text
+🛡️ Security Hub | Daily Digest
+Environment: Production | Account: Example production | Region: eu-central-1 | UTC
+Summary
+• 2 new / escalated — 1 Critical | 1 High | 0 Medium | 0 Low
+• 7 still active — 1 Critical | 4 High
+• 3 affected resources | 2 distinct vulnerabilities
+• 1 groups quiet; 0 confirmed resolved groups
+Priority findings
+1. Inspector | workload-example — CRITICAL; +1 new, 4 active, 2 resources
+   Action: Investigate affected workload
+View findings in Security Hub
+```
+
+Console links open the correct finding Region and list; an exact finding deep link is not emitted where AWS console URL support cannot be verified. The Slack webhook must already be configured for the intended security channel. Existing group aliases and Terraform addresses remain stable. Review the first plan for the in-place DynamoDB TTL and Lambda package updates, and review the message changes before applying.
 
 Slack incoming webhooks post to the channel selected when the webhook was created. The `channel` field in `alarm_actions.slack_webhooks` names the module's subscription but cannot redirect a modern webhook. Create the webhook for the intended channel; see [Slack's incoming webhook documentation](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/).
 

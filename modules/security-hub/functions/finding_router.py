@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
+from finding_policy import environment, exploitable, is_guardduty, paging_priority, public_exposure, realtime
 
 
 LOG = logging.getLogger(__name__)
@@ -23,6 +24,11 @@ def _timestamp(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
+def _timestamp_micros(value):
+    instant = _timestamp(value) - datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return (instant.days * 86400 + instant.seconds) * 1000000 + instant.microseconds
+
+
 def _finding_key(finding):
     identity = "|".join(
         (finding["AwsAccountId"], finding["ProductArn"], finding["Id"])
@@ -32,7 +38,8 @@ def _finding_key(finding):
 
 def _group_identity(finding):
     """Only combine findings that share a concrete remediation target."""
-    resource = (finding.get("Resources") or [{}])[0]
+    resources = sorted(finding.get("Resources") or [{}], key=lambda item: item.get("Id", ""))
+    resource = resources[0]
     tags = resource.get("Tags") or {}
     details = resource.get("Details", {}).get("AwsEc2Instance", {})
     image = details.get("ImageId")
@@ -43,7 +50,7 @@ def _group_identity(finding):
     )
     product = finding.get("ProductName", "Security Hub")
     resource_id = resource.get("Id", "")
-    region = resource_id.split(":")[3] if resource_id.startswith("arn:") else os.environ.get("AWS_REGION", "unknown")
+    region = resource_id.split(":")[3] if resource_id.startswith("arn:") else finding.get("Region") or os.environ.get("AWS_REGION", "unknown")
     account = finding["AwsAccountId"]
     control = (finding.get("Compliance") or {}).get("SecurityControlId") or (finding.get("ProductFields") or {}).get("ControlId")
     ecr_details = resource.get("Details", {}).get("AwsEcrContainerImage", {})
@@ -53,6 +60,13 @@ def _group_identity(finding):
     ) if resource.get("Type") == "AwsEcrContainerImage" and product == "Inspector" else None
     ecr_digest = ecr_details.get("ImageDigest") or (f"sha256:{ecr_image_id.group(2)}" if ecr_image_id else None)
     ecr_repository = ecr_details.get("RepositoryName") or (ecr_image_id.group(1) if ecr_image_id else resource_id)
+    action = finding.get("Action") or {}
+    network = action.get("NetworkConnectionAction") or {}
+    probe = (action.get("PortProbeAction") or {}).get("PortProbeDetails") or []
+    probe_detail = probe[0] if probe else {}
+    source_ip = (network.get("RemoteIpDetails") or {}).get("IpAddressV4") or (probe_detail.get("RemoteIpDetails") or {}).get("IpAddressV4") or ""
+    target_port = (network.get("LocalPortDetails") or {}).get("Port") or (probe_detail.get("LocalPortDetails") or {}).get("Port")
+    finding_type = (finding.get("Types") or [finding.get("Title", "GuardDuty finding")])[0]
     if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
         parts = (account, region, product, cluster, pool, image)
         label = f"{product} | {cluster}/{pool} | {image}"
@@ -68,6 +82,13 @@ def _group_identity(finding):
     elif product == "Inspector" and resource.get("Type") == "AwsLambdaFunction" and resource_id:
         parts = (account, region, product, "lambda", resource_id)
         label = f"Inspector | {resource_id.split(':function:', 1)[-1]}"
+    elif is_guardduty(finding):
+        parts = (account, region, product, finding_type,
+                 ",".join(item.get("Id", "") for item in resources), source_ip, str(target_port or ""))
+        label = f"GuardDuty | {finding_type} | {resource_id.rsplit('/', 1)[-1] or 'resource'}"
+    elif control and resource_id:
+        parts = (account, region, product, control, cluster or resource_id, pool or "")
+        label = f"{control} | {cluster + '/' + pool if cluster and pool else resource_id.rsplit('/', 1)[-1]}"
     else:
         parts = (account, region, product, _finding_key(finding))
         label = f"{product} | {finding.get('Title', 'Security finding')[:80]}"
@@ -80,12 +101,16 @@ def _group_identity(finding):
         "cluster": cluster or "",
         "nodepool": pool or "",
         "image": image or "",
+        "finding_type": finding_type if product == "GuardDuty" else "",
+        "source_ip": source_ip if product == "GuardDuty" else "",
+        "target_port": target_port if product == "GuardDuty" else None,
+        "environment": environment(finding),
     }
 
 
 def _compact_finding(finding):
     group = _group_identity(finding)
-    resource = (finding.get("Resources") or [{}])[0]
+    resource = sorted(finding.get("Resources") or [{}], key=lambda item: item.get("Id", ""))[0]
     vulnerabilities = finding.get("Vulnerabilities") or []
     return {
         "finding_key": _finding_key(finding),
@@ -94,15 +119,21 @@ def _compact_finding(finding):
         "account": finding["AwsAccountId"],
         "group": group,
         "resource": resource.get("Id", ""),
+        "resource_ids": sorted({item.get("Id", "") for item in finding.get("Resources") or [] if item.get("Id")}),
         "title": finding.get("Title", "Security finding")[:250],
         "vulnerability_ids": sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")}),
-        "exploit_available": "YES" if any(v.get("ExploitAvailable") == "YES" for v in vulnerabilities) else "NO",
+        "exploit_available": "YES" if exploitable(finding) else "NO",
+        "page_priority": paging_priority(finding),
+        "public_exposure": public_exposure(finding),
         "severity": finding.get("Severity", {}).get("Label", "UNKNOWN"),
         "compliance_status": (finding.get("Compliance") or {}).get("Status", ""),
         "record_state": finding.get("RecordState", "UNKNOWN"),
         "workflow": finding.get("Workflow", {}).get("Status", "UNKNOWN"),
         "created_at": finding["CreatedAt"],
         "updated_at": finding.get("UpdatedAt", finding["CreatedAt"]),
+        "first_seen_at": finding["CreatedAt"],
+        "last_seen_at": finding.get("LastObservedAt") or finding.get("UpdatedAt", finding["CreatedAt"]),
+        "change_kind": "new",
     }
 
 
@@ -117,8 +148,11 @@ def _record_grouped(table, finding):
     )).encode("utf-8")).hexdigest()
     migrate_group = bool(previous and previous["group"]["key"] == fallback_key
                          and record["group"]["key"] != fallback_key)
-    if current.get("notification_updated_at", "") > record["updated_at"] or (
-            current.get("notification_updated_at", "") == record["updated_at"] and not migrate_group):
+    incoming_epoch = _timestamp_micros(record["updated_at"])
+    previous_updated = current.get("notification_updated_at")
+    previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
+    if previous_epoch is not None and (previous_epoch > incoming_epoch or
+                                       previous_epoch == incoming_epoch and not migrate_group):
         return False
     if current.get("notification_payload"):
         # Archive events may omit EC2 tags or image details. Keep the first
@@ -127,34 +161,56 @@ def _record_grouped(table, finding):
             record["previous_group_key"] = fallback_key
             record["migration_brief_pending"] = True
         else:
-            record["group"] = previous["group"]
+            # Preserve the established remediation key while adding newly
+            # available display context to older ledger rows.
+            record["group"] = {**record["group"], **previous["group"]}
             if previous.get("previous_group_key"):
                 record["previous_group_key"] = previous["previous_group_key"]
+        record["first_seen_at"] = previous.get("first_seen_at", previous["created_at"])
+        was_active = previous["record_state"] == "ACTIVE" and previous["workflow"] in {"NEW", "NOTIFIED"}
+        is_active = record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}
+        severity_rank = {"INFORMATIONAL": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+        escalated = (severity_rank.get(record["severity"], -1) > severity_rank.get(previous["severity"], -1)
+                     or record["exploit_available"] == "YES" and previous["exploit_available"] != "YES")
+        record["change_kind"] = ("reopened" if is_active and not was_active else
+                                 "resolved" if was_active and not is_active else
+                                 "escalated" if is_active and escalated else "updated")
     pending = "1" if migrate_group else current.get("notification_pending", "1")
     if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
         pending = "1"
-    if current.get("notification_payload"):
-        severity_rank = {"INFORMATIONAL": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-        if severity_rank.get(record["severity"], -1) > severity_rank.get(previous["severity"], -1) or (record["exploit_available"] == "YES" and previous["exploit_available"] != "YES"):
-            pending = "1"
+    if record["change_kind"] in {"new", "escalated", "reopened", "resolved"}:
+        pending = "1"
+    inactive = record["record_state"] != "ACTIVE" or record["workflow"] == "RESOLVED"
+    retention_days = int(os.environ.get("FINDING_RETENTION_DAYS", "365"))
+    update_expression = "SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #epoch = :epoch, #state = :state, #pending = :pending"
+    update_expression += ", #expiry = :expiry" if inactive else " REMOVE #expiry"
+    names = {
+        "#kind": "notification_kind", "#group": "notification_group_key",
+        "#payload": "notification_payload", "#updated": "notification_updated_at",
+        "#epoch": "notification_updated_epoch",
+        "#state": "notification_state", "#pending": "notification_pending", "#expiry": "expires_at",
+    }
+    values = {
+        ":kind": {"S": "finding"}, ":group": {"S": record["group"]["key"]},
+        ":payload": {"S": json.dumps(record, separators=(",", ":"))},
+        ":updated": {"S": record["updated_at"]},
+        ":epoch": {"N": str(incoming_epoch)},
+        ":observed_updated": {"S": previous_updated or ""},
+        ":old_group": {"S": fallback_key},
+        ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
+    }
+    if inactive:
+        values[":expiry"] = {"N": str(int(time.time()) + retention_days * 86400)}
     try:
         table.update_item(
             TableName=os.environ["DELIVERY_TABLE_NAME"],
             Key={"finding_key": {"S": key}},
-            UpdateExpression="SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #state = :state, #pending = :pending",
-            ConditionExpression="attribute_not_exists(#updated) OR #updated < :updated OR (#updated = :updated AND #group = :old_group)",
-            ExpressionAttributeNames={
-                "#kind": "notification_kind", "#group": "notification_group_key",
-                "#payload": "notification_payload", "#updated": "notification_updated_at",
-                "#state": "notification_state", "#pending": "notification_pending",
-            },
-            ExpressionAttributeValues={
-                ":kind": {"S": "finding"}, ":group": {"S": record["group"]["key"]},
-                ":payload": {"S": json.dumps(record, separators=(",", ":"))},
-                ":updated": {"S": record["updated_at"]},
-                ":old_group": {"S": fallback_key},
-                ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
-            },
+            UpdateExpression=update_expression,
+            ConditionExpression=("attribute_not_exists(#updated) OR #epoch < :epoch OR "
+                                 "(attribute_not_exists(#epoch) AND #updated = :observed_updated) OR "
+                                 "(#epoch = :epoch AND #group = :old_group)"),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
         )
     except ClientError as error:
         if _conditional_failure(error):
@@ -178,6 +234,10 @@ def _claim(table, key, destination, now, mode=None, lifecycle=None):
         ":token": {"S": token},
     }
     update = "SET #state = :pending, #lease = :lease, #token = :token"
+    if key.startswith("alert#"):
+        names["#expiry"] = "expires_at"
+        values[":expiry"] = {"N": str(now + int(os.environ.get("FINDING_RETENTION_DAYS", "365")) * 86400)}
+        update += ", #expiry = :expiry"
     if mode:
         names["#mode"] = "opsgenie_delivery_mode"
         values[":mode"] = {"S": mode}
@@ -326,26 +386,36 @@ def route_event(event, table, sns, now=None):
     if os.environ.get("GROUPED_DELIVERY_MODE") == "true":
         counts = {"recorded": 0, "urgent": 0, "urgent_slack": 0, "skipped": 0}
         for finding in event.get("detail", {}).get("findings", []):
-            if _timestamp(finding["CreatedAt"]) < cutoff:
+            if not finding.get("CreatedAt") or _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
                 continue
-            counts["recorded"] += int(_record_grouped(table, finding))
-            severity = finding.get("Severity", {}).get("Label")
-            urgent = severity == "CRITICAL" or (severity == "HIGH" and any(
-                vulnerability.get("ExploitAvailable") == "YES" for vulnerability in finding.get("Vulnerabilities") or []
-            ))
-            if (urgent and (finding.get("Compliance") or {}).get("Status") != "PASSED"
-                    and finding.get("RecordState") == "ACTIVE"
-                    and finding.get("Workflow", {}).get("Status") in {"NEW", "NOTIFIED"}):
+            recorded = _record_grouped(table, finding)
+            counts["recorded"] += int(recorded)
+            page_priority = paging_priority(finding)
+            send_realtime = realtime(finding)
+            if send_realtime or page_priority:
                 item = _get_item(table, _finding_key(finding))
                 if item.get("notification_updated_at") != finding.get("UpdatedAt", finding["CreatedAt"]) or item.get("notification_state") != "ACTIVE":
                     continue
-                group = json.loads(item["notification_payload"])["group"]
+                record = json.loads(item["notification_payload"])
+                group = record["group"]
                 group_key = "group#" + group["key"]
-                payload = {**event, "detail": {**event["detail"], "findings": [finding]}, "_dasmeta_group_urgent": True, "_dasmeta_group": group}
-                if _publish_once(table, sns, group_key, "urgent", os.environ["HIGH_TOPIC_ARN"], payload, now):
+                group_state = _get_item(table, group_key)
+                material_change = (recorded and record.get("change_kind") in {"new", "escalated", "reopened"}
+                                   and (group_state.get("urgent_state") == "SENT" or
+                                        group_state.get("urgent_slack_state") == "SENT"))
+                new_page_in_slack_group = (page_priority and group_state.get("urgent_slack_state") == "SENT"
+                                           and group_state.get("urgent_state") != "SENT")
+                change_id = hashlib.sha256(finding.get("UpdatedAt", finding["CreatedAt"]).encode("utf-8")).hexdigest()[:12]
+                marker = ("alert#" + group["key"] + "#" + _finding_key(finding) + "#" + change_id) if material_change else group_key
+                payload = {**event, "detail": {**event["detail"], "findings": [finding]},
+                           "_dasmeta_group_urgent": True, "_dasmeta_group": group,
+                           "_dasmeta_page_priority": page_priority}
+                if page_priority and _publish_once(table, sns, marker, "urgent", os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
-                if _publish_once(table, sns, group_key, "urgent_slack", os.environ["SLACK_TOPIC_ARN"], payload, now):
+                slack_destination = ("critical_slack" if material_change else
+                                     "escalation_slack" if new_page_in_slack_group else "urgent_slack")
+                if send_realtime and _publish_once(table, sns, marker, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
                     counts["urgent_slack"] += 1
                     table.update_item(
                         TableName=os.environ["DELIVERY_TABLE_NAME"],
@@ -354,18 +424,6 @@ def route_event(event, table, sns, now=None):
                         ExpressionAttributeNames={"#open": "slack_open"},
                         ExpressionAttributeValues={":open": {"S": "1"}},
                     )
-                    try:
-                        table.update_item(
-                            TableName=os.environ["DELIVERY_TABLE_NAME"],
-                            Key={"finding_key": {"S": _finding_key(finding)}},
-                            UpdateExpression="SET #pending = :done",
-                            ConditionExpression="#updated = :updated",
-                            ExpressionAttributeNames={"#pending": "notification_pending", "#updated": "notification_updated_at"},
-                            ExpressionAttributeValues={":done": {"S": "0"}, ":updated": {"S": item["notification_updated_at"]}},
-                        )
-                    except ClientError as error:
-                        if not _conditional_failure(error):
-                            raise
         LOG.info("Security Hub grouped intake counts: %s", counts)
         return counts
     api_mode = os.environ.get("OPSGENIE_API_MODE") == "true"

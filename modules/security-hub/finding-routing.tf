@@ -31,6 +31,11 @@ resource "aws_dynamodb_table" "finding_delivery" {
   server_side_encryption {
     enabled = true
   }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
 }
 
 module "high_severity_actions" {
@@ -87,16 +92,23 @@ module "finding_router" {
   description   = "Route first delivery of new Security Hub findings to security Slack and high-severity Opsgenie"
   runtime       = "python3.12"
   handler       = "finding_router.lambda_handler"
-  source_path   = "${path.module}/functions/finding_router.py"
+  source_path   = "${path.module}/functions"
   timeout       = 30
 
   environment_variables = {
-    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT    = local.finding_cutover_at
-    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
-    HIGH_TOPIC_ARN        = module.high_severity_actions[0].topic_arn
-    OPSGENIE_API_MODE     = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
-    GROUPED_DELIVERY_MODE = local.grouped_delivery_enabled ? "true" : "false"
+    DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT      = local.finding_cutover_at
+    SLACK_TOPIC_ARN         = module.alarm_actions[0].topic_arn
+    HIGH_TOPIC_ARN          = module.high_severity_actions[0].topic_arn
+    OPSGENIE_API_MODE       = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
+    GROUPED_DELIVERY_MODE   = local.grouped_delivery_enabled ? "true" : "false"
+    SECURITY_ENVIRONMENT    = var.finding_delivery.environment_label
+    SECURITY_ACCOUNT_LABEL  = var.finding_delivery.account_label
+    REALTIME_ENABLED        = tostring(var.finding_delivery.realtime.enabled)
+    GUARD_DUTY_MIN_SEVERITY = var.finding_delivery.realtime.guardduty_min_severity
+    HIGH_REQUIRES_EXPLOIT   = tostring(var.finding_delivery.realtime.high_requires_exploit)
+    PAGING_POLICY           = jsonencode(var.finding_delivery.paging)
+    FINDING_RETENTION_DAYS  = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true
@@ -121,6 +133,7 @@ module "opsgenie_api_notifier" {
     OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
     OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
     OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT  = var.finding_delivery.environment_label
   }
 
   dead_letter_target_arn    = module.high_severity_actions[0].dead_letter_queue_arn
@@ -164,12 +177,21 @@ module "finding_group_digest" {
   memory_size   = 512
 
   environment_variables = {
-    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT    = local.finding_cutover_at
-    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
-    OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
-    OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
-    OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+    DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT      = local.finding_cutover_at
+    SLACK_TOPIC_ARN         = module.alarm_actions[0].topic_arn
+    OPSGENIE_API_KEY        = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL        = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_ALERT_PREFIX   = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT    = var.finding_delivery.environment_label
+    SECURITY_ACCOUNT_LABEL  = var.finding_delivery.account_label
+    QUIET_PERIOD_SECONDS    = tostring(var.finding_delivery.quiet_period_minutes * 60)
+    DAILY_DIGEST_ENABLED    = tostring(var.finding_delivery.daily_digest.enabled)
+    DAILY_DIGEST_HOUR_UTC   = tostring(var.finding_delivery.daily_digest.hour_utc)
+    DAILY_DIGEST_MAX_GROUPS = tostring(var.finding_delivery.daily_digest.max_groups)
+    REALTIME_ENABLED        = tostring(var.finding_delivery.realtime.enabled)
+    PAGING_POLICY           = jsonencode(var.finding_delivery.paging)
+    FINDING_RETENTION_DAYS  = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true
@@ -231,7 +253,7 @@ resource "aws_cloudwatch_event_rule" "finding_group_digest" {
   count = local.grouped_delivery_enabled ? 1 : 0
 
   name                = substr("${var.name}-finding-group-digest", 0, 64)
-  description         = "Reconcile Security Hub and deliver one digest per remediation group"
+  description         = "Reconcile Security Hub groups and deliver one daily security digest"
   schedule_expression = "rate(15 minutes)"
 }
 

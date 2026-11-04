@@ -123,8 +123,9 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.RecordState, "ACTIVE") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Workflow.Status, "NEW") &&
-      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Severity.Label, "HIGH") &&
-      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Severity.Label, "CRITICAL")
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "HIGH") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "CRITICAL") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][1].ProductName, "GuardDuty")
     )
     error_message = "Grouped mode must route urgent findings immediately, reconcile routine findings on schedule, and monitor digest delivery."
   }
