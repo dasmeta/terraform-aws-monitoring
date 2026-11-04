@@ -151,8 +151,35 @@ class AlertDigestTests(unittest.TestCase):
              patch.object(router, "_publish_once", side_effect=publish):
             router.route_event(event, Table(), object(), now=1793779260)
         self.assertEqual(len(published), 2)
-        self.assertTrue(all(marker.startswith("alert#") for marker, _ in published))
-        self.assertEqual({destination for _, destination in published}, {"urgent", "critical_slack"})
+        self.assertTrue(all(marker == group_key for marker, _ in published))
+        self.assertEqual({destination for _, destination in published}, {"critical", "critical_slack"})
+
+    def test_new_cves_in_alerted_image_reuse_group_claim(self):
+        first = finding("cve-a", severity="HIGH", exploit=True)
+        second = finding("cve-b", severity="HIGH", exploit=True)
+        group_key = "group#" + router._group_identity(first)["key"]
+        calls = []
+
+        def get_item(_table, key):
+            if key == group_key:
+                return {"urgent_state": "SENT", "urgent_slack_state": "SENT"}
+            current = first if key == router._finding_key(first) else second
+            return {"notification_updated_at": current["UpdatedAt"], "notification_state": "ACTIVE",
+                    "notification_payload": json.dumps(router._compact_finding(current))}
+
+        def publish(_table, _sns, marker, destination, *_args):
+            calls.append((marker, destination))
+            return False
+
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [first, second]}}
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                      "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack", "PAGING_POLICY": "{}"}), \
+             patch.object(router, "_record_grouped", return_value=True), \
+             patch.object(router, "_get_item", side_effect=get_item), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            router.route_event(event, object(), object(), now=1793779260)
+        self.assertEqual(calls, [(group_key, "urgent"), (group_key, "urgent_slack")] * 2)
 
     def test_page_policy_requires_real_context_for_high_and_guardduty(self):
         high = finding()
@@ -238,6 +265,19 @@ class AlertDigestTests(unittest.TestCase):
         self.assertEqual(payloads[0]["quiet_count"], 1)
         self.assertEqual(payloads[0]["resolved_count"], 0)
 
+    def test_quiet_group_rearms_all_immediate_alert_tiers(self):
+        class Table:
+            update = None
+            def update_item(self, **kwargs):
+                self.update = kwargs
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}):
+            digest._clear_urgent_claim(table, "group#one")
+        names = table.update["ExpressionAttributeNames"]
+        self.assertIn("critical_state", names.values())
+        self.assertIn("critical_slack_state", names.values())
+        self.assertIn("escalation_slack_state", names.values())
+
     def test_utc_daily_gate_and_empty_period(self):
         before = int(datetime(2026, 11, 4, 7, 59, tzinfo=timezone.utc).timestamp())
         after = int(datetime(2026, 11, 4, 8, 1, tzinfo=timezone.utc).timestamp())
@@ -288,6 +328,14 @@ class AlertDigestTests(unittest.TestCase):
         self.assertLessEqual(len(formatted["text"].splitlines()), 20)
         self.assertIn("7 still active", formatted["text"])
         self.assertNotIn(item["Id"], formatted["text"])
+
+    def test_slack_shortens_container_digest(self):
+        image = "sha256:" + "a" * 64
+        item = finding(product="Inspector")
+        item["Resources"] = [{"Type": "AwsEcrContainerImage", "Id": "arn:aws:ecr:eu-central-1:123456789012:repository/app/" + image}]
+        rendered = slack.format_group_urgent({"_dasmeta_group": router._group_identity(item), "detail": {"findings": [item]}})
+        self.assertIn(image[:19], rendered["text"])
+        self.assertNotIn(image, rendered["text"])
 
     def test_existing_group_receives_new_critical_note(self):
         item = finding(severity="CRITICAL")

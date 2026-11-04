@@ -403,21 +403,25 @@ def route_event(event, table, sns, now=None):
                 group = record["group"]
                 group_key = "group#" + group["key"]
                 group_state = _get_item(table, group_key)
-                material_change = (recorded and record.get("change_kind") in {"new", "escalated", "reopened"}
-                                   and (group_state.get("urgent_state") == "SENT" or
-                                        group_state.get("urgent_slack_state") == "SENT"))
-                new_page_in_slack_group = (page_priority and group_state.get("urgent_slack_state") == "SENT"
-                                           and group_state.get("urgent_state") != "SENT")
-                change_id = hashlib.sha256(finding.get("UpdatedAt", finding["CreatedAt"]).encode("utf-8")).hexdigest()[:12]
-                marker = ("alert#" + group["key"] + "#" + _finding_key(finding) + "#" + change_id) if material_change else group_key
+                is_critical = finding.get("Severity", {}).get("Label") == "CRITICAL"
+                # A remediation group has one immediate alert per severity tier.
+                # New CVEs on the same image are counted in the daily digest;
+                # moving from High to Critical still gets an immediate alert.
+                page_destination = "critical" if is_critical else "urgent"
+                slack_destination = "critical_slack" if is_critical else "urgent_slack"
+                if not is_critical:
+                    if group_state.get("critical_state") == "SENT":
+                        page_priority = None
+                    if group_state.get("critical_slack_state") == "SENT":
+                        send_realtime = False
+                    elif page_priority and group_state.get("urgent_slack_state") == "SENT" and group_state.get("urgent_state") != "SENT":
+                        slack_destination = "escalation_slack"
                 payload = {**event, "detail": {**event["detail"], "findings": [finding]},
                            "_dasmeta_group_urgent": True, "_dasmeta_group": group,
                            "_dasmeta_page_priority": page_priority}
-                if page_priority and _publish_once(table, sns, marker, "urgent", os.environ["HIGH_TOPIC_ARN"], payload, now):
+                if page_priority and _publish_once(table, sns, group_key, page_destination, os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
-                slack_destination = ("critical_slack" if material_change else
-                                     "escalation_slack" if new_page_in_slack_group else "urgent_slack")
-                if send_realtime and _publish_once(table, sns, marker, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
+                if send_realtime and _publish_once(table, sns, group_key, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
                     counts["urgent_slack"] += 1
                     table.update_item(
                         TableName=os.environ["DELIVERY_TABLE_NAME"],

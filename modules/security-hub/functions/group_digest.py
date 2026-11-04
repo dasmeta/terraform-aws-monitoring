@@ -96,7 +96,7 @@ def scan_findings(table):
     while True:
         request = {
             "TableName": os.environ["DELIVERY_TABLE_NAME"],
-            "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_updated_at, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, superseded_group_closed",
+            "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_updated_at, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
             "ConsistentRead": True,
         }
         if token:
@@ -106,7 +106,7 @@ def scan_findings(table):
             row = _decode(item)
             marker = row.get("finding_key", "")
             if marker.startswith("group#"):
-                if row.get("opsgenie_open") == "1" or row.get("urgent_state") == "SENT":
+                if row.get("opsgenie_open") == "1" or row.get("urgent_state") == "SENT" or row.get("critical_state") == "SENT":
                     active_markers.add(marker.removeprefix("group#"))
                 if row.get("superseded_group_closed") == "1":
                     closed_markers.add(marker.removeprefix("group#"))
@@ -243,9 +243,12 @@ def _clear_urgent_claim(table, marker):
     table.update_item(
         TableName=os.environ["DELIVERY_TABLE_NAME"],
         Key={"finding_key": {"S": marker}},
-        UpdateExpression="REMOVE #state, #lease, #token, #slack_state, #slack_lease, #slack_token",
+        UpdateExpression="REMOVE #state, #lease, #token, #slack_state, #slack_lease, #slack_token, #critical_state, #critical_lease, #critical_token, #critical_slack_state, #critical_slack_lease, #critical_slack_token, #escalation_state, #escalation_lease, #escalation_token",
         ExpressionAttributeNames={"#state": "urgent_state", "#lease": "urgent_lease", "#token": "urgent_token",
-                                  "#slack_state": "urgent_slack_state", "#slack_lease": "urgent_slack_lease", "#slack_token": "urgent_slack_token"},
+                                  "#slack_state": "urgent_slack_state", "#slack_lease": "urgent_slack_lease", "#slack_token": "urgent_slack_token",
+                                  "#critical_state": "critical_state", "#critical_lease": "critical_lease", "#critical_token": "critical_token",
+                                  "#critical_slack_state": "critical_slack_state", "#critical_slack_lease": "critical_slack_lease", "#critical_slack_token": "critical_slack_token",
+                                  "#escalation_state": "escalation_slack_state", "#escalation_lease": "escalation_slack_lease", "#escalation_token": "escalation_slack_token"},
     )
 
 
@@ -272,7 +275,7 @@ def sync_opsgenie(table, summary, state, now):
             # Record confirmed creation before optional enrichment. A failed
             # update then retries the update, not the create notification.
             _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority})
-            if state.get("urgent_state") == "SENT":
+            if state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
                 # An immediate P1 action may already have created this alias.
                 # Enrich it with the complete group on the first reconciliation.
                 _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
@@ -300,7 +303,7 @@ def sync_opsgenie(table, summary, state, now):
             if reformat:
                 _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
         return
-    if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
+    if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
         quiet_since = state.get("opsgenie_no_urgent_since")
         if not quiet_since:
             _set_fields(table, marker, {"opsgenie_no_urgent_since": datetime.fromtimestamp(now, timezone.utc).isoformat()})
@@ -359,7 +362,7 @@ def migrate_previous_groups(table, groups, closed_markers=None):
             state = _get_item(table, marker)
             if state.get("superseded_group_closed") == "1":
                 continue
-            if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT":
+            if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
                 _close_opsgenie_alias("securityhub-group-" + old_key,
                                       "Replaced by a remediation-group alert for the same resource")
             _set_fields(table, marker, {"opsgenie_open": "0", "superseded_group_closed": "1"})

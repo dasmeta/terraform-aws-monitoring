@@ -210,6 +210,8 @@ def format_group_urgent(message: Dict[str, Any]) -> Dict[str, Any]:
         return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", " ")
     resource = (finding.get("Resources") or [{}])[0].get("Id", "")
     resource_label = resource.rsplit("/", 1)[-1] if resource else ""
+    if resource_label.startswith("sha256:"):
+        resource_label = resource_label[:19]
     product = group.get("product") or finding.get("ProductName", "Security Hub")
     lines = [
         f"🚨 *Security Alert | {safe(product)}*",
