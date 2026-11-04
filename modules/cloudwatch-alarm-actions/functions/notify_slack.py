@@ -165,8 +165,9 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
                 image_word = "image" if item["images"] == 1 else "images"
                 severity = f"Critical {item['critical']} | High {item['high']}" if 'critical' in item and 'high' in item else ""
                 lines.append(f"• *{safe(item['repository'])[:70]}*: {item['vulnerabilities']} {vulnerability_word} across {item['images']} {image_word}; {severity}; +{item['new']} new | deployment {safe(item['deployment_status'])} <{item['url']}|Open>")
-            if len(applications) > 3:
-                lines.append(f"{len(applications) - 3} more applications in Security Hub.")
+            remaining_applications = max(0, digest.get("application_total", len(applications)) - min(len(applications), 3))
+            if remaining_applications:
+                lines.append(f"{remaining_applications} more applications in Security Hub.")
         if not top and not applications:
             lines.append("No active actionable findings.")
         remaining = digest.get("other_group_count", max(0, digest.get("groups_changed_total", len(top)) - len(top)))

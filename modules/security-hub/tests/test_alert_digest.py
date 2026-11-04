@@ -409,6 +409,23 @@ class AlertDigestTests(unittest.TestCase):
         self.assertIn(image[:19], rendered["text"])
         self.assertNotIn(image, rendered["text"])
 
+    def test_daily_payload_bounds_application_summaries_without_losing_total(self):
+        applications = [{"repository": f"service-{index}", "vulnerabilities": 1,
+                         "images": 1, "critical": 0, "high": 1, "new": 0,
+                         "deployment_status": "unknown", "url": "https://example.com"}
+                        for index in range(1000)]
+        summary = {"group": group("daily"), "new_count": 0, "new_severities": {},
+                   "active_count": 1000, "active_severities": {"HIGH": 1000},
+                   "affected_resources": 1000, "vulnerability_ids": [],
+                   "top_titles": [], "application_summaries": applications,
+                   "digest_kind": "daily", "regions": ["eu-central-1"]}
+        payload = digest._slack_payload(summary, False)
+        daily = payload["_dasmeta_group_digest"]
+        self.assertEqual(len(daily["application_summaries"]), 3)
+        self.assertEqual(daily["application_total"], 1000)
+        self.assertIn("997 more applications", slack.format_group_digest(payload)["text"])
+        self.assertLess(len(json.dumps(payload)), 10000)
+
     def test_existing_group_retry_does_not_add_duplicate_note(self):
         item = finding(severity="CRITICAL")
         calls = []
