@@ -92,7 +92,7 @@ def deliver(message):
             if error.code != 404:
                 raise
             existing = None
-        if existing:
+        if existing and existing.get("status", "open").lower() == "open":
             if existing.get("priority") != priority and priority == "P1":
                 result = _request("PUT", path + "/priority?identifierType=alias", {"priority": priority})
                 request_id = result.get("requestId")

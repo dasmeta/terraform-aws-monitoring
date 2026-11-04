@@ -197,6 +197,21 @@ class RiskPagingTests(unittest.TestCase):
                 notifier._request("POST", "/v2/alerts", {"alias": "test"})
         self.assertEqual(call.call_count, 4)
 
+    def test_closed_opsgenie_alias_is_reopened_for_new_urgent_finding(self):
+        finding = image_finding("CVE-2026-10001")
+        group = router._compact_finding(finding)["page_group"]
+        calls = []
+
+        def request(method, path, payload=None):
+            calls.append((method, path))
+            return {"data": {"status": "closed", "priority": "P2"}} if method == "GET" else {"requestId": "ok"}
+
+        with patch.object(notifier, "_request", side_effect=request), patch.object(notifier, "_wait_for_request"):
+            notifier.deliver({"detail": {"findings": [finding]}, "_dasmeta_group_urgent": True,
+                              "_dasmeta_group": group, "_dasmeta_page_priority": "P2"})
+        self.assertEqual([method for method, _ in calls], ["GET", "POST"])
+        self.assertEqual(calls[-1][1], "/v2/alerts")
+
     def test_existing_p2_incident_adds_new_cve_without_new_alert(self):
         records = [router._compact_finding(image_finding("CVE-2026-10001")),
                    router._compact_finding(image_finding("CVE-2026-10002"))]
