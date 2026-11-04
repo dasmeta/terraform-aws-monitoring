@@ -152,7 +152,8 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
             f"• {digest.get('quiet_count', 0)} groups quiet; {digest.get('resolved_count', 0)} confirmed resolved groups",
         ]
         top = digest.get("top_groups", [])[:5]
-        lines.append("*Priority findings*")
+        if top:
+            lines.append("*Priority findings*")
         for index, item in enumerate(top, 1):
             lines.append(f"{index}. *{safe(item['label'])[:100]}* — {safe(item['severity'])}; +{item['new']} new, {item['active']} active, {item['resources']} resources")
             lines.append(f"   Action: {safe(item['action'])[:130]} <{item.get('url') or digest['finding_url']}|Open>")
@@ -160,7 +161,9 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         if applications:
             lines.append("*Inspector container images*")
             for item in applications[:3]:
-                lines.append(f"• *{safe(item['repository'])[:70]}*: {item['vulnerabilities']} vulnerabilities across {item['images']} images; +{item['new']} new | deployment {safe(item['deployment_status'])} <{item['url']}|Open>")
+                vulnerability_word = "vulnerability" if item["vulnerabilities"] == 1 else "vulnerabilities"
+                image_word = "image" if item["images"] == 1 else "images"
+                lines.append(f"• *{safe(item['repository'])[:70]}*: {item['vulnerabilities']} {vulnerability_word} across {item['images']} {image_word}; +{item['new']} new | deployment {safe(item['deployment_status'])} <{item['url']}|Open>")
             if len(applications) > 3:
                 lines.append(f"{len(applications) - 3} more applications in Security Hub.")
         if not top and not applications:

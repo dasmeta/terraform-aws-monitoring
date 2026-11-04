@@ -122,7 +122,9 @@ class AlertDigestTests(unittest.TestCase):
         self.assertEqual(payloads[0]["application_summaries"][0]["vulnerabilities"], 1)
         formatted = slack.format_group_digest({"_dasmeta_group_digest": digest._slack_payload(payloads[0], False)["_dasmeta_group_digest"]})
         self.assertIn("sample-api", formatted["text"])
+        self.assertIn("1 vulnerability across 2 images", formatted["text"])
         self.assertIn("deployment unknown", formatted["text"])
+        self.assertNotIn("*Priority findings*", formatted["text"])
         self.assertNotIn("sha256:", formatted["text"])
 
     def test_lifecycle_escalation_resolution_and_reopen_keep_one_finding_key(self):
