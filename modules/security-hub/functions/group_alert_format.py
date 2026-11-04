@@ -4,6 +4,8 @@ import urllib.parse
 
 
 def group_action(group):
+    if group.get("incident_category") == "container-vulnerability":
+        return f"Review container vulnerabilities in {group['repository']}"
     if group.get("repository") and group.get("vulnerability"):
         return f"Patch {group['package']} for {group['vulnerability']} in {group['repository']}"
     if group.get("cluster") and group.get("nodepool") and group.get("image"):
@@ -21,6 +23,8 @@ def group_action(group):
 
 
 def group_message(group, prefix, priority):
+    if group.get("incident_category") == "container-vulnerability":
+        return f"{prefix} | Container vulnerabilities | {group['repository']}"[:130]
     return f"{prefix} Security {priority}: {group_action(group)}"[:130]
 
 

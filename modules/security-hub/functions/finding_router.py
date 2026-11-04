@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
-from finding_policy import environment, exploitable, is_guardduty, paging_priority, project, public_exposure, realtime
+from finding_policy import (environment, exploitable, is_guardduty, is_inspector_ecr,
+                            paging_priority, priority_with_reason, project, public_exposure,
+                            realtime, risk_context)
 
 
 LOG = logging.getLogger(__name__)
@@ -59,6 +61,11 @@ def _group_identity(finding):
         resource_id,
     ) if resource.get("Type") == "AwsEcrContainerImage" and product == "Inspector" else None
     ecr_repository = ecr_details.get("RepositoryName") or (ecr_image_id.group(1) if ecr_image_id else resource_id)
+    ecr_repositories = {
+        item.get("Details", {}).get("AwsEcrContainerImage", {}).get("RepositoryName") or
+        item.get("Id", "").split(":repository/", 1)[-1].rsplit("/sha256:", 1)[0]
+        for item in resources if item.get("Type") == "AwsEcrContainerImage"
+    }
     action = finding.get("Action") or {}
     network = action.get("NetworkConnectionAction") or {}
     probe = (action.get("PortProbeAction") or {}).get("PortProbeDetails") or []
@@ -77,6 +84,10 @@ def _group_identity(finding):
     elif product == "Inspector" and resource.get("Type") == "AwsEc2Instance" and resource_id:
         parts = (account, region, product, "ec2", resource_id, image or "")
         label = f"Inspector | {resource_id.rsplit('/', 1)[-1]} | {image or 'instance'}"
+    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and len(ecr_repositories) > 1:
+        parts = (account, region, product, "multiple-ecr-repositories", _finding_key(finding))
+        label = "Inspector | multiple container repositories"
+        ecr_repository = ""
     elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and ecr_repository:
         vulnerabilities = finding.get("Vulnerabilities") or []
         identifiers = sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")})
@@ -123,6 +134,7 @@ def _group_identity(finding):
 
 def _compact_finding(finding):
     group = _group_identity(finding)
+    page_group = _paging_identity(finding, group)
     resource = sorted(finding.get("Resources") or [{}], key=lambda item: item.get("Id", ""))[0]
     vulnerabilities = finding.get("Vulnerabilities") or []
     return {
@@ -131,12 +143,18 @@ def _compact_finding(finding):
         "product_arn": finding["ProductArn"],
         "account": finding["AwsAccountId"],
         "group": group,
+        "page_group": page_group,
         "resource": resource.get("Id", ""),
         "resource_ids": sorted({item.get("Id", "") for item in finding.get("Resources") or [] if item.get("Id")}),
         "title": finding.get("Title", "Security finding")[:250],
         "vulnerability_ids": sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")}),
         "exploit_available": "YES" if exploitable(finding) else "NO",
+        "fix_available": "YES" if any(v.get("FixAvailable") == "YES" for v in vulnerabilities)
+                         else "NO" if vulnerabilities and all(v.get("FixAvailable") == "NO" for v in vulnerabilities)
+                         else "UNKNOWN",
         "page_priority": paging_priority(finding),
+        "priority_reason": priority_with_reason(finding)[1],
+        "risk_context": risk_context(finding),
         "public_exposure": public_exposure(finding),
         "severity": finding.get("Severity", {}).get("Label", "UNKNOWN"),
         "compliance_status": (finding.get("Compliance") or {}).get("Status", ""),
@@ -148,6 +166,30 @@ def _compact_finding(finding):
         "last_seen_at": finding.get("LastObservedAt") or finding.get("UpdatedAt", finding["CreatedAt"]),
         "change_kind": "new",
     }
+
+
+def _paging_identity(finding, group):
+    """Keep remediation keys granular while grouping one application's incident."""
+    if not is_inspector_ecr(finding):
+        return group
+    return _page_group_from_remediation(group)
+
+
+def _page_group_from_remediation(group, resource=""):
+    if group.get("product") != "Inspector":
+        return group
+    if not group.get("repository") and ":repository/" in resource and "/sha256:" in resource:
+        group = {**group, "repository": resource.split(":repository/", 1)[1].rsplit("/sha256:", 1)[0]}
+    if not group.get("repository"):
+        return group
+    project_name = group.get("project") or os.environ.get("SECURITY_PROJECT") or "Unknown"
+    environment_name = group.get("environment") or os.environ.get("SECURITY_ENVIRONMENT") or "Unknown"
+    parts = (group["account"], group["region"], project_name,
+             environment_name, group["repository"], "container-vulnerability")
+    return {**group, "project": project_name, "environment": environment_name,
+            "key": hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest(),
+            "label": f"Container vulnerabilities | {group['repository']}",
+            "vulnerability": "", "package": "", "incident_category": "container-vulnerability"}
 
 
 def _record_grouped(table, finding):
@@ -165,11 +207,15 @@ def _record_grouped(table, finding):
                           (old_group.get("product") == "Inspector" and
                            old_group.get("label", "").startswith(f"Inspector | {record['group'].get('repository')} | sha256:") and
                            record["group"].get("repository"))))
+    old_page_key = (previous.get("page_group") or old_group).get("key") if previous else None
+    migrate_page = bool(previous and old_page_key != record["page_group"]["key"])
+    policy_change = bool(previous and (previous.get("page_priority") != record["page_priority"] or
+                         previous.get("priority_reason") != record["priority_reason"]))
     incoming_epoch = _timestamp_micros(record["updated_at"])
     previous_updated = current.get("notification_updated_at")
     previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
     if previous_epoch is not None and (previous_epoch > incoming_epoch or
-                                       previous_epoch == incoming_epoch and not migrate_group):
+                                       previous_epoch == incoming_epoch and not (migrate_group or migrate_page or policy_change)):
         return False
     if current.get("notification_payload"):
         # Archive events may omit EC2 tags or image details. Keep the first
@@ -183,6 +229,11 @@ def _record_grouped(table, finding):
             record["group"] = {**record["group"], **previous["group"]}
             if previous.get("previous_group_key"):
                 record["previous_group_key"] = previous["previous_group_key"]
+        if migrate_page:
+            record["previous_page_group_key"] = old_page_key
+            record["migration_brief_pending"] = True
+        elif previous.get("previous_page_group_key"):
+            record["previous_page_group_key"] = previous["previous_page_group_key"]
         record["first_seen_at"] = previous.get("first_seen_at", previous["created_at"])
         was_active = previous["record_state"] == "ACTIVE" and previous["workflow"] in {"NEW", "NOTIFIED"}
         is_active = record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}
@@ -191,8 +242,8 @@ def _record_grouped(table, finding):
                      or record["exploit_available"] == "YES" and previous["exploit_available"] != "YES")
         record["change_kind"] = ("reopened" if is_active and not was_active else
                                  "resolved" if was_active and not is_active else
-                                 "escalated" if is_active and escalated else "updated")
-    pending = "1" if migrate_group else current.get("notification_pending", "1")
+                                 "escalated" if is_active and (escalated or record["page_priority"] == "P1" and previous.get("page_priority") != "P1") else "updated")
+    pending = "1" if migrate_group or migrate_page or policy_change else current.get("notification_pending", "1")
     if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
         pending = "1"
     if record["change_kind"] in {"new", "escalated", "reopened", "resolved"}:
@@ -417,16 +468,15 @@ def route_event(event, table, sns, now=None):
                 if item.get("notification_updated_at") != finding.get("UpdatedAt", finding["CreatedAt"]) or item.get("notification_state") != "ACTIVE":
                     continue
                 record = json.loads(item["notification_payload"])
-                group = record["group"]
-                group_key = "group#" + group["key"]
-                group_state = _get_item(table, group_key)
-                is_critical = finding.get("Severity", {}).get("Label") == "CRITICAL"
-                # A remediation group has one immediate alert per severity tier.
-                # New CVEs on the same image are counted in the daily digest;
-                # moving from High to Critical still gets an immediate alert.
-                page_destination = "critical" if is_critical else "urgent"
-                slack_destination = "critical_slack" if is_critical else "urgent_slack"
-                if not is_critical:
+                group = record.get("page_group", record["group"])
+                marker = "group#" + group["key"]
+                group_state = _get_item(table, marker)
+                p1 = page_priority == "P1"
+                # Claim by incident priority, so a new P1 can promote an open
+                # application P2 without creating another CVE-level alert.
+                page_destination = "critical" if p1 else "urgent"
+                slack_destination = "critical_slack" if p1 else "urgent_slack"
+                if not p1:
                     if group_state.get("critical_state") == "SENT":
                         page_priority = None
                     if group_state.get("critical_slack_state") == "SENT":
@@ -435,14 +485,15 @@ def route_event(event, table, sns, now=None):
                         slack_destination = "escalation_slack"
                 payload = {**event, "detail": {**event["detail"], "findings": [finding]},
                            "_dasmeta_group_urgent": True, "_dasmeta_group": group,
-                           "_dasmeta_page_priority": page_priority}
-                if page_priority and _publish_once(table, sns, group_key, page_destination, os.environ["HIGH_TOPIC_ARN"], payload, now):
+                           "_dasmeta_page_priority": page_priority,
+                           "_dasmeta_priority_reason": record.get("priority_reason", "")}
+                if page_priority and _publish_once(table, sns, marker, page_destination, os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
-                if send_realtime and _publish_once(table, sns, group_key, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
+                if send_realtime and _publish_once(table, sns, marker, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
                     counts["urgent_slack"] += 1
                     table.update_item(
                         TableName=os.environ["DELIVERY_TABLE_NAME"],
-                        Key={"finding_key": {"S": group_key}},
+                        Key={"finding_key": {"S": marker}},
                         UpdateExpression="SET #open = :open",
                         ExpressionAttributeNames={"#open": "slack_open"},
                         ExpressionAttributeValues={":open": {"S": "1"}},

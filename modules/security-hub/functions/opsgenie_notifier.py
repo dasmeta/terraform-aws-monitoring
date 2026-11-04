@@ -99,35 +99,44 @@ def deliver(message):
                 if not request_id:
                     raise RuntimeError("Opsgenie priority change returned no request ID")
                 _wait_for_request(request_id)
-            # New critical information in an existing group must be visible
-            # without creating another alert for the same remediation.
-            result = _request("POST", path + "/notes?identifierType=alias", {
-                "note": f"{finding.get('Severity', {}).get('Label', 'UNKNOWN')}: {finding.get('Title', 'Security finding')[:180]}",
-                "source": "AWS Security Hub",
-            })
+            # Reconciliation updates distinct CVEs in the description. A
+            # retried SNS event must not add duplicate Opsgenie notes.
+            LOG.info("Opsgenie incident already exists for %s", alias)
+            return
         else:
             resource = (finding.get("Resources") or [{}])[0].get("Id", "")
             resource_label = resource.rsplit("/", 1)[-1][:120] if resource else "unknown"
+            container = group.get("incident_category") == "container-vulnerability"
+            description = (
+                f"Priority: {priority}\nEnvironment: {group.get('environment') or 'Unknown'}\n"
+                f"AWS account: {group['account']}\nRegion: {group['region']}\n"
+                f"Application: {group['repository']}\n"
+                f"Deployment: unknown | Exposure: unknown\n"
+                f"Escalation reason: {message.get('_dasmeta_priority_reason') or 'Configured investigation policy'}\n"
+                f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
+                "Recommended action: Verify deployment, exploitability, exposure, and patched version availability.\n"
+                f"Security Hub: {securityhub_url(group)}\n"
+                f"First detected: {finding.get('CreatedAt', 'unknown')}\n"
+                f"Last updated: {finding.get('UpdatedAt', finding.get('CreatedAt', 'unknown'))}"
+            ) if container else (
+                description_header(group)
+                + f"Severity: {finding.get('Severity', {}).get('Label', 'UNKNOWN')}\n"
+                f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
+                f"Resource: {resource_label}\n"
+                f"Security Hub: {securityhub_url(group)}\n"
+                "Review the finding and related resources in Security Hub."
+            )
             result = _request("POST", "/v2/alerts", {
                 "message": group_message(group, os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"), priority),
                 "alias": alias,
-                "description": (
-                    description_header(group)
-                    + f"Severity: {finding.get('Severity', {}).get('Label', 'UNKNOWN')}\n"
-                    f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
-                    f"Resource: {resource_label}\n"
-                    f"Security Hub: {securityhub_url(group)}\n"
-                    "Review the finding and related resources in Security Hub."
-                )[:15000],
+                "description": description[:15000],
                 "priority": priority,
                 "source": "AWS Security Hub",
                 "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
-                "details": {
-                    "AWS account": finding["AwsAccountId"],
-                    "Cluster": (group["cluster"] or "n/a")[:50],
-                    "Node pool": (group["nodepool"] or "n/a")[:50],
-                    "AMI": (group["image"] or "n/a")[:50],
-                },
+                "details": ({"AWS account": finding["AwsAccountId"], "Application": group["repository"][:100],
+                             "Deployment status": "unknown", "Exposure status": "unknown"} if container else {
+                    "AWS account": finding["AwsAccountId"], "Cluster": (group["cluster"] or "n/a")[:50],
+                    "Node pool": (group["nodepool"] or "n/a")[:50], "AMI": (group["image"] or "n/a")[:50]}),
             })
         request_id = result.get("requestId")
         if not request_id:

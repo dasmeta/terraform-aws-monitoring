@@ -409,7 +409,7 @@ class AlertDigestTests(unittest.TestCase):
         self.assertIn(image[:19], rendered["text"])
         self.assertNotIn(image, rendered["text"])
 
-    def test_existing_group_receives_new_critical_note(self):
+    def test_existing_group_retry_does_not_add_duplicate_note(self):
         item = finding(severity="CRITICAL")
         calls = []
         def request(method, path, payload=None):
@@ -418,10 +418,10 @@ class AlertDigestTests(unittest.TestCase):
         with patch.object(notifier, "_request", side_effect=request), patch.object(notifier, "_wait_for_request"):
             notifier.deliver({"detail": {"findings": [item]}, "_dasmeta_group_urgent": True,
                               "_dasmeta_group": group("one"), "_dasmeta_page_priority": "P1"})
-        self.assertTrue(any(path.endswith("/notes?identifierType=alias") for method, path, _ in calls if method == "POST"))
+        self.assertFalse(any(path.endswith("/notes?identifierType=alias") for method, path, _ in calls if method == "POST"))
         self.assertFalse(any(path == "/v2/alerts" for _, path, _ in calls))
 
-    def test_existing_group_is_promoted_and_annotated(self):
+    def test_existing_group_is_promoted_once(self):
         calls = []
         def request(method, path, payload=None):
             calls.append((method, path))
@@ -430,7 +430,7 @@ class AlertDigestTests(unittest.TestCase):
             notifier.deliver({"detail": {"findings": [finding(severity="CRITICAL")]},
                               "_dasmeta_group_urgent": True, "_dasmeta_group": group("one"),
                               "_dasmeta_page_priority": "P1"})
-        self.assertEqual([method for method, _ in calls], ["GET", "PUT", "POST"])
+        self.assertEqual([method for method, _ in calls], ["GET", "PUT"])
 
 
 if __name__ == "__main__":

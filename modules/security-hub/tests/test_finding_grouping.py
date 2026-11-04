@@ -132,6 +132,7 @@ class InspectorGroupingTests(unittest.TestCase):
         summary = {"group": {"key": "new-group", "product": "Inspector"}, "priority": "P1",
                    "urgent_signature": "signature", "active_count": 2}
         with patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_request", return_value={"data": {"status": "open", "priority": "P1"}}), \
              patch.object(digest, "_set_fields"), \
              patch.object(digest, "_opsgenie_message", return_value="message"), \
              patch.object(digest, "_opsgenie_details", return_value={}), \
@@ -143,6 +144,7 @@ class InspectorGroupingTests(unittest.TestCase):
         summary = {"group": {"key": "group", "product": "Inspector"}, "priority": "P1",
                    "urgent_signature": "signature", "active_count": 2}
         with patch.object(digest, "_ops_action", side_effect=[None, RuntimeError("update failed")]), \
+             patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
              patch.object(digest, "_set_fields") as set_fields, \
              patch.object(digest, "_opsgenie_message", return_value="message"), \
              patch.object(digest, "_opsgenie_details", return_value={}), \

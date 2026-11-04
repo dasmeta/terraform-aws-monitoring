@@ -106,11 +106,16 @@ variable "finding_delivery" {
       high_requires_public_exposure = optional(bool, true)     # Require verified exposure for immediate HIGH Slack alerts.
     }), {})
     paging = optional(object({
-      critical                = optional(bool, true)       # Page for active CRITICAL findings.
-      high_exploitable        = optional(bool, true)       # Page for active HIGH findings with known exploit availability.
-      guardduty_types         = optional(list(string), []) # GuardDuty finding-type prefixes eligible for paging.
-      environments            = optional(list(string), []) # Allowed environment labels; empty permits all.
-      require_public_exposure = optional(bool, true)       # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
+      critical                        = optional(bool, true)                           # Enable CRITICAL escalation; ECR uses the separate unknown-context priority.
+      high_exploitable                = optional(bool, true)                           # Enable HIGH paging when exploit and exposure criteria are verified.
+      guardduty_types                 = optional(list(string), [])                     # GuardDuty finding-type prefixes eligible for paging.
+      guardduty_investigation_types   = optional(list(string), [])                     # GuardDuty finding-type prefixes that create a P2 investigation.
+      guardduty_port_probe_p1         = optional(bool, false)                          # Explicitly permit P1 for configured port-probing findings.
+      environments                    = optional(list(string), [])                     # Allowed environment labels; empty permits all.
+      production_environments         = optional(list(string), ["Production", "prod"]) # Labels eligible for evidence-backed ECR P1.
+      ecr_critical_unknown_priority   = optional(string, "P2")                         # P2, P1, or DIGEST when ECR deployment or exposure is unverified.
+      ecr_emergency_vulnerability_ids = optional(list(string), [])                     # Security-owner verified emergency CVE/GHSA IDs eligible for P1.
+      require_public_exposure         = optional(bool, true)                           # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
     }), {})
   })
   default = {}
@@ -148,7 +153,12 @@ variable "finding_delivery" {
       var.finding_delivery.daily_digest.max_groups >= 3 && var.finding_delivery.daily_digest.max_groups <= 5 &&
       floor(var.finding_delivery.daily_digest.max_groups) == var.finding_delivery.daily_digest.max_groups &&
       contains(["LOW", "MEDIUM", "HIGH", "CRITICAL"], var.finding_delivery.realtime.guardduty_min_severity) &&
-      alltrue([for prefix in var.finding_delivery.paging.guardduty_types : trimspace(prefix) != ""])
+      alltrue([for prefix in var.finding_delivery.paging.guardduty_types : trimspace(prefix) != ""]) &&
+      alltrue([for prefix in var.finding_delivery.paging.guardduty_investigation_types : trimspace(prefix) != ""]) &&
+      length(var.finding_delivery.paging.production_environments) > 0 &&
+      alltrue([for label in var.finding_delivery.paging.production_environments : trimspace(label) != ""]) &&
+      contains(["P1", "P2", "DIGEST"], var.finding_delivery.paging.ecr_critical_unknown_priority) &&
+      alltrue([for identifier in var.finding_delivery.paging.ecr_emergency_vulnerability_ids : trimspace(identifier) != ""])
     )
     error_message = "Grouped delivery requires 1-1440 quiet minutes, UTC digest hour 0-23, 3-5 displayed groups, a valid GuardDuty severity, and nonempty paging type prefixes."
   }
