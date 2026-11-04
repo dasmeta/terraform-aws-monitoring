@@ -30,11 +30,11 @@ By default, Config and Inspector are enabled (`config.enabled = true`, `inspecto
 
 ### Grouped security alerts and daily digest
 
-`finding_delivery.notification_mode = "grouped"` reuses the existing EventBridge router, DynamoDB ledger, two SNS topics, Slack subscription, Opsgenie API notifier, and 15-minute Security Hub reconciliation worker. It does not create a second alerting pipeline. Inspector findings group by stable workload or image target, GuardDuty by finding type, resource and observed source/port, and compliance findings by control and resource group. A finding with multiple resources contributes all resource IDs to the digest count. Unknown targets remain finding-specific.
+`finding_delivery.notification_mode = "grouped"` reuses the existing EventBridge router, DynamoDB ledger, two SNS topics, Slack subscription, Opsgenie API notifier, and 15-minute Security Hub reconciliation worker. It does not create a second alerting pipeline. Inspector container findings group by account, Region, project, environment, repository, vulnerability ID, and package; image digests and finding IDs remain in the ledger. Other Inspector findings group by stable workload target, GuardDuty by finding type, resource and observed source/port, and compliance findings by control and resource group. A finding with multiple resources contributes all resource IDs to the digest count. Unknown vulnerability IDs remain finding-specific.
 
-Active Critical findings and qualifying High findings alert immediately. Active GuardDuty findings at or above `realtime.guardduty_min_severity` also reach Slack. Opsgenie paging follows `paging`: Critical and exploitable High preserve the current P1 defaults; GuardDuty paging requires an explicit finding-type prefix. Optional environment and known public-exposure conditions apply to non-Critical paging. Each remediation group sends one immediate alert at a severity tier. Escalation to Critical sends a new immediate alert and promotes the existing Opsgenie group; additional same-tier CVEs are counted in the daily digest instead of producing repeated alerts. Quiet groups rearm after the configured period. High-volume routine findings are summarized daily. Per-finding mode retains its previous behavior.
+Active Critical findings and qualifying High findings alert immediately. Active GuardDuty findings at or above `realtime.guardduty_min_severity` also reach Slack. Routine HIGH Inspector container findings go to the daily digest, including findings marked `ExploitAvailable=YES` without verified exposure. Exploit availability is not evidence of active exploitation or deployment. HIGH immediate delivery and paging require both exploit availability and explicit public exposure by default; set `high_requires_public_exposure=false` or `paging.require_public_exposure=false` to restore the older behavior. Critical paging remains enabled by default; GuardDuty paging requires an explicit finding-type prefix and is not subject to the public-exposure check. Each remediation group sends one immediate alert per severity tier. Escalation to Critical sends a new immediate alert. Quiet groups rearm after the configured period. Per-finding mode retains its previous behavior.
 
-The worker reconciles every 15 minutes and publishes at most one daily Slack digest after `daily_digest.hour_utc` (default 08:00 UTC). Its main message contains the severity distribution, active findings, distinct resources and vulnerabilities, quiet versus confirmed resolved groups, and the top `daily_digest.max_groups` remediation groups (default 5). An empty day still produces a zero-findings brief. The stable ranking is: highest active severity, active GuardDuty, explicit public exposure, affected resource count, new or escalated finding count, then group label and key. Finding volume cannot outrank a Critical group. A quiet group has no actionable finding after `quiet_period_minutes` (default 60); quiet does not imply remediation. Resolved finding snapshots remain in the ledger for `finding_retention_days` (default 365) before DynamoDB TTL can remove them; active snapshots do not expire.
+The worker reconciles every 15 minutes and publishes at most one daily Slack digest after `daily_digest.hour_utc` (default 08:00 UTC). Its main message contains the severity distribution, active findings, distinct resources and vulnerabilities, quiet versus confirmed resolved groups, the top `daily_digest.max_groups` urgent remediation groups (default 5), and compact application summaries for routine Inspector container findings. Application summaries count distinct vulnerabilities and image digests without printing the digests; deployment status is `unknown` because this module has no verified deployment inventory. All active records remain in Security Hub. An empty day still produces a zero-findings brief. The stable ranking is: highest active severity, active GuardDuty, explicit public exposure, affected resource count, new or escalated finding count, then group label and key. Finding volume cannot outrank a Critical group. A quiet group has no actionable finding after `quiet_period_minutes` (default 60); quiet does not imply remediation. Resolved finding snapshots remain in the ledger for `finding_retention_days` (default 365) before DynamoDB TTL can remove them; active snapshots do not expire.
 
 The existing worker has a 100,000-finding scan bound and a 300-second timeout. Its duration alarm fires at 240 seconds. Reconciliation or destination failure raises an error and uses the existing retry and dead-letter path. SNS and webhooks are at-least-once delivery, so a crash after publish can still cause a repeated message. Delivery to Slack or Opsgenie should be monitored through the existing dead-letter alarms.
 
@@ -44,6 +44,7 @@ finding_delivery = {
   notification_mode     = "grouped"
   opsgenie_api_key      = var.opsgenie_api_key
   environment_label     = "Production"
+  project_label         = "Example"
   account_label         = "Example production"
   quiet_period_minutes  = 60
   finding_retention_days = 365
@@ -55,10 +56,12 @@ finding_delivery = {
   realtime = {
     enabled                = true
     guardduty_min_severity = "HIGH"
+    high_requires_public_exposure = true
   }
   paging = {
     critical         = true
     high_exploitable = true
+    require_public_exposure = true
     guardduty_types  = ["UnauthorizedAccess:", "Trojan:"]
   }
 }
@@ -93,6 +96,8 @@ Summary
 Priority findings
 1. Inspector | workload-example — CRITICAL; +1 new, 4 active, 2 resources
    Action: Investigate affected workload
+Inspector container images
+• example-api: 2 vulnerabilities across 3 images; +1 new | deployment unknown
 View findings in Security Hub
 ```
 

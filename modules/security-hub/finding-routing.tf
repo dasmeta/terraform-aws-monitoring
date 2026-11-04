@@ -97,19 +97,21 @@ module "finding_router" {
   timeout       = 30
 
   environment_variables = {
-    DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT      = local.finding_cutover_at
-    SLACK_TOPIC_ARN         = module.alarm_actions[0].topic_arn
-    HIGH_TOPIC_ARN          = module.high_severity_actions[0].topic_arn
-    OPSGENIE_API_MODE       = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
-    GROUPED_DELIVERY_MODE   = local.grouped_delivery_enabled ? "true" : "false"
-    SECURITY_ENVIRONMENT    = var.finding_delivery.environment_label
-    SECURITY_ACCOUNT_LABEL  = var.finding_delivery.account_label
-    REALTIME_ENABLED        = tostring(var.finding_delivery.realtime.enabled)
-    GUARD_DUTY_MIN_SEVERITY = var.finding_delivery.realtime.guardduty_min_severity
-    HIGH_REQUIRES_EXPLOIT   = tostring(var.finding_delivery.realtime.high_requires_exploit)
-    PAGING_POLICY           = jsonencode(var.finding_delivery.paging)
-    FINDING_RETENTION_DAYS  = tostring(var.finding_delivery.finding_retention_days)
+    DELIVERY_TABLE_NAME           = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT            = local.finding_cutover_at
+    SLACK_TOPIC_ARN               = module.alarm_actions[0].topic_arn
+    HIGH_TOPIC_ARN                = module.high_severity_actions[0].topic_arn
+    OPSGENIE_API_MODE             = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
+    GROUPED_DELIVERY_MODE         = local.grouped_delivery_enabled ? "true" : "false"
+    SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_PROJECT              = var.finding_delivery.project_label
+    SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
+    REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
+    GUARD_DUTY_MIN_SEVERITY       = var.finding_delivery.realtime.guardduty_min_severity
+    HIGH_REQUIRES_EXPLOIT         = tostring(var.finding_delivery.realtime.high_requires_exploit)
+    HIGH_REQUIRES_PUBLIC_EXPOSURE = tostring(var.finding_delivery.realtime.high_requires_public_exposure)
+    PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
+    FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true
@@ -186,6 +188,7 @@ module "finding_group_digest" {
     OPSGENIE_API_URL        = var.finding_delivery.opsgenie_api_url
     OPSGENIE_ALERT_PREFIX   = var.finding_delivery.opsgenie_alert_prefix
     SECURITY_ENVIRONMENT    = var.finding_delivery.environment_label
+    SECURITY_PROJECT        = var.finding_delivery.project_label
     SECURITY_ACCOUNT_LABEL  = var.finding_delivery.account_label
     QUIET_PERIOD_SECONDS    = tostring(var.finding_delivery.quiet_period_minutes * 60)
     DAILY_DIGEST_ENABLED    = tostring(var.finding_delivery.daily_digest.enabled)

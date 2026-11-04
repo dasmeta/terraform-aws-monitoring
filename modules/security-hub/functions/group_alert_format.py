@@ -4,6 +4,8 @@ import urllib.parse
 
 
 def group_action(group):
+    if group.get("repository") and group.get("vulnerability"):
+        return f"Patch {group['package']} for {group['vulnerability']} in {group['repository']}"
     if group.get("cluster") and group.get("nodepool") and group.get("image"):
         return f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
 

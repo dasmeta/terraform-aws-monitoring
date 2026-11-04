@@ -90,6 +90,7 @@ variable "finding_delivery" {
     teams_delivery         = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
     teams_webhooks         = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
     environment_label      = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
+    project_label          = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
     account_label          = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
     quiet_period_minutes   = optional(number, 60)                         # Time without actionable findings before a group is reported quiet.
     finding_retention_days = optional(number, 365)                        # Days to keep resolved finding snapshots for deduplication and reopen tracking.
@@ -99,16 +100,17 @@ variable "finding_delivery" {
       max_groups = optional(number, 5)  # Maximum actionable groups shown in the main Slack message.
     }), {})
     realtime = optional(object({
-      enabled                = optional(bool, true)     # Send immediate actionable Slack notifications.
-      guardduty_min_severity = optional(string, "HIGH") # Minimum GuardDuty severity for immediate Slack delivery.
-      high_requires_exploit  = optional(bool, true)     # Require known exploit availability for immediate Inspector HIGH alerts.
+      enabled                       = optional(bool, true)     # Send immediate actionable Slack notifications.
+      guardduty_min_severity        = optional(string, "HIGH") # Minimum GuardDuty severity for immediate Slack delivery.
+      high_requires_exploit         = optional(bool, true)     # Require known exploit availability for immediate Inspector HIGH alerts.
+      high_requires_public_exposure = optional(bool, true)     # Require verified exposure for immediate HIGH Slack alerts.
     }), {})
     paging = optional(object({
       critical                = optional(bool, true)       # Page for active CRITICAL findings.
       high_exploitable        = optional(bool, true)       # Page for active HIGH findings with known exploit availability.
       guardduty_types         = optional(list(string), []) # GuardDuty finding-type prefixes eligible for paging.
       environments            = optional(list(string), []) # Allowed environment labels; empty permits all.
-      require_public_exposure = optional(bool, false)      # Require explicit public exposure evidence for non-CRITICAL paging.
+      require_public_exposure = optional(bool, true)       # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
     }), {})
   })
   default = {}

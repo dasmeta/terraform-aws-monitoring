@@ -38,6 +38,19 @@ def finding(identifier="finding-1", severity="HIGH", product="Inspector", exploi
     }
 
 
+def ecr_finding(identifier, digest, vulnerability="CVE-2026-10001", package="pillow", repository="sample-api"):
+    item = finding(identifier=identifier, exploit=True)
+    item["Title"] = f"{vulnerability} - {package}"
+    item["Resources"] = [{
+        "Type": "AwsEcrContainerImage",
+        "Id": f"arn:aws:ecr:eu-central-1:123456789012:repository/{repository}/sha256:{digest}",
+        "Details": {"AwsEcrContainerImage": {"RepositoryName": repository, "ImageDigest": f"sha256:{digest}"}},
+    }]
+    item["Vulnerabilities"] = [{"Id": vulnerability, "ExploitAvailable": "YES",
+                                "VulnerablePackages": [{"Name": package}]}]
+    return item
+
+
 def record(identifier, group, severity="HIGH", pending=False, state="ACTIVE"):
     return {
         "finding_key": identifier, "finding_id": identifier, "account": "123456789012",
@@ -58,6 +71,60 @@ def group(key, product="Inspector"):
 
 
 class AlertDigestTests(unittest.TestCase):
+    def test_ecr_same_cve_package_across_digests_is_one_group(self):
+        first = ecr_finding("f-1", "a" * 64)
+        second = ecr_finding("f-2", "b" * 64)
+        a, b = router._compact_finding(first), router._compact_finding(second)
+        self.assertEqual(a["group"]["key"], b["group"]["key"])
+        self.assertNotEqual(a["resource"], b["resource"])
+        summary = digest.summarize_group([a, b])
+        self.assertEqual(summary["affected_images"], 2)
+        self.assertEqual(len(summary["vulnerability_ids"]), 1)
+        self.assertEqual(summary["group"]["deployment_status"], "unknown")
+
+    def test_ecr_group_distinguishes_package_repository_region_and_environment(self):
+        base = ecr_finding("f-1", "a" * 64)
+        changed = []
+        package = ecr_finding("f-2", "b" * 64, package="glibc")
+        changed.append(package)
+        changed.append(ecr_finding("f-3", "b" * 64, repository="sample-worker"))
+        changed.append(ecr_finding("f-4", "b" * 64, vulnerability="CVE-2026-10002"))
+        region = ecr_finding("f-5", "b" * 64)
+        region["Resources"][0]["Id"] = region["Resources"][0]["Id"].replace("eu-central-1", "us-east-1")
+        changed.append(region)
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production"}):
+            key = router._group_identity(base)["key"]
+            self.assertTrue(all(router._group_identity(item)["key"] != key for item in changed))
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Development"}):
+            self.assertNotEqual(router._group_identity(base)["key"], key)
+
+    def test_routine_high_ecr_is_digest_only_without_verified_exposure(self):
+        item = ecr_finding("f-1", "a" * 64)
+        with patch.dict(os.environ, {"REALTIME_ENABLED": "true", "HIGH_REQUIRES_EXPLOIT": "true",
+                                  "HIGH_REQUIRES_PUBLIC_EXPOSURE": "true", "PAGING_POLICY": json.dumps({"high_exploitable": True, "require_public_exposure": True})}):
+            self.assertFalse(policy.realtime(item))
+            self.assertIsNone(policy.paging_priority(item))
+
+    def test_daily_digest_consolidates_application_images_and_hides_digests(self):
+        first = router._compact_finding(ecr_finding("f-1", "a" * 64))
+        second = router._compact_finding(ecr_finding("f-2", "b" * 64))
+        for item in (first, second):
+            item["pending"] = True
+        groups = {first["group"]["key"]: [first, second]}
+        payloads = []
+        with patch.dict(os.environ, {"DAILY_DIGEST_MAX_GROUPS": "5"}), \
+             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_publish_slack", side_effect=lambda _sns, summary: payloads.append(summary)), \
+             patch.object(digest, "_acknowledge_new"), patch.object(digest, "_set_fields"):
+            digest.send_slack_batch(object(), object(), groups, 1793782800)
+        self.assertEqual(payloads[0]["active_count"], 2)
+        self.assertEqual(payloads[0]["application_summaries"][0]["images"], 2)
+        self.assertEqual(payloads[0]["application_summaries"][0]["vulnerabilities"], 1)
+        formatted = slack.format_group_digest({"_dasmeta_group_digest": digest._slack_payload(payloads[0], False)["_dasmeta_group_digest"]})
+        self.assertIn("sample-api", formatted["text"])
+        self.assertIn("deployment unknown", formatted["text"])
+        self.assertNotIn("sha256:", formatted["text"])
+
     def test_lifecycle_escalation_resolution_and_reopen_keep_one_finding_key(self):
         original = finding(severity="HIGH")
         previous = router._compact_finding(original)
@@ -179,7 +246,7 @@ class AlertDigestTests(unittest.TestCase):
              patch.object(router, "_get_item", side_effect=get_item), \
              patch.object(router, "_publish_once", side_effect=publish):
             router.route_event(event, object(), object(), now=1793779260)
-        self.assertEqual(calls, [(group_key, "urgent"), (group_key, "urgent_slack")] * 2)
+        self.assertEqual(calls, [])  # Exploit availability without verified exposure is routine HIGH.
 
     def test_page_policy_requires_real_context_for_high_and_guardduty(self):
         high = finding()
@@ -187,7 +254,10 @@ class AlertDigestTests(unittest.TestCase):
                                       "GUARD_DUTY_MIN_SEVERITY": "HIGH", "SECURITY_ENVIRONMENT": "Production"}):
             self.assertIsNone(policy.paging_priority(high))
             self.assertEqual(policy.paging_priority(finding(severity="CRITICAL")), "P1")
-            self.assertEqual(policy.paging_priority(finding(exploit=True)), "P1")
+            self.assertIsNone(policy.paging_priority(finding(exploit=True)))
+            exposed = finding(exploit=True)
+            exposed["Resources"][0]["Details"] = {"AwsEc2Instance": {"PublicIpAddress": "192.0.2.1"}}
+            self.assertEqual(policy.paging_priority(exposed), "P1")
             threat = finding(product="GuardDuty")
             threat["Types"] = ["Recon:EC2/PortProbeUnprotectedPort"]
             self.assertEqual(policy.paging_priority(threat), "P1")

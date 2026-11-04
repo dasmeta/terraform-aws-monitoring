@@ -156,9 +156,16 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         for index, item in enumerate(top, 1):
             lines.append(f"{index}. *{safe(item['label'])[:100]}* — {safe(item['severity'])}; +{item['new']} new, {item['active']} active, {item['resources']} resources")
             lines.append(f"   Action: {safe(item['action'])[:130]} <{item.get('url') or digest['finding_url']}|Open>")
-        if not top:
+        applications = digest.get("application_summaries") or []
+        if applications:
+            lines.append("*Inspector container images*")
+            for item in applications[:3]:
+                lines.append(f"• *{safe(item['repository'])[:70]}*: {item['vulnerabilities']} vulnerabilities across {item['images']} images; +{item['new']} new | deployment {safe(item['deployment_status'])} <{item['url']}|Open>")
+            if len(applications) > 3:
+                lines.append(f"{len(applications) - 3} more applications in Security Hub.")
+        if not top and not applications:
             lines.append("No active actionable findings.")
-        remaining = digest.get("groups_changed_total", len(top)) - len(top)
+        remaining = digest.get("other_group_count", max(0, digest.get("groups_changed_total", len(top)) - len(top)))
         if remaining > 0:
             lines.append(f"{remaining} more active groups in Security Hub.")
         lines.append(f"<{digest['finding_url']}|View findings in Security Hub>")

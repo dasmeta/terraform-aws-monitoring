@@ -163,6 +163,7 @@ def summarize_group(records):
         "sample_resource": next((record["resource"] for record in high if record["resource"]), ""),
         "active_severities": dict(collections.Counter(record["severity"] for record in active)),
         "affected_resources": len({resource for record in active for resource in record.get("resource_ids", [record["resource"]]) if resource}),
+        "affected_images": len({resource for record in active for resource in record.get("resource_ids", [record["resource"]]) if "/sha256:" in resource}),
         "public_exposure_count": sum(bool(record.get("public_exposure")) for record in active),
         "vulnerability_ids": sorted({identifier for record in active for identifier in record["vulnerability_ids"]}),
         "top_titles": titles.most_common(5),
@@ -353,7 +354,10 @@ def migrate_previous_groups(table, groups, closed_markers=None):
         old_keys.discard(None)
         if not old_keys:
             continue
-        if _get_item(table, "group#" + key).get("opsgenie_open") != "1":
+        if (_get_item(table, "group#" + key).get("opsgenie_open") != "1" and
+                not (os.environ.get("DAILY_DIGEST_ENABLED", "true") == "true" and
+                     any(_actionable(record) for record in records) and
+                     all(not record.get("pending") for record in records))):
             continue
         for old_key in old_keys - active_keys:
             if old_key in closed_markers:
@@ -388,10 +392,12 @@ def _slack_payload(summary, closing):
             "finding_url": _securityhub_url(group), "closing": closing,
             "groups_changed": summary.get("groups_changed", [])[:15],
             "groups_changed_total": summary.get("groups_changed_total", len(summary.get("groups_changed", []))),
+            "other_group_count": summary.get("other_group_count", 0),
             "groups_cleared": summary.get("groups_cleared", [])[:10],
             "groups_cleared_total": len(summary.get("groups_cleared", [])),
             "baseline": summary.get("baseline", False),
             "digest_kind": summary.get("digest_kind"),
+            "application_summaries": summary.get("application_summaries", []),
             "environment": summary.get("environment", group.get("environment", "Unknown")),
             "account_label": summary.get("account_label", group["account"]),
             "top_groups": summary.get("top_groups", []),
@@ -496,8 +502,29 @@ def send_slack_batch(table, sns, groups, now, initial=False):
                 resolved_groups.append(records[0]["group"]["label"])
 
     summaries.sort(key=_group_rank)
+    applications = collections.defaultdict(lambda: {"images": set(), "vulnerabilities": set(), "findings": 0, "new": 0, "group": None})
+    for item in summaries:
+        group = item["group"]
+        if group.get("product") != "Inspector" or not group.get("repository"):
+            continue
+        boundary = (group["account"], group["region"], group.get("project", "Unknown"),
+                    group.get("environment", "Unknown"), group["repository"])
+        app = applications[boundary]
+        app["group"] = group
+        app["findings"] += item["active_count"]
+        app["new"] += item["new_count"]
+        app["vulnerabilities"].update(item["vulnerability_ids"])
+        app["images"].update(resource for record in groups[group["key"]] if _actionable(record)
+                             for resource in record.get("resource_ids", [record["resource"]]) if "/sha256:" in resource)
+    application_summaries = [{"repository": boundary[4], "images": len(app["images"]),
+                              "vulnerabilities": len(app["vulnerabilities"]), "findings": app["findings"],
+                              "new": app["new"], "deployment_status": "unknown",
+                              "url": _securityhub_url(app["group"])}
+                             for boundary, app in applications.items()]
+    application_summaries.sort(key=lambda item: (-item["new"], -item["vulnerabilities"], item["repository"]))
     max_groups = int(os.environ.get("DAILY_DIGEST_MAX_GROUPS", "5"))
-    selected = summaries[:max_groups]
+    selected = [item for item in summaries if not (item["group"].get("repository") and
+                item["group"].get("product") == "Inspector" and not item["priority"])][:max_groups]
     sample = (active_records or [record for records in groups.values() for record in records])
     first_group = sample[0]["group"] if sample else {
         "key": "daily", "label": "Security Hub daily digest", "account": "unknown",
@@ -519,6 +546,7 @@ def send_slack_batch(table, sns, groups, now, initial=False):
         "active_severities": dict(collections.Counter(record["severity"] for record in active_records)),
         "affected_resources": len(resources), "vulnerability_ids": sorted(vulnerabilities),
         "top_titles": [], "baseline": initial, "digest_kind": "daily",
+        "application_summaries": application_summaries,
         "groups_changed": [{"label": item["group"]["label"], "new": item["new_count"],
                             "active": item["active_count"]} for item in selected],
         "groups_cleared": quiet_groups, "quiet_count": len(quiet_groups),
@@ -535,6 +563,9 @@ def send_slack_batch(table, sns, groups, now, initial=False):
                         "url": _securityhub_url(item["group"])} for item in selected],
     }
     summary["groups_changed_total"] = len(summaries)
+    summary["other_group_count"] = len(summaries) - len(selected) - sum(
+        1 for item in summaries if item["group"].get("product") == "Inspector" and
+        item["group"].get("repository") and not item["priority"])
     _publish_slack(sns, summary)
     _acknowledge_new(table, pending_records)
     _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})

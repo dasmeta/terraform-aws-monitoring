@@ -37,6 +37,18 @@ def environment(finding):
     return "Unknown"
 
 
+def project(finding):
+    configured = os.environ.get("SECURITY_PROJECT", "").strip()
+    if configured:
+        return configured
+    for resource in finding.get("Resources") or []:
+        tags = resource.get("Tags") or {}
+        value = tags.get("Project") or tags.get("project")
+        if value:
+            return value
+    return "Unknown"
+
+
 def public_exposure(finding):
     """Only explicit resource attributes count as exposure evidence."""
     for resource in finding.get("Resources") or []:
@@ -59,7 +71,9 @@ def realtime(finding):
     if is_guardduty(finding):
         threshold = os.environ.get("GUARD_DUTY_MIN_SEVERITY", "HIGH")
         return SEVERITY_RANK.get(level, 0) >= SEVERITY_RANK.get(threshold, 3)
-    return level == "HIGH" and (os.environ.get("HIGH_REQUIRES_EXPLOIT", "true") != "true" or exploitable(finding))
+    return (level == "HIGH" and
+            (os.environ.get("HIGH_REQUIRES_EXPLOIT", "true") != "true" or exploitable(finding)) and
+            (os.environ.get("HIGH_REQUIRES_PUBLIC_EXPOSURE", "true") != "true" or public_exposure(finding)))
 
 
 def paging_priority(finding):
@@ -72,8 +86,6 @@ def paging_priority(finding):
     allowed = policy.get("environments") or []
     if allowed and environment(finding) not in allowed:
         return None
-    if policy.get("require_public_exposure", False) and not public_exposure(finding):
-        return None
     if is_guardduty(finding):
         finding_type = (finding.get("Types") or [""])[0]
         minimum = SEVERITY_RANK.get(os.environ.get("GUARD_DUTY_MIN_SEVERITY", "HIGH"), 3)
@@ -81,6 +93,7 @@ def paging_priority(finding):
                 finding_type.startswith(prefix) for prefix in policy.get("guardduty_types") or []):
             return "P1" if level == "HIGH" else "P2"
         return None
-    if level == "HIGH" and policy.get("high_exploitable", True) and exploitable(finding):
+    if (level == "HIGH" and policy.get("high_exploitable", True) and exploitable(finding) and
+            (not policy.get("require_public_exposure", True) or public_exposure(finding))):
         return "P1"
     return None

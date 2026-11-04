@@ -125,7 +125,7 @@ class InspectorGroupingTests(unittest.TestCase):
         updated = json.loads(values[":payload"]["S"])
         self.assertEqual(updated["previous_group_key"], old_key)
         self.assertTrue(updated["migration_brief_pending"])
-        self.assertEqual(updated["group"]["label"], "Inspector | api | sha256:aaaaaaaaaaaa")
+        self.assertEqual(updated["group"]["label"], "Inspector | api | unknown vulnerability / unknown package")
         self.assertEqual(values[":pending"]["S"], "1")
 
     def test_urgent_reconciliation_skips_same_priority_update(self):
@@ -268,22 +268,22 @@ class InspectorGroupingTests(unittest.TestCase):
         self.assertEqual(first["key"], second["key"])
         self.assertIn("i-1", first["label"])
 
-    def test_ecr_cves_share_image_digest_but_not_repository(self):
+    def test_ecr_cves_are_distinct_remediation_groups(self):
         def image(repo, digest):
             return {"Type": "AwsEcrContainerImage", "Id": f"arn:aws:ecr:eu-central-1:123456789012:repository/{repo}",
                     "Details": {"AwsEcrContainerImage": {"RepositoryName": repo, "ImageDigest": digest}}}
         first = router._group_identity(finding("CVE-1", image("api", "sha256:aaa")))
-        self.assertEqual(first["key"], router._group_identity(finding("CVE-2", image("api", "sha256:aaa")))["key"])
+        self.assertNotEqual(first["key"], router._group_identity(finding("CVE-2", image("api", "sha256:aaa")))["key"])
         self.assertNotEqual(first["key"], router._group_identity(finding("CVE-3", image("api", "sha256:bbb")))["key"])
         self.assertNotEqual(first["key"], router._group_identity(finding("CVE-4", image("web", "sha256:aaa")))["key"])
 
-    def test_ecr_image_id_without_details_shares_group(self):
+    def test_ecr_image_id_without_vulnerability_metadata_keeps_findings_distinct(self):
         image_id = "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64
         resource = {"Type": "AwsEcrContainerImage", "Id": image_id}
-        self.assertEqual(router._group_identity(finding("CVE-1", resource))["key"],
-                         router._group_identity(finding("CVE-2", resource))["key"])
+        self.assertNotEqual(router._group_identity(finding("CVE-1", resource))["key"],
+                            router._group_identity(finding("CVE-2", resource))["key"])
 
-    def test_ecr_cves_publish_one_urgent_claim_per_image(self):
+    def test_distinct_critical_cves_each_get_urgent_claim(self):
         resource = {"Type": "AwsEcrContainerImage", "Id":
                     "arn:aws:ecr:eu-central-1:123456789012:repository/api/sha256:" + "a" * 64}
         findings = [finding("CVE-1", resource), finding("CVE-2", resource)]
@@ -320,7 +320,7 @@ class InspectorGroupingTests(unittest.TestCase):
              patch.object(router, "_get_item", side_effect=get_item), \
              patch.object(router, "_publish_once", side_effect=publish_once):
             counts = router.route_event(event, Table(), object(), now=1793698200)
-        self.assertEqual(counts, {"recorded": 2, "urgent": 1, "urgent_slack": 1, "skipped": 0})
+        self.assertEqual(counts, {"recorded": 2, "urgent": 2, "urgent_slack": 2, "skipped": 0})
 
     def test_lambda_cves_share_resource(self):
         resource = {"Type": "AwsLambdaFunction", "Id": "arn:aws:lambda:eu-central-1:123456789012:function:worker:3"}

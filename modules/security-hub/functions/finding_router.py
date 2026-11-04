@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
-from finding_policy import environment, exploitable, is_guardduty, paging_priority, public_exposure, realtime
+from finding_policy import environment, exploitable, is_guardduty, paging_priority, project, public_exposure, realtime
 
 
 LOG = logging.getLogger(__name__)
@@ -58,7 +58,6 @@ def _group_identity(finding):
         r"arn:[^:]+:ecr:[^:]+:[0-9]{12}:repository/(.+)/sha256:([0-9a-fA-F]{64})",
         resource_id,
     ) if resource.get("Type") == "AwsEcrContainerImage" and product == "Inspector" else None
-    ecr_digest = ecr_details.get("ImageDigest") or (f"sha256:{ecr_image_id.group(2)}" if ecr_image_id else None)
     ecr_repository = ecr_details.get("RepositoryName") or (ecr_image_id.group(1) if ecr_image_id else resource_id)
     action = finding.get("Action") or {}
     network = action.get("NetworkConnectionAction") or {}
@@ -67,6 +66,8 @@ def _group_identity(finding):
     source_ip = (network.get("RemoteIpDetails") or {}).get("IpAddressV4") or (probe_detail.get("RemoteIpDetails") or {}).get("IpAddressV4") or ""
     target_port = (network.get("LocalPortDetails") or {}).get("Port") or (probe_detail.get("LocalPortDetails") or {}).get("Port")
     finding_type = (finding.get("Types") or [finding.get("Title", "GuardDuty finding")])[0]
+    vulnerability = ""
+    package = ""
     if resource.get("Type") == "AwsEc2Instance" and image and pool and cluster and product == "Inspector":
         parts = (account, region, product, cluster, pool, image)
         label = f"{product} | {cluster}/{pool} | {image}"
@@ -76,9 +77,16 @@ def _group_identity(finding):
     elif product == "Inspector" and resource.get("Type") == "AwsEc2Instance" and resource_id:
         parts = (account, region, product, "ec2", resource_id, image or "")
         label = f"Inspector | {resource_id.rsplit('/', 1)[-1]} | {image or 'instance'}"
-    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and ecr_digest and ecr_repository:
-        parts = (account, region, product, "ecr", ecr_repository, ecr_digest)
-        label = f"Inspector | {ecr_repository} | {ecr_digest[:19]}"
+    elif product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" and ecr_repository:
+        vulnerabilities = finding.get("Vulnerabilities") or []
+        identifiers = sorted({v.get("Id", "") for v in vulnerabilities if v.get("Id")})
+        packages = sorted({p.get("Name", "") for v in vulnerabilities
+                           for p in v.get("VulnerablePackages") or [] if p.get("Name")})
+        vulnerability = ",".join(identifiers) or _finding_key(finding)
+        package = ",".join(packages) or "unknown package"
+        parts = (account, region, environment(finding), project(finding), product, "ecr",
+                 ecr_repository, vulnerability, package)
+        label = f"Inspector | {ecr_repository} | {vulnerability if identifiers else 'unknown vulnerability'} / {package}"
     elif product == "Inspector" and resource.get("Type") == "AwsLambdaFunction" and resource_id:
         parts = (account, region, product, "lambda", resource_id)
         label = f"Inspector | {resource_id.split(':function:', 1)[-1]}"
@@ -105,6 +113,11 @@ def _group_identity(finding):
         "source_ip": source_ip if is_guardduty(finding) else "",
         "target_port": target_port if is_guardduty(finding) else None,
         "environment": environment(finding),
+        "project": project(finding),
+        "repository": ecr_repository if product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" else "",
+        "vulnerability": vulnerability,
+        "package": package,
+        "deployment_status": "unknown" if product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" else "",
     }
 
 
@@ -146,8 +159,12 @@ def _record_grouped(table, finding):
     fallback_key = hashlib.sha256("|".join((
         record["account"], record["group"]["region"], record["group"]["product"], key,
     )).encode("utf-8")).hexdigest()
-    migrate_group = bool(previous and previous["group"]["key"] == fallback_key
-                         and record["group"]["key"] != fallback_key)
+    old_group = previous["group"] if previous else {}
+    migrate_group = bool(previous and old_group["key"] != record["group"]["key"] and
+                         (old_group["key"] == fallback_key or
+                          (old_group.get("product") == "Inspector" and
+                           old_group.get("label", "").startswith(f"Inspector | {record['group'].get('repository')} | sha256:") and
+                           record["group"].get("repository"))))
     incoming_epoch = _timestamp_micros(record["updated_at"])
     previous_updated = current.get("notification_updated_at")
     previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
@@ -158,7 +175,7 @@ def _record_grouped(table, finding):
         # Archive events may omit EC2 tags or image details. Keep the first
         # remediation identity unless it was a finding-specific fallback.
         if migrate_group:
-            record["previous_group_key"] = fallback_key
+            record["previous_group_key"] = old_group["key"]
             record["migration_brief_pending"] = True
         else:
             # Preserve the established remediation key while adding newly
@@ -196,7 +213,7 @@ def _record_grouped(table, finding):
         ":updated": {"S": record["updated_at"]},
         ":epoch": {"N": str(incoming_epoch)},
         ":observed_updated": {"S": previous_updated or ""},
-        ":old_group": {"S": fallback_key},
+        ":old_group": {"S": old_group.get("key", fallback_key)},
         ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
     }
     if inactive:
