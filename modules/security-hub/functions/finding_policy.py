@@ -11,6 +11,12 @@ def is_guardduty(finding):
     return finding.get("ProductName") in {"GuardDuty", "Amazon GuardDuty"}
 
 
+def guardduty_type_matches(finding, prefixes):
+    """Match native GuardDuty classifiers in native or Security Hub ASFF Types."""
+    return any(segment.startswith(prefix) for finding_type in finding.get("Types") or []
+               if isinstance(finding_type, str) for segment in finding_type.split("/") for prefix in prefixes)
+
+
 def severity(finding):
     return finding.get("Severity", {}).get("Label", "UNKNOWN").upper()
 
@@ -95,13 +101,14 @@ def priority_with_reason(finding, verified=None):
     if allowed and environment(finding) not in allowed and is_inspector_ecr(finding):
         return None, "Environment outside configured Inspector escalation scope"
     if is_guardduty(finding):
-        finding_type = (finding.get("Types") or [""])[0]
         minimum = SEVERITY_RANK.get(os.environ.get("GUARD_DUTY_MIN_SEVERITY", "HIGH"), 3)
         if SEVERITY_RANK.get(level, 0) < minimum:
             return None, "Below GuardDuty escalation threshold"
-        p1 = any(finding_type.startswith(prefix) for prefix in policy.get("guardduty_types") or [])
-        p2 = any(finding_type.startswith(prefix) for prefix in policy.get("guardduty_investigation_types") or [])
-        port_probe = bool((finding.get("Action") or {}).get("PortProbeAction"))
+        p1 = guardduty_type_matches(finding, policy.get("guardduty_types") or [])
+        p2 = guardduty_type_matches(finding, policy.get("guardduty_investigation_types") or [])
+        port_probe = bool((finding.get("Action") or {}).get("PortProbeAction")) or any(
+            "PortProbe" in finding_type for finding_type in finding.get("Types") or []
+            if isinstance(finding_type, str))
         if (p1 or level == "CRITICAL" and policy.get("critical", True)) and port_probe and not policy.get("guardduty_port_probe_p1", False):
             return "P2", "GuardDuty port probing requires investigation; compromise unverified"
         if level == "CRITICAL" and policy.get("critical", True):

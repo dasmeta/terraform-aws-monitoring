@@ -128,6 +128,18 @@ class RiskPagingTests(unittest.TestCase):
             item["Action"] = {}
             self.assertEqual(policy.paging_priority(item), "P1")
 
+    def test_guardduty_asff_classifier_matches_configured_native_prefix(self):
+        item = image_finding("threat")
+        item.update({"ProductName": "GuardDuty", "Types": ["TTPs/Initial Access/UnauthorizedAccess:EC2-SSHBruteForce"],
+                     "Action": {}, "Severity": {"Label": "HIGH"}})
+        with patch.dict(os.environ, {"PAGING_POLICY": json.dumps({"guardduty_types": ["UnauthorizedAccess:", "Recon:"],
+                                                                    "guardduty_investigation_types": ["Recon:"]})}):
+            self.assertEqual(policy.priority_with_reason(item)[0], "P1")
+            item["Types"] = ["TTPs/Discovery/Recon:EC2-PortProbeUnprotectedPort"]
+            self.assertEqual(policy.priority_with_reason(item)[0], "P2")
+            item["Types"] = ["TTPs/Discovery/IAMUser-AnomalousBehavior"]
+            self.assertIsNone(policy.priority_with_reason(item)[0])
+
     def test_p2_then_explicit_p1_uses_same_marker_and_only_one_claim_per_tier(self):
         first = image_finding("CVE-2026-10001")
         second = image_finding("CVE-2026-10002")

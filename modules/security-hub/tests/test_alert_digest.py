@@ -262,7 +262,7 @@ class AlertDigestTests(unittest.TestCase):
             self.assertEqual(policy.paging_priority(exposed), "P1")
             threat = finding(product="GuardDuty")
             threat["Types"] = ["Recon:EC2/PortProbeUnprotectedPort"]
-            self.assertEqual(policy.paging_priority(threat), "P1")
+            self.assertEqual(policy.paging_priority(threat), "P2")
             threat["Types"] = ["Policy:IAMUser/RootCredentialUsage"]
             self.assertIsNone(policy.paging_priority(threat))
             threat["Vulnerabilities"] = [{"Id": "CVE-1", "ExploitAvailable": "YES"}]
