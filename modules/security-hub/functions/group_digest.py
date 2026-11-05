@@ -899,13 +899,82 @@ def _clear_critical_claim(table, marker):
     )
 
 
-def sync_opsgenie(table, summary, state, now):
+def _stage_incident_slack(table, marker, summary, state, action, priority):
+    """Persist the Slack copy before changing the corresponding Opsgenie alert."""
+    alias = "securityhub-group-" + summary["group"]["key"]
+    identity = [alias, action, priority, summary["urgent_signature"], summary["latest_updated_at"]]
+    delivery_id = hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+    payload = _slack_payload(summary, closing=action == "closed")
+    payload["_dasmeta_group_digest"].update({
+        "digest_kind": "incident", "incident_action": action, "incident_priority": priority,
+        "incident_alias": alias, "incident_signature": summary["urgent_signature"],
+        "incident_delivery_id": delivery_id,
+        "priority_reasons": summary.get("priority_reasons", []),
+        "deployment_status": summary.get("deployment_status", "unknown"),
+        "exposure_status": summary.get("exposure_status", "unknown"),
+        "fix_status": summary.get("fix_status", "unknown"),
+        "top_vulnerabilities": summary.get("top_vulnerabilities", []),
+    })
+    if state.get("opsgenie_slack_sent") != delivery_id:
+        old_pending = state.get("opsgenie_slack_pending") or ""
+        if old_pending and old_pending != delivery_id:
+            # The old Opsgenie action was not confirmed in the ledger. Keep an
+            # audit marker while advancing to the latest complete group view.
+            LOG.warning("Superseding unconfirmed grouped Slack copy for %s", marker)
+        names = {"#pending": "opsgenie_slack_pending", "#payload": "opsgenie_slack_payload"}
+        values = {":id": {"S": delivery_id}, ":empty": {"S": ""},
+                  ":old": {"S": old_pending},
+                  ":payload": {"S": json.dumps(payload, separators=(",", ":"))}}
+        update = "SET #pending = :id, #payload = :payload"
+        if old_pending and old_pending != delivery_id:
+            names["#superseded"] = "opsgenie_slack_superseded_id"
+            update += ", #superseded = :old"
+        # An overlapping worker can only advance the pending copy it observed.
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": marker}},
+            UpdateExpression=update,
+            ConditionExpression="attribute_not_exists(#pending) OR #pending = :empty OR #pending = :old",
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
+
+
+def _deliver_incident_slack(table, sns, marker):
+    """Retry a confirmed Opsgenie change until its Slack copy is published."""
+    state = _get_item(table, marker)
+    delivery_id = state.get("opsgenie_slack_pending")
+    if not delivery_id:
+        return False
+    payload = json.loads(state["opsgenie_slack_payload"])
+    incident = payload["_dasmeta_group_digest"]
+    closing = incident["incident_action"] == "closed"
+    confirmed = (state.get("opsgenie_open") == "0" if closing else
+                 state.get("opsgenie_open") == "1" and
+                 state.get("opsgenie_priority") == incident["incident_priority"] and
+                 state.get("opsgenie_urgent_signature") == incident["incident_signature"])
+    if not confirmed:
+        return False
+    if state.get("opsgenie_slack_sent") != delivery_id:
+        sns.publish(TopicArn=os.environ["SLACK_TOPIC_ARN"], Subject="Security Hub grouped incident",
+                    Message=json.dumps(payload, separators=(",", ":")))
+        _set_fields(table, marker, {"opsgenie_slack_sent": delivery_id})
+    _set_fields(table, marker, {"opsgenie_slack_pending": "", "opsgenie_slack_payload": ""})
+    if closing:
+        _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
+    return True
+
+
+def sync_opsgenie(table, summary, state, now, sns=None):
     """Create once, update silently, escalate, and close after a quiet hour."""
     group_key = summary["group"]["key"]
     marker = "group#" + group_key
     alias = "securityhub-group-" + group_key
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
+    if sns is not None and state.get("opsgenie_slack_pending"):
+        _deliver_incident_slack(table, sns, marker)
+        state = _get_item(table, marker)
     group_updated_at = summary.get("latest_updated_at") or datetime.fromtimestamp(now, timezone.utc).isoformat()
     if not priority and state.get("opsgenie_external_closed_signature"):
         _set_fields(table, marker, {"opsgenie_external_closed_signature": "",
@@ -929,6 +998,12 @@ def sync_opsgenie(table, summary, state, now):
                                         "opsgenie_group_payload": group_payload,
                                         "opsgenie_group_updated_at": group_updated_at})
     if priority:
+        if sns is not None and (state.get("opsgenie_open") != "1" or
+                                state.get("opsgenie_priority") != priority or
+                                state.get("opsgenie_urgent_signature") != summary["urgent_signature"] or
+                                state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION):
+            action = "opened" if state.get("opsgenie_open") != "1" else "updated"
+            _stage_incident_slack(table, marker, summary, state, action, priority)
         if state.get("opsgenie_no_urgent_since"):
             _set_fields(table, marker, {"opsgenie_no_urgent_since": ""})
         if state.get("opsgenie_open") != "1":
@@ -991,6 +1066,12 @@ def sync_opsgenie(table, summary, state, now):
                                                 "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
                                                 "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
                                                 "opsgenie_active_count": str(summary["active_count"])})
+                elif sns is not None:
+                    # The attempted update found an externally closed alert;
+                    # no Opsgenie action was delivered to mirror.
+                    _set_fields(table, marker, {"opsgenie_slack_pending": "", "opsgenie_slack_payload": ""})
+        if sns is not None:
+            _deliver_incident_slack(table, sns, marker)
         return
     if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
         quiet_since = state.get("opsgenie_no_urgent_since")
@@ -999,14 +1080,19 @@ def sync_opsgenie(table, summary, state, now):
             return
         if now - _timestamp(quiet_since).timestamp() < int(os.environ.get("QUIET_PERIOD_SECONDS", str(QUIET_CLOSE_SECONDS))):
             return
+        if sns is not None:
+            _stage_incident_slack(table, marker, summary, state, "closed", state.get("opsgenie_priority", "P2"))
         _close_opsgenie_alias(alias,
             "No active findings meet the paging policy after the quiet period; review remaining findings in Security Hub")
+        _clear_urgent_claim(table, marker)
         _set_fields(table, marker, {"opsgenie_open": "0", "opsgenie_priority": "", "opsgenie_active_count": "0",
                                     "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": "",
                                     "opsgenie_no_urgent_since": ""})
-        _clear_urgent_claim(table, marker)
-        _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
-    elif state.get("notification_state") == "OPEN_MARKER":
+        if sns is not None:
+            _deliver_incident_slack(table, sns, marker)
+        else:
+            _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
+    elif state.get("notification_state") == "OPEN_MARKER" and not state.get("opsgenie_slack_pending"):
         _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
 
 
@@ -1665,7 +1751,7 @@ def run(table, securityhub, sns, now=None, context=None):
             continue
         state = _get_item(table, "group#" + key)
         try:
-            sync_opsgenie(table, summary, state, now)
+            sync_opsgenie(table, summary, state, now, sns=sns)
         except Exception as error:
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)

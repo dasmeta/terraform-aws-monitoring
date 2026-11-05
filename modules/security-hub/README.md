@@ -115,6 +115,8 @@ Console links open the correct finding Region and list; an exact finding deep li
 
 Slack incoming webhooks post to the channel selected when the webhook was created. The `channel` field in `alarm_actions.slack_webhooks` names the module's subscription but cannot redirect a modern webhook. Create the webhook for the intended channel; see [Slack's incoming webhook documentation](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/).
 
+Grouped Opsgenie incident creations, priority changes, finding-list updates, and closures publish a group-level copy to the Slack topic after the Opsgenie action is confirmed. The copy includes the incident priority, account, Region, risk evidence, affected-resource and vulnerability counts, and Security Hub link. A pending copy is kept in the existing DynamoDB group marker and retried; unchanged incidents already open before this behavior is enabled are not bulk-posted to Slack. If an older action was never confirmed in the ledger and a newer finding arrives, the latest complete group view replaces the unconfirmed copy and the old delivery ID remains on the marker for audit. SNS and the webhook are at-least-once, so a crash after SNS acceptance can duplicate a copy with the same stable delivery ID. The webhook must point to the security channel that should receive these incidents; an Opsgenie-to-Slack integration for the same alerts would create duplicate Slack messages.
+
 ### Microsoft Teams destinations
 
 Set `finding_delivery.teams_webhooks` to one or more Teams webhook URLs and select `finding_delivery.teams_delivery`:
@@ -122,7 +124,7 @@ Set `finding_delivery.teams_webhooks` to one or more Teams webhook URLs and sele
 | Value | Teams receives |
 | --- | --- |
 | `none` (default) | No new Teams subscription |
-| `slack` | Daily routine brief and immediate urgent messages from the Slack topic |
+| `slack` | Daily routine brief, immediate urgent messages, and grouped Opsgenie incident copies from the Slack topic |
 | `opsgenie` | Urgent messages from the high-severity Opsgenie topic |
 | `both` | Both topic streams |
 

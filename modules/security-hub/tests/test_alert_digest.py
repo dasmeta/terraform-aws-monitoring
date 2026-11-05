@@ -449,6 +449,23 @@ class AlertDigestTests(unittest.TestCase):
                               "_dasmeta_page_priority": "P1"})
         self.assertEqual([method for method, _ in calls], ["GET", "PUT"])
 
+    def test_opsgenie_incident_slack_copy_includes_priority_risk_and_link(self):
+        summary = {"group": group("one"), "new_count": 1, "new_severities": {"CRITICAL": 1},
+                   "active_count": 2, "active_severities": {"CRITICAL": 2},
+                   "affected_resources": 1, "vulnerability_ids": ["CVE-2026-10001"],
+                   "top_titles": [("Critical package", 2)]}
+        payload = digest._slack_payload(summary, False)
+        payload["_dasmeta_group_digest"].update({
+            "digest_kind": "incident", "incident_action": "updated", "incident_priority": "P1",
+            "deployment_status": "deployed", "exposure_status": "exposed", "fix_status": "available",
+            "priority_reasons": ["Verified exposure"], "top_vulnerabilities": ["CVE-2026-10001"],
+        })
+        rendered = slack.parse_notification(payload, "Security Hub grouped incident", "eu-central-1")
+        self.assertIn("P1 incident updated", rendered["text"])
+        self.assertIn("Deployment: deployed", rendered["text"])
+        self.assertIn("CVE-2026-10001", rendered["text"])
+        self.assertIn("View all findings in Security Hub", rendered["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

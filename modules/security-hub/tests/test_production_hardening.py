@@ -77,6 +77,11 @@ class DailyLedger:
             if row.get("notification_digest_pending") != values[":one"] or \
                     row.get("notification_pending_at") != values[":revision"]:
                 raise self.error("ConditionalCheckFailedException")
+        elif request["ExpressionAttributeNames"].get("#pending") == "opsgenie_slack_pending" and \
+                request.get("ConditionExpression"):
+            old = row.get("opsgenie_slack_pending", {"S": ""})["S"]
+            if old and old != values[":old"]["S"]:
+                raise self.error("ConditionalCheckFailedException")
         elif key.startswith("group#") and key != "group#checkpoint" and self.fail_group_once:
             self.fail_group_once = False
             raise self.error("InternalServerError")
@@ -1967,6 +1972,207 @@ class HardeningTests(unittest.TestCase):
              patch.object(digest, "_acknowledge_new"), patch.object(digest, "_set_fields"):
             digest.send_slack_batch(object(), object(), {record["group"]["key"]: [record]}, 1793790000)
         self.assertEqual(payloads[0]["application_summaries"][0]["deployment_status"], "observed in use")
+
+    @staticmethod
+    def incident_ledger(summary, **state):
+        ledger = DailyLedger()
+        marker = "group#" + summary["group"]["key"]
+        ledger.items[marker] = {"finding_key": {"S": marker},
+                                **{key: {"S": value} for key, value in state.items()}}
+        return ledger, marker
+
+    def test_opsgenie_group_update_is_mirrored_once_to_slack(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="old", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+            self.assertEqual(len(sns.messages), 1)
+            item = sns.messages[0]["_dasmeta_group_digest"]
+            self.assertEqual(item["digest_kind"], "incident")
+            self.assertEqual(item["incident_priority"], "P2")
+            self.assertEqual(item["incident_action"], "updated")
+            self.assertEqual(item["incident_alias"], "securityhub-group-" + summary["group"]["key"])
+            self.assertTrue(item["incident_delivery_id"])
+            self.assertEqual(digest._get_item(ledger, marker)["opsgenie_slack_pending"], "")
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790001, sns=sns)
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(action.call_count, 2)
+
+    def test_existing_unchanged_incident_does_not_flood_slack_on_upgrade(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["urgent_signature"],
+            opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        action.assert_not_called()
+        self.assertEqual(sns.messages, [])
+
+    def test_scheduled_opsgenie_create_has_grouped_slack_copy(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(summary)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_action"], "opened")
+
+    def test_new_finding_supersedes_unconfirmed_copy_without_stalling(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="older", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION,
+            opsgenie_slack_pending="earlier",
+            opsgenie_slack_payload=json.dumps({"_dasmeta_group_digest": {
+                "incident_action": "updated", "incident_priority": "P2",
+                "incident_signature": "intermediate"}}))
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        self.assertEqual(action.call_count, 2)
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_superseded_id"]["S"], "earlier")
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
+
+    def test_external_opsgenie_close_discards_unconfirmed_slack_update(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="old", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action", side_effect=RuntimeError("Alert does not exist")):
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        self.assertEqual(ledger.items[marker]["opsgenie_open"]["S"], "0")
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
+        self.assertEqual(sns.messages, [])
+
+    def test_opsgenie_slack_publish_retries_after_accepted_message(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="old", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        sns.crash_after_accept = True
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            with self.assertRaisesRegex(RuntimeError, "Lambda stopped"):
+                digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+            self.assertTrue(digest._get_item(ledger, marker)["opsgenie_slack_pending"])
+            self.assertEqual(len(sns.messages), 1)
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790001, sns=sns)
+        self.assertEqual(len(sns.messages), 2)
+        self.assertEqual(sns.messages[0], sns.messages[1])
+        self.assertEqual(action.call_count, 2)
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
+
+    def test_opsgenie_update_survives_slack_publish_failure(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="old", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        original = sns.publish
+        def reject_once(**request):
+            sns.publish = original
+            raise RuntimeError("SNS unavailable")
+        sns.publish = reject_once
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            with self.assertRaisesRegex(RuntimeError, "SNS unavailable"):
+                digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+            self.assertTrue(digest._get_item(ledger, marker)["opsgenie_slack_pending"])
+            self.assertEqual(sns.messages, [])
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790001, sns=sns)
+        self.assertEqual(action.call_count, 2)
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
+
+    def test_opsgenie_priority_escalation_is_mirrored_to_slack(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P1"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["urgent_signature"],
+            opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ensure_opsgenie_priority") as priority, \
+             patch.object(digest, "_ops_action"):
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        priority.assert_called_once()
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_priority"], "P1")
+        self.assertEqual(ledger.items[marker]["opsgenie_priority"]["S"], "P1")
+
+    def test_opsgenie_downgrade_is_mirrored_to_slack(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P1",
+            opsgenie_urgent_signature=summary["urgent_signature"],
+            opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ensure_opsgenie_priority") as priority, \
+             patch.object(digest, "_clear_critical_claim"), patch.object(digest, "_ops_action"):
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        priority.assert_called_once()
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_priority"], "P2")
+
+    def test_overlapping_incident_updates_cannot_replace_unseen_slack_copy(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(summary)
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}):
+            stale = digest._get_item(ledger, marker)
+            digest._stage_incident_slack(ledger, marker, summary, stale, "opened", "P2")
+            with self.assertRaises(ClientError):
+                digest._stage_incident_slack(ledger, marker,
+                    {**summary, "urgent_signature": "new-finding"}, stale, "updated", "P2")
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_payload"]["S"].count("new-finding"), 0)
+
+    def test_opsgenie_close_waits_for_slack_mirror_and_retries(self):
+        record = router._compact_finding(image_finding())
+        record["workflow"] = "RESOLVED"
+        summary = digest.summarize_group([record], identity="page_group")
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="previous", notification_state="OPEN_MARKER",
+            opsgenie_no_urgent_since="2026-11-04T07:00:00+00:00")
+        sns = AcceptedSns()
+        sns.crash_after_accept = True
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_clear_urgent_claim"):
+            with self.assertRaisesRegex(RuntimeError, "Lambda stopped"):
+                digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+            self.assertEqual(digest._get_item(ledger, marker)["notification_state"], "OPEN_MARKER")
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790001, sns=sns)
+        close.assert_called_once()
+        self.assertEqual(len(sns.messages), 2)
+        self.assertEqual(sns.messages[0], sns.messages[1])
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_action"], "closed")
+        self.assertEqual(ledger.items[marker]["notification_state"]["S"], "CLOSED_MARKER")
 
 
 if __name__ == "__main__":

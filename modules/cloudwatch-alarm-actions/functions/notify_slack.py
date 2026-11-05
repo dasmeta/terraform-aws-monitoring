@@ -136,6 +136,26 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
     active = digest["active_count"]
     closing = digest["closing"]
     label = digest["label"]
+    if digest.get("digest_kind") == "incident":
+        def safe(value):
+            return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", " ")
+        priority = digest["incident_priority"]
+        action = digest["incident_action"]
+        title = f"Security Hub | {priority} incident {action} | {label}"
+        lines = [
+            f"*{safe(title)[:180]}*",
+            f"Environment: {safe(digest.get('environment') or 'Unknown')} | AWS account: {safe(digest['account'])} | Region: {safe(digest['region'])}",
+            f"Active findings: {active} | Affected resources: {digest['affected_resources']} | Distinct vulnerabilities: {digest['vulnerability_count']}",
+            f"Deployment: {safe(digest.get('deployment_status', 'unknown'))} | Exposure: {safe(digest.get('exposure_status', 'unknown'))} | Fix: {safe(digest.get('fix_status', 'unknown'))}",
+        ]
+        if digest.get("priority_reasons"):
+            lines.append("Reason: " + safe("; ".join(digest["priority_reasons"]))[:500])
+        if digest.get("top_vulnerabilities"):
+            lines.append("Top vulnerabilities: " + safe("; ".join(digest["top_vulnerabilities"]))[:700])
+        lines.append("Recommended action: Verify deployment, exploitability, exposure, and patched version availability.")
+        lines.append(f"<{digest['finding_url']}|View all findings in Security Hub>")
+        return {"color": "good" if closing else "danger" if priority == "P1" else "warning",
+                "fallback": title, "text": "\n".join(lines)}
     if digest.get("digest_kind") == "daily":
         title = "Security Hub | Daily Digest"
         def safe(value):
