@@ -86,6 +86,9 @@ def deliver(message):
         alias = "securityhub-group-" + group["key"]
         path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
         priority = message.get("_dasmeta_page_priority") or "P1"
+        context = message.get("_dasmeta_risk_context") or {}
+        deployment = context.get("deployment", "unknown").replace("_", " ")
+        exposure = context.get("exposure", "unknown")
         try:
             existing = _request("GET", path + "?identifierType=alias").get("data")
         except urllib.error.HTTPError as error:
@@ -111,7 +114,7 @@ def deliver(message):
                 f"Priority: {priority}\nEnvironment: {group.get('environment') or 'Unknown'}\n"
                 f"AWS account: {group['account']}\nRegion: {group['region']}\n"
                 f"Application: {group['repository']}\n"
-                f"Deployment: unknown | Exposure: unknown\n"
+                f"Deployment: {deployment} | Exposure: {exposure}\n"
                 f"Escalation reason: {message.get('_dasmeta_priority_reason') or 'Configured investigation policy'}\n"
                 f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
                 "Recommended action: Verify deployment, exploitability, exposure, and patched version availability.\n"
@@ -134,7 +137,7 @@ def deliver(message):
                 "source": "AWS Security Hub",
                 "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
                 "details": ({"AWS account": finding["AwsAccountId"], "Application": group["repository"][:100],
-                             "Deployment status": "unknown", "Exposure status": "unknown"} if container else {
+                             "Deployment status": deployment, "Exposure status": exposure} if container else {
                     "AWS account": finding["AwsAccountId"], "Cluster": (group["cluster"] or "n/a")[:50],
                     "Node pool": (group["nodepool"] or "n/a")[:50], "AMI": (group["image"] or "n/a")[:50]}),
             })

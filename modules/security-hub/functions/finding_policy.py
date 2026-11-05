@@ -78,7 +78,7 @@ def risk_context(finding, verified=None):
     verified = verified or {}
     deployment = verified.get("deployment") if is_inspector_ecr(finding) else "not_applicable"
     exposure = verified.get("exposure")
-    if deployment not in {"deployed", "unused", "unknown", "not_applicable"}:
+    if deployment not in {"deployed", "observed_in_use", "unused", "unknown", "not_applicable"}:
         deployment = "unknown"
     if exposure not in {"exposed", "unexposed", "unknown"}:
         exposure = "exposed" if public_exposure(finding) else "unknown"

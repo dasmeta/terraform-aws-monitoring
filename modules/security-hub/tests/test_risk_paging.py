@@ -237,14 +237,15 @@ class RiskPagingTests(unittest.TestCase):
         self.assertTrue(any("/description?" in path for path in paths))
         self.assertIn("CVE-2026-10002", digest._opsgenie_description(summary))
 
-    def test_active_findings_prevent_quiet_period_closure(self):
+    def test_active_routine_findings_allow_paging_incident_transition(self):
         record = router._compact_finding(image_finding("CVE-2026-10001"))
         record["page_priority"] = None
         summary = digest.summarize_group([record], identity="page_group")
-        with patch.object(digest, "_close_opsgenie_alias") as close, patch.object(digest, "_set_fields") as set_fields:
+        with patch.object(digest, "_close_opsgenie_alias") as close, patch.object(digest, "_set_fields") as set_fields, \
+             patch.object(digest, "_clear_urgent_claim"):
             digest.sync_opsgenie(object(), summary, {"opsgenie_open": "1", "opsgenie_no_urgent_since": "2026-11-01T08:00:00Z"}, 1793782800)
-        close.assert_not_called()
-        set_fields.assert_not_called()
+        close.assert_called_once()
+        self.assertEqual(set_fields.call_args.args[2]["opsgenie_open"], "0")
 
     def test_reconciliation_paginates_high_volume_findings(self):
         class SecurityHub:

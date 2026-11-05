@@ -114,6 +114,7 @@ variable "finding_delivery" {
       environments                    = optional(list(string), [])                     # Allowed environment labels; empty permits all.
       production_environments         = optional(list(string), ["Production", "prod"]) # Labels eligible for evidence-backed ECR P1.
       ecr_critical_unknown_priority   = optional(string, "P2")                         # P2, P1, or DIGEST when ECR deployment or exposure is unverified.
+      ecr_deployment_lookup_enabled   = optional(bool, false)                          # Opt in when this account can read matching Inspector ECS/EKS image-use findings; failures stay unknown.
       ecr_emergency_vulnerability_ids = optional(list(string), [])                     # Security-owner verified emergency CVE/GHSA IDs eligible for P1.
       require_public_exposure         = optional(bool, true)                           # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
     }), {})

@@ -73,6 +73,16 @@ data "aws_iam_policy_document" "finding_router" {
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
   }
 
+  dynamic "statement" {
+    for_each = local.grouped_delivery_enabled && nonsensitive(var.finding_delivery.paging.ecr_deployment_lookup_enabled) ? [1] : []
+
+    content {
+      sid       = "ReadInspectorImageUse"
+      actions   = ["inspector2:ListFindings"]
+      resources = ["*"]
+    }
+  }
+
   statement {
     sid     = "PublishSecurityFindings"
     actions = ["sns:Publish"]
@@ -111,6 +121,7 @@ module "finding_router" {
     HIGH_REQUIRES_EXPLOIT         = tostring(var.finding_delivery.realtime.high_requires_exploit)
     HIGH_REQUIRES_PUBLIC_EXPOSURE = tostring(var.finding_delivery.realtime.high_requires_public_exposure)
     PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
+    ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
     FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)
   }
 

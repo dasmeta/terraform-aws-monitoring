@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from finding_policy import (environment, exploitable, is_guardduty, is_inspector_ecr,
                             paging_priority, priority_with_reason, project, public_exposure,
@@ -20,6 +21,10 @@ LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 LEASE_SECONDS = 45
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
+SOURCE_FIELDS = ("finding_id", "product_arn", "account", "resource_ids", "title",
+                 "vulnerability_ids", "exploit_available", "fix_available", "severity",
+                 "compliance_status", "record_state", "workflow", "created_at", "last_seen_at")
+EVIDENCE_MAX_AGE_SECONDS = 36 * 3600
 
 
 def _timestamp(value):
@@ -132,11 +137,12 @@ def _group_identity(finding):
     }
 
 
-def _compact_finding(finding):
+def _compact_finding(finding, verified=None):
     group = _group_identity(finding)
     page_group = _paging_identity(finding, group)
     resource = sorted(finding.get("Resources") or [{}], key=lambda item: item.get("Id", ""))[0]
     vulnerabilities = finding.get("Vulnerabilities") or []
+    priority, reason = priority_with_reason(finding, verified)
     return {
         "finding_key": _finding_key(finding),
         "finding_id": finding["Id"],
@@ -152,9 +158,11 @@ def _compact_finding(finding):
         "fix_available": "YES" if any(v.get("FixAvailable") == "YES" for v in vulnerabilities)
                          else "NO" if vulnerabilities and all(v.get("FixAvailable") == "NO" for v in vulnerabilities)
                          else "UNKNOWN",
-        "page_priority": paging_priority(finding),
-        "priority_reason": priority_with_reason(finding)[1],
-        "risk_context": risk_context(finding),
+        "page_priority": priority,
+        "priority_reason": reason,
+        "realtime": realtime(finding, verified),
+        "risk_context": risk_context(finding, verified),
+        "deployment_evidence_at": (verified or {}).get("checked_at", ""),
         "public_exposure": public_exposure(finding),
         "severity": finding.get("Severity", {}).get("Label", "UNKNOWN"),
         "compliance_status": (finding.get("Compliance") or {}).get("Status", ""),
@@ -166,6 +174,51 @@ def _compact_finding(finding):
         "last_seen_at": finding.get("LastObservedAt") or finding.get("UpdatedAt", finding["CreatedAt"]),
         "change_kind": "new",
     }
+
+
+def _same_source_snapshot(previous, current):
+    """AWS UpdatedAt ties cannot order differing finding facts safely."""
+    return all(previous[name] == current[name] for name in SOURCE_FIELDS
+               if name in previous and name in current)
+
+
+def _inspector_ecr_evidence(finding, inspector=None):
+    """Use only positive, matching Inspector ECS/EKS image-use evidence."""
+    if not is_inspector_ecr(finding):
+        return {}
+    arn = finding.get("Id", "")
+    match = re.fullmatch(r"arn:[^:]+:inspector2:([^:]+):([0-9]{12}):finding/[0-9a-fA-F]{32}", arn)
+    if not match or match.group(2) != finding.get("AwsAccountId"):
+        return {}
+    region = match.group(1)
+    images = set()
+    for resource in finding.get("Resources") or []:
+        if resource.get("Type") != "AwsEcrContainerImage":
+            continue
+        image = re.fullmatch(r"arn:[^:]+:ecr:([^:]+):([0-9]{12}):repository/(.+)/sha256:([0-9a-fA-F]{64})", resource.get("Id", ""))
+        if image and image.group(1) == region and image.group(2) == match.group(2):
+            images.add((image.group(3), "sha256:" + image.group(4).lower()))
+    if not images:
+        return {}
+    try:
+        client = inspector or boto3.client("inspector2", region_name=region, config=Config(
+            connect_timeout=2, read_timeout=3, retries={"max_attempts": 1}))
+        response = client.list_findings(filterCriteria={"findingArn": [{"comparison": "EQUALS", "value": arn}]}, maxResults=10)
+    except Exception as error:
+        LOG.warning("Inspector image-use lookup unavailable for finding %s: %s", _finding_key(finding), type(error).__name__)
+        return {}
+    for result in response.get("findings") or []:
+        if result.get("findingArn") != arn or result.get("awsAccountId") != match.group(2):
+            continue
+        for resource in result.get("resources") or []:
+            if resource.get("type") != "AWS_ECR_CONTAINER_IMAGE":
+                continue
+            details = (resource.get("details") or {}).get("awsEcrContainerImage") or {}
+            if (details.get("repositoryName"), (details.get("imageHash") or "").lower()) not in images:
+                continue
+            if isinstance(details.get("inUseCount"), int) and details["inUseCount"] > 0:
+                return {"deployment": "observed_in_use", "checked_at": datetime.now(timezone.utc).isoformat()}
+    return {}
 
 
 def _paging_identity(finding, group):
@@ -192,12 +245,20 @@ def _page_group_from_remediation(group, resource=""):
             "vulnerability": "", "package": "", "incident_category": "container-vulnerability"}
 
 
-def _record_grouped(table, finding):
+def _record_grouped(table, finding, verified=None):
     """Keep the latest snapshot; a duplicate event does not create a new digest item."""
-    record = _compact_finding(finding)
-    key = record["finding_key"]
+    key = _finding_key(finding)
     current = _get_item(table, key)
     previous = json.loads(current["notification_payload"]) if current.get("notification_payload") else None
+    if previous and not verified and previous.get("deployment_evidence_at"):
+        try:
+            fresh = time.time() - _timestamp(previous["deployment_evidence_at"]).timestamp() < EVIDENCE_MAX_AGE_SECONDS
+        except ValueError:
+            fresh = False
+        observed = previous.get("risk_context", {}).get("deployment")
+        if fresh and observed in {"deployed", "observed_in_use"}:
+            verified = {"deployment": observed, "checked_at": previous["deployment_evidence_at"]}
+    record = _compact_finding(finding, verified)
     fallback_key = hashlib.sha256("|".join((
         record["account"], record["group"]["region"], record["group"]["product"], key,
     )).encode("utf-8")).hexdigest()
@@ -210,12 +271,20 @@ def _record_grouped(table, finding):
     old_page_key = (previous.get("page_group") or old_group).get("key") if previous else None
     migrate_page = bool(previous and old_page_key != record["page_group"]["key"])
     policy_change = bool(previous and (previous.get("page_priority") != record["page_priority"] or
-                         previous.get("priority_reason") != record["priority_reason"]))
+                         previous.get("priority_reason") != record["priority_reason"] or
+                         previous.get("realtime", record["realtime"]) != record["realtime"] or
+                         previous.get("risk_context") != record["risk_context"]))
+    evidence_refresh = bool(previous and record["deployment_evidence_at"] and
+                            record["deployment_evidence_at"] != previous.get("deployment_evidence_at"))
     incoming_epoch = _timestamp_micros(record["updated_at"])
     previous_updated = current.get("notification_updated_at")
     previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
     if previous_epoch is not None and (previous_epoch > incoming_epoch or
-                                       previous_epoch == incoming_epoch and not (migrate_group or migrate_page or policy_change)):
+                                       previous_epoch == incoming_epoch and
+                                       (not _same_source_snapshot(previous, record) or
+                                        not (migrate_group or migrate_page or policy_change or evidence_refresh))):
+        return False
+    if previous_epoch is None and previous_updated == record["updated_at"] and previous and not _same_source_snapshot(previous, record):
         return False
     if current.get("notification_payload"):
         # Archive events may omit EC2 tags or image details. Keep the first
@@ -264,7 +333,7 @@ def _record_grouped(table, finding):
         ":updated": {"S": record["updated_at"]},
         ":epoch": {"N": str(incoming_epoch)},
         ":observed_updated": {"S": previous_updated or ""},
-        ":old_group": {"S": old_group.get("key", fallback_key)},
+        ":observed_payload": {"S": current.get("notification_payload", "")},
         ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
     }
     if inactive:
@@ -275,8 +344,8 @@ def _record_grouped(table, finding):
             Key={"finding_key": {"S": key}},
             UpdateExpression=update_expression,
             ConditionExpression=("attribute_not_exists(#updated) OR #epoch < :epoch OR "
-                                 "(attribute_not_exists(#epoch) AND #updated = :observed_updated) OR "
-                                 "(#epoch = :epoch AND #group = :old_group)"),
+                                 "(attribute_not_exists(#epoch) AND #updated = :observed_updated AND #payload = :observed_payload) OR "
+                                 "(#epoch = :epoch AND #payload = :observed_payload)"),
             ExpressionAttributeNames=names,
             ExpressionAttributeValues=values,
         )
@@ -459,15 +528,25 @@ def route_event(event, table, sns, now=None):
             if _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
                 continue
-            recorded = _record_grouped(table, finding)
+            verified = _inspector_ecr_evidence(finding) if (is_inspector_ecr(finding) and
+                        finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES and
+                        os.environ.get("ECR_DEPLOYMENT_LOOKUP_ENABLED", "false") == "true") else None
+            recorded = _record_grouped(table, finding, verified=verified)
             counts["recorded"] += int(recorded)
-            page_priority = paging_priority(finding)
-            send_realtime = realtime(finding)
+            item = _get_item(table, _finding_key(finding))
+            if (not item.get("notification_updated_at") or
+                    _timestamp_micros(item["notification_updated_at"]) !=
+                    _timestamp_micros(finding.get("UpdatedAt", finding["CreatedAt"])) or
+                    item.get("notification_state") != "ACTIVE"):
+                counts["skipped"] += 1
+                continue
+            record = json.loads(item["notification_payload"])
+            if not _same_source_snapshot(record, _compact_finding(finding, verified)):
+                counts["skipped"] += 1
+                continue
+            page_priority = record["page_priority"] if "page_priority" in record else paging_priority(finding, verified)
+            send_realtime = record["realtime"] if "realtime" in record else realtime(finding, verified)
             if send_realtime or page_priority:
-                item = _get_item(table, _finding_key(finding))
-                if item.get("notification_updated_at") != finding.get("UpdatedAt", finding["CreatedAt"]) or item.get("notification_state") != "ACTIVE":
-                    continue
-                record = json.loads(item["notification_payload"])
                 group = record.get("page_group", record["group"])
                 marker = "group#" + group["key"]
                 group_state = _get_item(table, marker)
@@ -486,7 +565,8 @@ def route_event(event, table, sns, now=None):
                 payload = {**event, "detail": {**event["detail"], "findings": [finding]},
                            "_dasmeta_group_urgent": True, "_dasmeta_group": group,
                            "_dasmeta_page_priority": page_priority,
-                           "_dasmeta_priority_reason": record.get("priority_reason", "")}
+                           "_dasmeta_priority_reason": record.get("priority_reason", ""),
+                           "_dasmeta_risk_context": record.get("risk_context", {})}
                 if page_priority and _publish_once(table, sns, marker, page_destination, os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
                 if send_realtime and _publish_once(table, sns, marker, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
