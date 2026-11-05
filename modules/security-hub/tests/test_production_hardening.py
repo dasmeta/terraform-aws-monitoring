@@ -269,11 +269,11 @@ class HardeningTests(unittest.TestCase):
                 Table(), "2026-11-04T09:00:00Z", int(datetime(2026, 11, 5, 9, tzinfo=timezone.utc).timestamp()))
         self.assertTrue(next(iter(groups.values()))[0]["pending"])
 
-    def test_daily_outbox_chunks_1201_new_finding_acknowledgements(self):
+    def test_daily_outbox_chunks_10001_new_finding_acknowledgements(self):
         ledger, sns = DailyLedger(), AcceptedSns()
         template = self.daily_record()
         records = []
-        for index in range(1201):
+        for index in range(10001):
             record = {**template, "finding_key": f"finding-{index}"}
             records.append(record)
             ledger.items[record["finding_key"]] = {
@@ -287,8 +287,8 @@ class HardeningTests(unittest.TestCase):
              patch.object(digest.time, "time", return_value=1000):
             self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
         self.assertEqual(len(sns.messages), 1)
-        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 1201)
-        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_chunks"]["N"], "3")
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 10001)
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_chunks"]["N"], "21")
         self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_state"]["S"], "DONE")
         self.assertTrue(all(ledger.items[record["finding_key"]]["notification_digest_pending"]["S"] == "0"
                             for record in records))
