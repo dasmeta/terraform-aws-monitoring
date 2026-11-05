@@ -203,13 +203,20 @@ def _inspector_ecr_evidence(finding, inspector=None):
         return {"deployment": "unknown"}
     try:
         client = inspector or boto3.client("inspector2", region_name=region, config=Config(
-            connect_timeout=2, read_timeout=3, retries={"total_max_attempts": 1}))
+            connect_timeout=1, read_timeout=1, retries={"total_max_attempts": 1}))
         token = None
+        deadline = time.monotonic() + 5
+        pages = 0
         while True:
+            if pages >= 3 or time.monotonic() >= deadline:
+                LOG.warning("Inspector image-use lookup exceeded its page or time budget for %s", _finding_key(finding))
+                return {"deployment": "unknown"}
             request = {"filterCriteria": {"findingArn": [{"comparison": "EQUALS", "value": arn}]}, "maxResults": 25}
             if token:
                 request["nextToken"] = token
             for attempt in range(2):
+                if time.monotonic() >= deadline:
+                    return {"deployment": "unknown"}
                 try:
                     response = client.list_findings(**request)
                     break
@@ -218,6 +225,7 @@ def _inspector_ecr_evidence(finding, inspector=None):
                     if attempt or code not in {"ThrottlingException", "InternalServerException", "ServiceUnavailableException"}:
                         raise
                     time.sleep(0.2)
+            pages += 1
             for result in response.get("findings") or []:
                 if result.get("findingArn") != arn or result.get("awsAccountId") != account:
                     continue

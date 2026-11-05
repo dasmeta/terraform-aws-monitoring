@@ -1022,6 +1022,29 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(inspector.calls, 3)
         self.assertEqual(inspector.assert_token, "second")
 
+    def test_inspector_pagination_limit_preserves_unknown_for_retry(self):
+        item = image_finding()
+        class Inspector:
+            calls = 0
+            def list_findings(self, **_request):
+                self.calls += 1
+                return {"findings": [], "nextToken": f"page-{self.calls}"}
+        inspector = Inspector()
+        self.assertEqual(router._inspector_ecr_evidence(item, inspector), {"deployment": "unknown"})
+        self.assertEqual(inspector.calls, 3)
+
+    def test_slow_inspector_page_stops_before_another_request(self):
+        item = image_finding()
+        class Inspector:
+            calls = 0
+            def list_findings(self, **_request):
+                self.calls += 1
+                return {"findings": [], "nextToken": "second"}
+        inspector = Inspector()
+        with patch.object(router.time, "monotonic", side_effect=[0, 0, 0, 6]):
+            self.assertEqual(router._inspector_ecr_evidence(item, inspector), {"deployment": "unknown"})
+        self.assertEqual(inspector.calls, 1)
+
     def test_inspector_lookup_rejects_cross_account_region_and_partition(self):
         item = image_finding()
         class Inspector:
