@@ -516,6 +516,34 @@ class HardeningTests(unittest.TestCase):
         enriched = json.loads(table.writes[-1]["ExpressionAttributeValues"][":payload"]["S"])
         self.assertEqual(enriched["risk_context"]["deployment"], "observed_in_use")
 
+    def test_recent_reconciliation_defers_inspector_reads_to_bounded_pass(self):
+        class SecurityHub:
+            def get_findings(self, **_request):
+                return {"Findings": [image_finding()]}
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                  "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True) as record:
+            self.assertEqual(digest.reconcile_recent_findings(
+                object(), SecurityHub(), int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())), (1, 1))
+        self.assertFalse(record.call_args.kwargs["lookup_inspector"])
+
+    def test_bounded_reconciliation_halves_page_size_with_inspector_lookup(self):
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            page_size = None
+            def get_findings(self, **request):
+                self.page_size = request["MaxResults"]
+                return {"Findings": []}
+        hub = SecurityHub()
+        now = int(datetime(2026, 11, 4, 8, 15, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:00:00Z",
+                                  "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}):
+            self.assertTrue(digest.reconcile_findings_bounded(Table(), hub, now, {})[3])
+        self.assertEqual(hub.page_size, 50)
+
     def test_application_incident_lifecycle_has_one_create_until_reopen(self):
         def record(number, digest_char, verified=None):
             item = image_finding(f"CVE-2026-{number:05d}")

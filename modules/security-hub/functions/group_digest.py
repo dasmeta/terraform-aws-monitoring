@@ -302,7 +302,8 @@ def reconcile_findings_bounded(table, securityhub, now, checkpoint, context=None
             "CreatedAt": [{"Start": cutover.isoformat(), "End": target.isoformat()}],
             "UpdatedAt": [{"Start": cursor.isoformat(), "End": window_end.isoformat()}],
         }
-        request = {"Filters": filters, "MaxResults": 100}
+        # Bound the number of Inspector calls before the next durable cursor.
+        request = {"Filters": filters, "MaxResults": 50 if os.environ.get("ECR_DEPLOYMENT_LOOKUP_ENABLED") == "true" else 100}
         if token:
             request["NextToken"] = token
         try:
@@ -377,7 +378,8 @@ def reconcile_recent_findings(table, securityhub, now):
         current_items = _batch_get_findings(table, findings)
         for finding in findings:
             seen += 1
-            changed += int(_record_grouped(table, finding, current=current_items.get(_finding_key(finding), {})))
+            changed += int(_record_grouped(table, finding, current=current_items.get(_finding_key(finding), {}),
+                                           lookup_inspector=False))
         token = page.get("NextToken")
         if not token:
             LOG.info("Recent Security Hub reconciliation: pages=%d seen=%d changed=%d", pages, seen, changed)
