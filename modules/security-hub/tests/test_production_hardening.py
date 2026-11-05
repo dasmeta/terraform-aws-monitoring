@@ -1202,6 +1202,46 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(record.call_count, 10000)
         self.assertEqual(securityhub.calls, 101)
 
+    def test_bounded_replay_resumes_ten_thousand_findings_after_throttle(self):
+        base = image_finding()
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            calls = 0
+            throttled = False
+            def get_findings(self, **request):
+                self.calls += 1
+                self_outer.assertEqual(request["MaxResults"], 50)
+                page = int(request.get("NextToken", "0"))
+                if page == 36 and not self.throttled:
+                    self.throttled = True
+                    raise ClientError({"Error": {"Code": "ThrottlingException", "Message": "retry"}}, "GetFindings")
+                result = {"Findings": [{**base, "Id": f"finding-{page * 50 + index}"}
+                                       for index in range(50)]}
+                if page < 199:
+                    result["NextToken"] = str(page + 1)
+                return result
+        self_outer = self
+        hub = SecurityHub()
+        checkpoint = {}
+        now = int(datetime(2026, 11, 4, 8, 15, tzinfo=timezone.utc).timestamp())
+        results = []
+        with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T08:00:00Z",
+                                  "DELIVERY_TABLE_NAME": "test", "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}), \
+             patch.object(digest, "RECONCILE_PAGES_PER_RUN", 30), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=False) as record, \
+             patch.object(digest.time, "sleep"):
+            for _ in range(7):
+                results.append(digest.reconcile_findings_bounded(Table(), hub, now, checkpoint))
+        self.assertEqual(sum(result[0] for result in results), 10000)
+        self.assertTrue(results[-1][3])
+        self.assertTrue(all(not result[3] for result in results[:-1]))
+        self.assertEqual(record.call_count, 10000)
+        self.assertEqual(hub.calls, 201)
+        self.assertEqual(checkpoint["reconcile_target"], "")
+
     def test_reconcile_retries_unprocessed_batch_reads_before_accepting_page(self):
         finding = image_finding()
         class SecurityHub:
