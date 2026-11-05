@@ -31,6 +31,8 @@ RECONCILE_PAGES_PER_RUN = 300
 RECONCILE_SECONDS_PER_RUN = 240
 RECONCILE_WINDOW_SECONDS = 900
 RECENT_RECONCILE_MAX_PAGES = 250
+RECENT_RECONCILE_SECONDS_PER_RUN = 180
+RECENT_RECONCILE_WINDOW_SECONDS = 300
 LEDGER_SCAN_SEGMENTS = 8
 MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
@@ -359,21 +361,53 @@ def reconcile_findings_bounded(table, securityhub, now, checkpoint, context=None
     return seen, changed, full, True
 
 
-def reconcile_recent_findings(table, securityhub, now):
-    """Keep new routine and resolved findings current while a full replay runs."""
+def reconcile_recent_findings(table, securityhub, now, checkpoint=None, context=None):
+    """Checkpoint bounded recent windows while the historical replay catches up."""
+    checkpoint = checkpoint if checkpoint is not None else _get_item(table, "group#checkpoint")
     cutover = _timestamp(os.environ["FINDING_CUTOVER_AT"])
     end = datetime.fromtimestamp(now, timezone.utc)
-    since = max(cutover, end - timedelta(hours=1))
-    token = None
+    target_text = checkpoint.get("recent_target")
+    reconciled_through = checkpoint.get("reconciled_through")
+    if target_text and reconciled_through and _timestamp(reconciled_through) >= _timestamp(target_text):
+        # The historical pass has already covered this entire recent window.
+        target_text = None
+    if target_text:
+        if not checkpoint.get("recent_cursor"):
+            raise RuntimeError("Recent reconciliation checkpoint has a target but no cursor")
+        cursor = _timestamp(checkpoint["recent_cursor"])
+        target = _timestamp(target_text)
+        token = checkpoint.get("recent_next_token") or None
+    else:
+        previous = checkpoint.get("recent_completed_at")
+        since = _timestamp(previous) if previous else end
+        if reconciled_through:
+            since = max(since, _timestamp(reconciled_through))
+        cursor = max(cutover, since - timedelta(hours=1))
+        target = end
+        token = None
+    if cursor > target:
+        raise RuntimeError("Recent reconciliation cursor is newer than its target")
     seen = changed = pages = 0
-    while True:
+    started = time.monotonic()
+    while cursor < target:
+        window_end = min(cursor + timedelta(seconds=RECENT_RECONCILE_WINDOW_SECONDS), target)
         request = {"Filters": {
-            "CreatedAt": [{"Start": cutover.isoformat(), "End": end.isoformat()}],
-            "UpdatedAt": [{"Start": since.isoformat(), "End": end.isoformat()}],
+            "CreatedAt": [{"Start": cutover.isoformat(), "End": target.isoformat()}],
+            "UpdatedAt": [{"Start": cursor.isoformat(), "End": window_end.isoformat()}],
         }, "MaxResults": 100}
         if token:
             request["NextToken"] = token
-        page = _read_page(securityhub.get_findings, **request)
+        try:
+            page = _read_page(securityhub.get_findings, **request)
+        except ClientError as error:
+            if not token or error.response.get("Error", {}).get("Code") not in {"InvalidInputException", "InvalidTokenException"}:
+                raise
+            _save_reconcile_progress(table, checkpoint, {
+                "recent_cursor": cursor.isoformat(), "recent_target": target.isoformat(),
+                "recent_next_token": "",
+            })
+            LOG.warning("Expired recent Security Hub page token; restarting the current update window")
+            return seen, changed
         pages += 1
         findings = page.get("Findings", [])
         current_items = _batch_get_findings(table, findings)
@@ -383,10 +417,30 @@ def reconcile_recent_findings(table, securityhub, now):
                                            lookup_inspector=False))
         token = page.get("NextToken")
         if not token:
-            LOG.info("Recent Security Hub reconciliation: pages=%d seen=%d changed=%d", pages, seen, changed)
+            cursor = window_end
+            if cursor == target:
+                _save_reconcile_progress(table, checkpoint, {
+                    "recent_cursor": "", "recent_target": "", "recent_next_token": "",
+                    "recent_completed_at": target.isoformat(),
+                })
+                LOG.info("Recent Security Hub reconciliation: pages=%d seen=%d changed=%d", pages, seen, changed)
+                return seen, changed
+        remaining = context.get_remaining_time_in_millis() if context else None
+        if (pages >= RECENT_RECONCILE_MAX_PAGES or
+                time.monotonic() - started >= RECENT_RECONCILE_SECONDS_PER_RUN or
+                remaining is not None and remaining < 540000):
+            _save_reconcile_progress(table, checkpoint, {
+                "recent_cursor": cursor.isoformat(), "recent_target": target.isoformat(),
+                "recent_next_token": token or "",
+            })
+            LOG.info("Recent Security Hub reconciliation paused: pages=%d seen=%d changed=%d cursor=%s",
+                     pages, seen, changed, cursor.isoformat())
             return seen, changed
-        if pages >= RECENT_RECONCILE_MAX_PAGES:
-            raise RuntimeError(f"Recent Security Hub reconciliation exceeded {RECENT_RECONCILE_MAX_PAGES} pages; widen the live-update path")
+    _save_reconcile_progress(table, checkpoint, {
+        "recent_cursor": "", "recent_target": "", "recent_next_token": "",
+        "recent_completed_at": target.isoformat(),
+    })
+    return seen, changed
 
 
 def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None, state=None, index_legacy=False):
@@ -1588,7 +1642,8 @@ def run(table, securityhub, sns, now=None, context=None):
     else:
         recent_seen = recent_changed = 0
         if checkpoint_state.get("reconcile_target"):
-            recent_seen, recent_changed = reconcile_recent_findings(table, securityhub, now)
+            recent_seen, recent_changed = reconcile_recent_findings(
+                table, securityhub, now, checkpoint_state, context)
         seen, changed, _, complete = reconcile_findings_bounded(table, securityhub, now, checkpoint_state, context)
         seen += recent_seen
         changed += recent_changed

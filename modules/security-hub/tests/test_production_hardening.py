@@ -610,16 +610,137 @@ class HardeningTests(unittest.TestCase):
         self.assertFalse(any(call.args[1] == "/v2/alerts" for call in action.call_args_list))
 
     def test_recent_reconciliation_defers_inspector_reads_to_bounded_pass(self):
+        class Table:
+            def update_item(self, **_request):
+                pass
         class SecurityHub:
             def get_findings(self, **_request):
                 return {"Findings": [image_finding()]}
-        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z",
                                   "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}), \
              patch.object(digest, "_batch_get_findings", return_value={}), \
              patch.object(digest, "_record_grouped", return_value=True) as record:
             self.assertEqual(digest.reconcile_recent_findings(
-                object(), SecurityHub(), int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())), (1, 1))
+                Table(), SecurityHub(), int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp()), {}), (1, 1))
         self.assertFalse(record.call_args.kwargs["lookup_inspector"])
+
+    def test_recent_reconciliation_resumes_after_page_bound_without_losing_findings(self):
+        checkpoint = {}
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            calls = []
+            def get_findings(self, **request):
+                token = request.get("NextToken")
+                self.calls.append(token)
+                return {"Findings": [image_finding()],
+                        **({"NextToken": {None: "second", "second": "third"}[token]}
+                           if token != "third" else {})}
+        hub = SecurityHub()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z"}), \
+             patch.object(digest, "RECENT_RECONCILE_MAX_PAGES", 2), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True) as record:
+            self.assertEqual(digest.reconcile_recent_findings(Table(), hub, now, checkpoint), (2, 2))
+            self.assertEqual(checkpoint["recent_next_token"], "third")
+            self.assertEqual(digest.reconcile_recent_findings(Table(), hub, now + 900, checkpoint), (1, 1))
+        self.assertEqual(hub.calls, [None, "second", "third"])
+        self.assertEqual(record.call_count, 3)
+        self.assertEqual(checkpoint["recent_target"], "")
+        self.assertEqual(checkpoint["recent_completed_at"], "2026-11-04T09:00:00+00:00")
+
+    def test_recent_reconciliation_restarts_only_expired_window(self):
+        checkpoint = {"recent_cursor": "2026-11-04T08:55:00+00:00",
+                      "recent_target": "2026-11-04T09:00:00+00:00", "recent_next_token": "expired"}
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            calls = []
+            def get_findings(self, **request):
+                self.calls.append(request.get("NextToken"))
+                if request.get("NextToken"):
+                    raise ClientError({"Error": {"Code": "InvalidInputException"}}, "GetFindings")
+                return {"Findings": [image_finding()]}
+        hub = SecurityHub()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z"}), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True):
+            self.assertEqual(digest.reconcile_recent_findings(Table(), hub, 1793782800, checkpoint), (0, 0))
+            self.assertEqual(checkpoint["recent_next_token"], "")
+            self.assertEqual(digest.reconcile_recent_findings(Table(), hub, 1793782800, checkpoint), (1, 1))
+        self.assertEqual(hub.calls, ["expired", None])
+        self.assertEqual(checkpoint["recent_target"], "")
+
+    def test_recent_reconciliation_next_sweep_includes_newer_findings(self):
+        checkpoint = {"recent_completed_at": "2026-11-04T09:00:00+00:00"}
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            windows = []
+            def get_findings(self, **request):
+                start = request["Filters"]["UpdatedAt"][0]["Start"]
+                self.windows.append(start)
+                return {"Findings": [image_finding()] if start == "2026-11-04T09:05:00+00:00" else []}
+        hub = SecurityHub()
+        now = int(datetime(2026, 11, 4, 9, 10, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z"}), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True) as record:
+            self.assertEqual(digest.reconcile_recent_findings(Table(), hub, now, checkpoint), (1, 1))
+        self.assertEqual(len(hub.windows), 3)
+        record.assert_called_once()
+        self.assertEqual(checkpoint["recent_completed_at"], "2026-11-04T09:10:00+00:00")
+
+    def test_recent_reconciliation_saves_cursor_before_lambda_budget_runs_low(self):
+        checkpoint = {}
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            def get_findings(self, **_request):
+                return {"Findings": [image_finding()], "NextToken": "next-page"}
+        class Context:
+            def get_remaining_time_in_millis(self):
+                return 539000
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z"}), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True):
+            self.assertEqual(digest.reconcile_recent_findings(
+                Table(), SecurityHub(), now, checkpoint, Context()), (1, 1))
+        self.assertEqual(checkpoint["recent_next_token"], "next-page")
+        self.assertEqual(checkpoint["recent_target"], "2026-11-04T09:00:00+00:00")
+
+    def test_recent_reconciliation_replays_page_after_checkpoint_write_failure(self):
+        checkpoint = {}
+        class Table:
+            fail_once = True
+            def update_item(self, **_request):
+                if self.fail_once:
+                    self.fail_once = False
+                    raise ClientError({"Error": {"Code": "InternalServerError"}}, "UpdateItem")
+        class SecurityHub:
+            calls = []
+            def get_findings(self, **request):
+                self.calls.append(request.get("NextToken"))
+                return {"Findings": [image_finding()], "NextToken": "next-page"}
+        table, hub = Table(), SecurityHub()
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:55:00Z"}), \
+             patch.object(digest, "RECENT_RECONCILE_MAX_PAGES", 1), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=True) as record:
+            with self.assertRaises(ClientError):
+                digest.reconcile_recent_findings(table, hub, now, checkpoint)
+            self.assertNotIn("recent_target", checkpoint)
+            self.assertEqual(digest.reconcile_recent_findings(table, hub, now, checkpoint), (1, 1))
+        self.assertEqual(hub.calls, [None, None])
+        self.assertEqual(record.call_count, 2)
+        self.assertEqual(checkpoint["recent_next_token"], "next-page")
 
     def test_bounded_reconciliation_halves_page_size_with_inspector_lookup(self):
         class Table:
@@ -883,6 +1004,7 @@ class HardeningTests(unittest.TestCase):
              patch.object(digest, "_daily_due", return_value=False):
             result = digest.run(object(), object(), object(), now)
         recent.assert_called_once()
+        self.assertIs(recent.call_args.args[3], checkpoint)
         self.assertEqual((result["reconciled"], result["changed"]), (8, 3))
         self.assertFalse(result["reconciliation_complete"])
 
