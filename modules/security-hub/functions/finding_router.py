@@ -262,7 +262,7 @@ def _page_group_from_remediation(group, resource=""):
             "vulnerability": "", "package": "", "incident_category": "container-vulnerability"}
 
 
-def _record_grouped(table, finding, verified=None, current=None):
+def _record_grouped(table, finding, verified=None, current=None, lookup_inspector=True):
     """Keep the latest snapshot; a duplicate event does not create a new digest item."""
     key = _finding_key(finding)
     current = _get_item(table, key) if current is None else current
@@ -284,8 +284,12 @@ def _record_grouped(table, finding, verified=None, current=None):
         if fresh:
             verified = {"deployment": previous.get("risk_context", {}).get("deployment", "unknown"),
                         "checked_at": checked_at}
-        else:
+        elif lookup_inspector:
             verified = _inspector_ecr_evidence(finding)
+        else:
+            # The 30-second EventBridge router must record every finding before
+            # slow Inspector reads. The scheduled worker retries enrichment.
+            verified = {"deployment": "unknown"}
     elif verified is None:
         verified = {}
     record = _compact_finding(finding, verified)
@@ -355,6 +359,8 @@ def _record_grouped(table, finding, verified=None, current=None):
                   current.get("notification_pending_at") or current.get("notification_updated_at") or accepted_at.isoformat())
     retention_days = int(os.environ.get("FINDING_RETENTION_DAYS", "365"))
     update_expression = "SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #epoch = :epoch, #state = :state, #pending = :pending, #pending_at = :pending_at"
+    if pending_raised:
+        update_expression += ", #digest_pending = :digest_pending"
     update_expression += ", #expiry = :expiry" if inactive else " REMOVE #expiry"
     names = {
         "#kind": "notification_kind", "#group": "notification_group_key",
@@ -375,6 +381,9 @@ def _record_grouped(table, finding, verified=None, current=None):
     }
     if inactive:
         values[":expiry"] = {"N": str(int(time.time()) + retention_days * 86400)}
+    if pending_raised:
+        names["#digest_pending"] = "notification_digest_pending"
+        values[":digest_pending"] = {"S": "1"}
     try:
         table.update_item(
             TableName=os.environ["DELIVERY_TABLE_NAME"],
@@ -569,7 +578,7 @@ def route_event(event, table, sns, now=None):
             if _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
                 continue
-            recorded = _record_grouped(table, finding)
+            recorded = _record_grouped(table, finding, lookup_inspector=False)
             counts["recorded"] += int(recorded)
             item = _get_item(table, _finding_key(finding))
             if (not item.get("notification_updated_at") or

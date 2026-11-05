@@ -89,16 +89,6 @@ data "aws_iam_policy_document" "finding_router" {
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
   }
 
-  dynamic "statement" {
-    for_each = local.grouped_delivery_enabled && nonsensitive(var.finding_delivery.paging.ecr_deployment_lookup_enabled) ? [1] : []
-
-    content {
-      sid       = "ReadInspectorImageUse"
-      actions   = ["inspector2:ListFindings"]
-      resources = ["*"]
-    }
-  }
-
   statement {
     sid     = "PublishSecurityFindings"
     actions = ["sns:Publish"]
@@ -180,9 +170,19 @@ data "aws_iam_policy_document" "finding_group_digest" {
     resources = ["*"]
   }
 
+  dynamic "statement" {
+    for_each = nonsensitive(var.finding_delivery.paging.ecr_deployment_lookup_enabled) ? [1] : []
+
+    content {
+      sid       = "ReadInspectorImageUse"
+      actions   = ["inspector2:ListFindings"]
+      resources = ["*"]
+    }
+  }
+
   statement {
     sid       = "ReadAndUpdateFindingLedger"
-    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]
+    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
   }
 
@@ -215,22 +215,23 @@ module "finding_group_digest" {
   reserved_concurrent_executions = 1
 
   environment_variables = {
-    DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT      = local.finding_cutover_at
-    SLACK_TOPIC_ARN         = module.alarm_actions[0].topic_arn
-    OPSGENIE_API_KEY        = var.finding_delivery.opsgenie_api_key
-    OPSGENIE_API_URL        = var.finding_delivery.opsgenie_api_url
-    OPSGENIE_ALERT_PREFIX   = var.finding_delivery.opsgenie_alert_prefix
-    SECURITY_ENVIRONMENT    = var.finding_delivery.environment_label
-    SECURITY_PROJECT        = var.finding_delivery.project_label
-    SECURITY_ACCOUNT_LABEL  = var.finding_delivery.account_label
-    QUIET_PERIOD_SECONDS    = tostring(var.finding_delivery.quiet_period_minutes * 60)
-    DAILY_DIGEST_ENABLED    = tostring(var.finding_delivery.daily_digest.enabled)
-    DAILY_DIGEST_HOUR_UTC   = tostring(var.finding_delivery.daily_digest.hour_utc)
-    DAILY_DIGEST_MAX_GROUPS = tostring(var.finding_delivery.daily_digest.max_groups)
-    REALTIME_ENABLED        = tostring(var.finding_delivery.realtime.enabled)
-    PAGING_POLICY           = jsonencode(var.finding_delivery.paging)
-    FINDING_RETENTION_DAYS  = tostring(var.finding_delivery.finding_retention_days)
+    DELIVERY_TABLE_NAME           = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT            = local.finding_cutover_at
+    SLACK_TOPIC_ARN               = module.alarm_actions[0].topic_arn
+    OPSGENIE_API_KEY              = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL              = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_ALERT_PREFIX         = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_PROJECT              = var.finding_delivery.project_label
+    SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
+    QUIET_PERIOD_SECONDS          = tostring(var.finding_delivery.quiet_period_minutes * 60)
+    DAILY_DIGEST_ENABLED          = tostring(var.finding_delivery.daily_digest.enabled)
+    DAILY_DIGEST_HOUR_UTC         = tostring(var.finding_delivery.daily_digest.hour_utc)
+    DAILY_DIGEST_MAX_GROUPS       = tostring(var.finding_delivery.daily_digest.max_groups)
+    ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
+    REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
+    PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
+    FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true

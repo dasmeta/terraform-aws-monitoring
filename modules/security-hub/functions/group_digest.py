@@ -1,5 +1,6 @@
 """Reconcile Security Hub and send bounded remediation-group notifications."""
 
+import base64
 import collections
 import concurrent.futures
 import hashlib
@@ -400,7 +401,7 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
         if state is None:
             request = {
                 "TableName": os.environ["DELIVERY_TABLE_NAME"],
-                "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_pending_at, notification_updated_at, notification_state, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
+                "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_digest_pending, notification_pending_at, notification_updated_at, notification_state, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
                 "ConsistentRead": True,
                 "ReturnConsumedCapacity": "TOTAL",
             }
@@ -446,8 +447,11 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
                 continue
             pending_at = (row.get("notification_pending_at") or row.get("notification_updated_at") or
                           record.get("updated_at") or record["created_at"])
-            record["pending"] = (row.get("notification_pending", "1") == "1" and
+            record["pending"] = (row.get("notification_digest_pending") == "1" if
+                                 "notification_digest_pending" in row else
+                                 row.get("notification_pending", "1") == "1" and
                                  (not pending_after or _timestamp(pending_at) > _timestamp(pending_after)))
+            record["_digest_pending_explicit"] = row.get("notification_digest_pending") == "1"
             record["_ledger_revision"] = pending_at
             if record["pending"] and not packed:
                 record["_ledger_payload"] = row["notification_payload"]
@@ -1197,12 +1201,191 @@ def send_slack_batch(table, sns, groups, now, initial=False):
     return True
 
 
+DAILY_OUTBOX_KEY = "group#daily-outbox"
+DAILY_CHANGE_CHUNK = 500
+
+
+def _stage_daily_outbox(table, summary, changes, pending_records, now):
+    """Persist the exact SNS payload and group changes before any publish."""
+    delivery_id = uuid.uuid4().hex
+    day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+    watermark = datetime.fromtimestamp(now, timezone.utc).isoformat()
+    payload = _slack_payload(summary, False)
+    payload["_dasmeta_daily_delivery_id"] = delivery_id
+    message = json.dumps(payload, separators=(",", ":"))
+    if len(message.encode("utf-8")) > 250000:
+        raise RuntimeError("Daily digest exceeds the SNS message limit; no delivery was staged")
+    chunks = [changes[index:index + DAILY_CHANGE_CHUNK]
+              for index in range(0, len(changes), DAILY_CHANGE_CHUNK)]
+    for index, chunk in enumerate(chunks):
+        encoded = base64.b64encode(zlib.compress(json.dumps(chunk, separators=(",", ":")).encode())).decode()
+        table.put_item(TableName=os.environ["DELIVERY_TABLE_NAME"], Item={
+            "finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{delivery_id}#{index}"},
+            "daily_changes": {"S": encoded},
+        })
+    ack_chunks = [pending_records[index:index + DAILY_CHANGE_CHUNK]
+                  for index in range(0, len(pending_records), DAILY_CHANGE_CHUNK)]
+    for index, chunk in enumerate(ack_chunks):
+        encoded = base64.b64encode(zlib.compress(json.dumps(chunk, separators=(",", ":")).encode())).decode()
+        table.put_item(TableName=os.environ["DELIVERY_TABLE_NAME"], Item={
+            "finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{delivery_id}#ack#{index}"},
+            "daily_acks": {"S": encoded},
+        })
+    try:
+        table.put_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Item={"finding_key": {"S": DAILY_OUTBOX_KEY}, "daily_id": {"S": delivery_id},
+                  "daily_day": {"S": day}, "daily_watermark": {"S": watermark},
+                  "daily_message": {"S": message}, "daily_state": {"S": "READY"},
+                  "daily_change_chunks": {"N": str(len(chunks))}, "daily_change_cursor": {"N": "0"},
+                  "daily_ack_chunks": {"N": str(len(ack_chunks))}, "daily_ack_cursor": {"N": "0"},
+                  "daily_lease": {"N": "0"}},
+            ConditionExpression="attribute_not_exists(finding_key) OR (#state = :done AND #day < :day)",
+            ExpressionAttributeNames={"#state": "daily_state", "#day": "daily_day"},
+            ExpressionAttributeValues={":done": {"S": "DONE"}, ":day": {"S": day}},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        # Another invocation already staged this day. Its durable payload wins.
+        for index in range(len(chunks)):
+            table.delete_item(TableName=os.environ["DELIVERY_TABLE_NAME"],
+                              Key={"finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{delivery_id}#{index}"}})
+        for index in range(len(ack_chunks)):
+            table.delete_item(TableName=os.environ["DELIVERY_TABLE_NAME"],
+                              Key={"finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{delivery_id}#ack#{index}"}})
+
+
+def _write_owned_daily(table, delivery_id, owner, fields):
+    names = {f"#f{index}": name for index, name in enumerate(fields)}
+    values = {f":v{index}": {"N" if isinstance(value, int) else "S": str(value)}
+              for index, value in enumerate(fields.values())}
+    names.update({"#id": "daily_id", "#owner": "daily_owner"})
+    values.update({":id": {"S": delivery_id}, ":owner": {"S": owner}})
+    table.update_item(
+        TableName=os.environ["DELIVERY_TABLE_NAME"],
+        Key={"finding_key": {"S": DAILY_OUTBOX_KEY}},
+        UpdateExpression="SET " + ", ".join(f"#f{i} = :v{i}" for i in range(len(fields))),
+        ConditionExpression="#id = :id AND #owner = :owner",
+        ExpressionAttributeNames=names, ExpressionAttributeValues=values,
+    )
+
+
+def _advance_daily_watermark(table, watermark):
+    checkpoint = _get_item(table, "group#checkpoint")
+    old = checkpoint.get("last_daily_slack_at")
+    if old and _timestamp(old) >= _timestamp(watermark):
+        return
+    names = {"#last": "last_daily_slack_at"}
+    values = {":new": {"S": watermark}}
+    condition = "attribute_not_exists(#last)"
+    if old:
+        values[":old"] = {"S": old}
+        condition = "#last = :old"
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": "group#checkpoint"}},
+            UpdateExpression="SET #last = :new", ConditionExpression=condition,
+            ExpressionAttributeNames=names, ExpressionAttributeValues=values,
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        current = _get_item(table, "group#checkpoint").get("last_daily_slack_at")
+        if not current or _timestamp(current) < _timestamp(watermark):
+            raise
+
+
+def _deliver_daily_outbox(table, sns):
+    outbox = _get_item(table, DAILY_OUTBOX_KEY)
+    if outbox.get("daily_state") not in {"READY", "CLAIMED"}:
+        return False
+    owner = uuid.uuid4().hex
+    lease_now = int(time.time())
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": DAILY_OUTBOX_KEY}},
+            UpdateExpression="SET #state = :claimed, #owner = :owner, #lease = :lease",
+            ConditionExpression="#id = :id AND (#state = :ready OR (#state = :claimed AND #lease <= :now))",
+            ExpressionAttributeNames={"#id": "daily_id", "#state": "daily_state",
+                                      "#owner": "daily_owner", "#lease": "daily_lease"},
+            ExpressionAttributeValues={":id": {"S": outbox["daily_id"]}, ":ready": {"S": "READY"},
+                                       ":claimed": {"S": "CLAIMED"}, ":owner": {"S": owner},
+                                       ":lease": {"N": str(lease_now + 900)}, ":now": {"N": str(lease_now)}},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return False
+        raise
+    watermark = outbox["daily_watermark"]
+    for index in range(int(outbox.get("daily_ack_cursor", 0)), int(outbox.get("daily_ack_chunks", 0))):
+        chunk = _get_item(table, f"{DAILY_OUTBOX_KEY}#{outbox['daily_id']}#ack#{index}")
+        if not chunk.get("daily_acks"):
+            raise RuntimeError("Daily digest finding-ack chunk is missing; retry after recovery")
+        acknowledgements = json.loads(zlib.decompress(base64.b64decode(chunk["daily_acks"])))
+        for key, revision in acknowledgements:
+            try:
+                table.update_item(
+                    TableName=os.environ["DELIVERY_TABLE_NAME"],
+                    Key={"finding_key": {"S": key}},
+                    UpdateExpression="SET #pending = :done",
+                    ConditionExpression="#pending = :one AND #revision = :revision",
+                    ExpressionAttributeNames={"#pending": "notification_digest_pending",
+                                              "#revision": "notification_pending_at"},
+                    ExpressionAttributeValues={":done": {"S": "0"}, ":one": {"S": "1"},
+                                               ":revision": {"S": revision}},
+                )
+            except ClientError as error:
+                if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+                # A newer finding snapshot must remain pending for a later brief.
+        _write_owned_daily(table, outbox["daily_id"], owner, {"daily_ack_cursor": index + 1})
+    checkpoint = _get_item(table, "group#checkpoint")
+    if not checkpoint.get("last_daily_slack_at") or _timestamp(checkpoint["last_daily_slack_at"]) < _timestamp(watermark):
+        # SNS and DynamoDB cannot commit atomically. A crash here can replay
+        # this same delivery ID; the end-to-end Slack path is at least once.
+        sns.publish(TopicArn=os.environ["SLACK_TOPIC_ARN"], Subject="Security Hub finding digest",
+                    Message=outbox["daily_message"])
+        _advance_daily_watermark(table, watermark)
+    for index in range(int(outbox.get("daily_change_cursor", 0)), int(outbox["daily_change_chunks"])):
+        chunk = _get_item(table, f"{DAILY_OUTBOX_KEY}#{outbox['daily_id']}#{index}")
+        if not chunk.get("daily_changes"):
+            raise RuntimeError("Daily digest group-state chunk is missing; retry after recovery")
+        changes = json.loads(zlib.decompress(base64.b64decode(chunk["daily_changes"])))
+        for key, desired in changes:
+            _set_fields(table, "group#" + key, {"slack_open": desired})
+            if desired == "0":
+                _clear_urgent_claim(table, "group#" + key)
+        _write_owned_daily(table, outbox["daily_id"], owner, {"daily_change_cursor": index + 1})
+    _write_owned_daily(table, outbox["daily_id"], owner, {"daily_state": "DONE"})
+    for index in range(int(outbox["daily_change_chunks"])):
+        try:
+            table.delete_item(TableName=os.environ["DELIVERY_TABLE_NAME"],
+                              Key={"finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{outbox['daily_id']}#{index}"}})
+        except Exception:
+            LOG.exception("Daily digest change-chunk cleanup failed; delivery remains complete")
+    for index in range(int(outbox.get("daily_ack_chunks", 0))):
+        try:
+            table.delete_item(TableName=os.environ["DELIVERY_TABLE_NAME"],
+                              Key={"finding_key": {"S": f"{DAILY_OUTBOX_KEY}#{outbox['daily_id']}#ack#{index}"}})
+        except Exception:
+            LOG.exception("Daily digest acknowledgement cleanup failed; delivery remains complete")
+    return True
+
+
 def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False):
     """Build the same daily brief without retaining every decoded finding."""
+    existing = _get_item(table, DAILY_OUTBOX_KEY)
+    day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+    if existing.get("daily_state") in {"READY", "CLAIMED"} or existing.get("daily_day") == day:
+        return _deliver_daily_outbox(table, sns)
     max_groups = int(os.environ.get("DAILY_DIGEST_MAX_GROUPS", "5"))
     quiet_seconds = int(os.environ.get("QUIET_PERIOD_SECONDS", str(QUIET_CLOSE_SECONDS)))
     selected = []
     changes = []
+    pending_records = []
     first_group = None
     first_active_group = None
     active_count = new_count = routine_count = active_groups = container_groups = 0
@@ -1211,14 +1394,22 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
     new_severities = collections.Counter()
     accounts, regions, resources, vulnerabilities = set(), set(), set(), set()
     quiet_labels = []
+    watermark = datetime.fromtimestamp(now, timezone.utc)
+    def pending_in_snapshot(record):
+        revision = record.get("_ledger_revision")
+        return record.get("pending") and (not revision or _timestamp(revision) <= watermark)
+
     for key, records in groups.items():
         if not records:
             continue
         first_group = first_group or records[0]["group"]
         state = _get_item(table, "group#" + key)
+        pending_records.extend((record["finding_key"], record["_ledger_revision"])
+                               for record in records if pending_in_snapshot(record) and
+                               record.get("_digest_pending_explicit") and record.get("_ledger_revision"))
         active = [record for record in records if _actionable(record)]
-        routine_count += sum(record.get("pending", False) and not _actionable(record) for record in records)
-        changed = [record for record in active if record.get("pending") and
+        routine_count += sum(pending_in_snapshot(record) and not _actionable(record) for record in records)
+        changed = [record for record in active if pending_in_snapshot(record) and
                    record.get("change_kind", "new") in {"new", "escalated", "reopened"}]
         if active:
             first_active_group = first_active_group or active[0]["group"]
@@ -1269,7 +1460,7 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
         application_total += 1
         item = {"repository": group["repository"], "images": app["affected_images"],
                 "vulnerabilities": len(app["vulnerability_ids"]), "findings": len(active),
-                "new": 0 if initial else sum(record.get("pending") and record.get("change_kind", "new") in
+                "new": 0 if initial else sum(pending_in_snapshot(record) and record.get("change_kind", "new") in
                                                {"new", "escalated", "reopened"} for record in active),
                 "critical": sum(record["severity"] == "CRITICAL" for record in active),
                 "high": sum(record["severity"] == "HIGH" for record in active),
@@ -1310,20 +1501,13 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
                         "action": group_action(item["group"]), "url": _securityhub_url(item["group"])}
                        for item in selected],
     }
-    _publish_slack(sns, summary)
-    for key, desired in changes:
-        _set_fields(table, "group#" + key, {"slack_open": desired})
-        if desired == "0":
-            _clear_urgent_claim(table, "group#" + key)
-    # The checkpoint is the acknowledgement watermark. Updating every archived
-    # row individually would require hundreds of thousands of writes on a busy
-    # account; a later accepted finding change gets a fresh pending_at instead.
-    _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
-    return True
+    _stage_daily_outbox(table, summary, changes, pending_records, now)
+    return _deliver_daily_outbox(table, sns)
 
 
 def run(table, securityhub, sns, now=None, context=None):
     now = int(time.time() if now is None else now)
+    recovered_daily = _deliver_daily_outbox(table, sns)
     checkpoint_state = _get_item(table, "group#checkpoint")
     initial = not checkpoint_state.get("reconciled_through")
     bootstrap = checkpoint_state.get("ledger_index_ready") != "1"
@@ -1349,7 +1533,7 @@ def run(table, securityhub, sns, now=None, context=None):
         except MissingMarkerSnapshot:
             _set_fields(table, "group#checkpoint", {"ledger_index_ready": "0"})
             raise
-    sent = 0
+    sent = int(recovered_daily)
     migrated = 0
     failures = []
     for key, records in page_groups.items():

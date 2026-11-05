@@ -233,7 +233,7 @@ class InspectorGroupingTests(unittest.TestCase):
              patch.object(digest, "_set_fields"), \
              patch.object(digest, "sync_opsgenie") as sync:
             digest.run(object(), object(), object(), now=1793698200)
-        self.assertEqual(get_item.call_count, 1)
+        self.assertEqual(get_item.call_count, 2)  # Outbox recovery and checkpoint.
         sync.assert_not_called()
 
     def test_urgent_only_alert_closes_after_stable_quiet_hour(self):

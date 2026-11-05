@@ -6,6 +6,7 @@ import pathlib
 import sys
 import unittest
 import zlib
+from copy import deepcopy
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -19,6 +20,83 @@ import finding_router as router
 import finding_policy as policy
 import group_digest as digest
 import opsgenie_notifier as notifier
+
+
+class DailyLedger:
+    """Small conditional DynamoDB fixture for daily delivery fault injection."""
+
+    def __init__(self):
+        self.items = {}
+        self.fail_checkpoint_once = False
+        self.fail_group_once = False
+
+    @staticmethod
+    def error(code):
+        return ClientError({"Error": {"Code": code, "Message": code}}, "UpdateItem")
+
+    def get_item(self, **request):
+        key = request["Key"]["finding_key"]["S"]
+        return {"Item": deepcopy(self.items[key])} if key in self.items else {}
+
+    def put_item(self, **request):
+        row = deepcopy(request["Item"])
+        key = row["finding_key"]["S"]
+        existing = self.items.get(key)
+        if request.get("ConditionExpression") and existing and not (
+                existing["daily_state"]["S"] == "DONE" and
+                existing["daily_day"]["S"] < row["daily_day"]["S"]):
+            raise self.error("ConditionalCheckFailedException")
+        self.items[key] = row
+
+    def delete_item(self, **request):
+        self.items.pop(request["Key"]["finding_key"]["S"], None)
+
+    def update_item(self, **request):
+        key = request["Key"]["finding_key"]["S"]
+        row = self.items.get(key, {"finding_key": {"S": key}})
+        condition = request.get("ConditionExpression", "")
+        values = request["ExpressionAttributeValues"]
+        if key == digest.DAILY_OUTBOX_KEY and ":ready" in values:
+            if row.get("daily_id") != values[":id"] or not (
+                    row["daily_state"]["S"] == "READY" or
+                    row["daily_state"]["S"] == "CLAIMED" and
+                    int(row["daily_lease"]["N"]) <= int(values[":now"]["N"])):
+                raise self.error("ConditionalCheckFailedException")
+        elif key == digest.DAILY_OUTBOX_KEY and ":owner" in values:
+            if row.get("daily_id") != values[":id"] or row.get("daily_owner") != values[":owner"]:
+                raise self.error("ConditionalCheckFailedException")
+        elif key == "group#checkpoint" and "#last" in request["ExpressionAttributeNames"]:
+            if self.fail_checkpoint_once:
+                self.fail_checkpoint_once = False
+                raise self.error("InternalServerError")
+            old = row.get("last_daily_slack_at")
+            if old != values.get(":old") or old and ":old" not in values:
+                raise self.error("ConditionalCheckFailedException")
+        elif ":revision" in values:
+            if row.get("notification_digest_pending") != values[":one"] or \
+                    row.get("notification_pending_at") != values[":revision"]:
+                raise self.error("ConditionalCheckFailedException")
+        elif key.startswith("group#") and key != "group#checkpoint" and self.fail_group_once:
+            self.fail_group_once = False
+            raise self.error("InternalServerError")
+        names = request["ExpressionAttributeNames"]
+        for term in request["UpdateExpression"].removeprefix("SET ").split(", "):
+            name, value = term.split(" = ")
+            row[names[name]] = deepcopy(values[value])
+        self.items[key] = row
+
+
+class AcceptedSns:
+    def __init__(self):
+        self.messages = []
+        self.crash_after_accept = False
+
+    def publish(self, **request):
+        self.messages.append(json.loads(request["Message"]))
+        if self.crash_after_accept:
+            self.crash_after_accept = False
+            raise RuntimeError("Lambda stopped after SNS accepted the message")
+        return {"MessageId": str(len(self.messages))}
 
 
 def image_finding(identifier="finding-a", severity="CRITICAL"):
@@ -39,6 +117,182 @@ def image_finding(identifier="finding-a", severity="CRITICAL"):
 
 
 class HardeningTests(unittest.TestCase):
+    @staticmethod
+    def daily_groups(records):
+        groups, pages = {}, {}
+        for record in records:
+            blob = zlib.compress(json.dumps(record).encode())
+            groups.setdefault(record["group"]["key"], []).append(blob)
+            pages.setdefault(record["page_group"]["key"], []).append(blob)
+        return digest.PackedGroups(groups), digest.PackedGroups(pages)
+
+    @staticmethod
+    def daily_record(identifier="first", revision="2026-11-04T08:01:00Z"):
+        finding = image_finding(identifier)
+        finding["Id"] = finding["Id"].replace("b" * 32, ("b" if identifier == "first" else "c") * 32)
+        record = router._compact_finding(finding)
+        record.update(pending=True, _ledger_revision=revision, _digest_pending_explicit=True,
+                      change_kind="new")
+        return record
+
+    def test_daily_outbox_replays_same_snapshot_when_checkpoint_fails_after_sns(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        groups, pages = self.daily_groups([self.daily_record()])
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        ledger.fail_checkpoint_once = True
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            with self.assertRaises(ClientError):
+                digest.send_slack_batch_packed(ledger, sns, groups, pages, now)
+            self.assertEqual(len(sns.messages), 1)
+            self.assertNotIn("last_daily_slack_at", ledger.items.get("group#checkpoint", {}))
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1901):
+            self.assertTrue(digest._deliver_daily_outbox(ledger, sns))
+            self.assertFalse(digest._deliver_daily_outbox(ledger, sns))
+        self.assertEqual(len(sns.messages), 2)
+        self.assertEqual(sns.messages[0], sns.messages[1])
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 1)
+
+    def test_daily_outbox_recovers_lambda_crash_after_sns_acceptance(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        groups, pages = self.daily_groups([self.daily_record()])
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        sns.crash_after_accept = True
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            with self.assertRaisesRegex(RuntimeError, "Lambda stopped"):
+                digest.send_slack_batch_packed(ledger, sns, groups, pages, now)
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1901):
+            self.assertTrue(digest._deliver_daily_outbox(ledger, sns))
+        self.assertEqual(len(sns.messages), 2)
+        self.assertEqual(sns.messages[0]["_dasmeta_daily_delivery_id"],
+                         sns.messages[1]["_dasmeta_daily_delivery_id"])
+
+    def test_overlapping_daily_invocation_cannot_publish_same_claim(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        groups, pages = self.daily_groups([self.daily_record()])
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        original_publish = sns.publish
+        overlapping = []
+        def publish(**request):
+            overlapping.append(digest._deliver_daily_outbox(ledger, sns))
+            return original_publish(**request)
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000), \
+             patch.object(sns, "publish", side_effect=publish):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(overlapping, [False])
+        self.assertEqual(len(sns.messages), 1)
+
+    def test_group_state_failure_after_publish_retries_without_republishing(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        groups, pages = self.daily_groups([self.daily_record()])
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        ledger.fail_group_once = True
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            with self.assertRaises(ClientError):
+                digest.send_slack_batch_packed(ledger, sns, groups, pages, now)
+        self.assertEqual(len(sns.messages), 1)
+        self.assertIn("last_daily_slack_at", ledger.items["group#checkpoint"])
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1901):
+            self.assertTrue(digest._deliver_daily_outbox(ledger, sns))
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(ledger.items["group#" + self.daily_record()["group"]["key"]]["slack_open"]["S"], "1")
+
+    def test_new_finding_during_digest_stays_new_for_next_daily_snapshot(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        first = self.daily_record()
+        late = self.daily_record("second", "2026-11-04T09:00:01Z")
+        for record in (first, late):
+            ledger.items[record["finding_key"]] = {
+                "finding_key": {"S": record["finding_key"]},
+                "notification_digest_pending": {"S": "1"},
+                "notification_pending_at": {"S": record["_ledger_revision"]},
+            }
+        groups, pages = self.daily_groups([first, late])
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 1)
+        self.assertEqual(ledger.items[first["finding_key"]]["notification_digest_pending"]["S"], "0")
+        self.assertEqual(ledger.items[late["finding_key"]]["notification_digest_pending"]["S"], "1")
+        first["pending"] = False
+        groups, pages = self.daily_groups([first, late])
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=2000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now + 86400))
+        self.assertEqual(sns.messages[1]["_dasmeta_group_digest"]["new_count"], 1)
+        self.assertEqual(ledger.items[late["finding_key"]]["notification_digest_pending"]["S"], "0")
+
+    def test_gsi_late_finding_remains_pending_after_watermark(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        first = self.daily_record()
+        omitted = self.daily_record("second", "2026-11-04T08:30:00Z")
+        for record in (first, omitted):
+            ledger.items[record["finding_key"]] = {
+                "finding_key": {"S": record["finding_key"]},
+                "notification_digest_pending": {"S": "1"},
+                "notification_pending_at": {"S": record["_ledger_revision"]},
+            }
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        groups, pages = self.daily_groups([first])  # GSI omitted the second row.
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(ledger.items[omitted["finding_key"]]["notification_digest_pending"]["S"], "1")
+        first["pending"] = False
+        groups, pages = self.daily_groups([first, omitted])
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=2000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now + 86400))
+        self.assertEqual(sns.messages[1]["_dasmeta_group_digest"]["new_count"], 1)
+        self.assertEqual(ledger.items[omitted["finding_key"]]["notification_digest_pending"]["S"], "0")
+
+    def test_index_reader_keeps_unacknowledged_gsi_row_new_after_watermark(self):
+        record = self.daily_record()
+        row = {"finding_key": {"S": record["finding_key"]},
+               "notification_kind": {"S": "finding"},
+               "notification_payload": {"S": json.dumps(record)},
+               "notification_state": {"S": "ACTIVE"},
+               "notification_digest_pending": {"S": "1"},
+               "notification_pending_at": {"S": "2026-11-04T08:30:00Z"}}
+        class Table:
+            def query(self, **request):
+                return {"Items": [row] if request["ExpressionAttributeValues"][":state"]["S"] == "ACTIVE" else []}
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}):
+            groups, _, _, _ = digest.scan_findings_indexed(
+                Table(), "2026-11-04T09:00:00Z", int(datetime(2026, 11, 5, 9, tzinfo=timezone.utc).timestamp()))
+        self.assertTrue(next(iter(groups.values()))[0]["pending"])
+
+    def test_daily_outbox_chunks_1201_new_finding_acknowledgements(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        template = self.daily_record()
+        records = []
+        for index in range(1201):
+            record = {**template, "finding_key": f"finding-{index}"}
+            records.append(record)
+            ledger.items[record["finding_key"]] = {
+                "finding_key": {"S": record["finding_key"]},
+                "notification_digest_pending": {"S": "1"},
+                "notification_pending_at": {"S": record["_ledger_revision"]},
+            }
+        groups, pages = self.daily_groups(records)
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 1201)
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_chunks"]["N"], "3")
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_state"]["S"], "DONE")
+        self.assertTrue(all(ledger.items[record["finding_key"]]["notification_digest_pending"]["S"] == "0"
+                            for record in records))
+
     def test_bounded_reconciliation_resumes_page_and_window_without_replaying_completed_work(self):
         finding = image_finding()
         checkpoint = {}
@@ -154,6 +408,163 @@ class HardeningTests(unittest.TestCase):
         self.assertIn((0, True), table.calls)
         self.assertIn((1, False), table.calls)
 
+    def test_populated_legacy_ledger_survives_bootstrap_and_index_queries(self):
+        first = router._compact_finding(image_finding())
+        second_finding = image_finding("second")
+        second_finding["Id"] = second_finding["Id"].replace("b" * 32, "c" * 32).replace("123456789012", "210987654321")
+        second_finding["AwsAccountId"] = "210987654321"
+        second_finding["Resources"][0]["Id"] = second_finding["Resources"][0]["Id"].replace("123456789012", "210987654321")
+        second = router._compact_finding(second_finding)
+        inactive = dict(first, finding_key="archived-finding", record_state="ARCHIVED", workflow="RESOLVED")
+        orphan = {**first["page_group"], "key": "old-open-incident"}
+        def row(record, state, **fields):
+            return {"finding_key": {"S": record["finding_key"]}, "notification_kind": {"S": "finding"},
+                    "notification_payload": {"S": json.dumps(record)}, "notification_state": {"S": state},
+                    "notification_pending": {"S": "1"},
+                    "notification_pending_at": {"S": "2026-11-04T08:10:00Z"},
+                    **{key: {"S": value} for key, value in fields.items()}}
+        class Table:
+            def __init__(self):
+                self.rows = [row(first, "ACTIVE"), row(second, "ACTIVE"),
+                             row(inactive, "ARCHIVED", opsgenie_delivery_mode="API", opsgenie_state="SENT"),
+                             {"finding_key": {"S": "group#old-open-incident"},
+                              "notification_state": {"S": "OPEN_MARKER"}, "opsgenie_open": {"S": "1"},
+                              "opsgenie_group_payload": {"S": json.dumps(orphan)},
+                              "opsgenie_group_updated_at": {"S": "2026-11-04T08:01:00Z"}}]
+                self.fail_second_page = 0
+            def scan(self, **request):
+                if request.get("ExclusiveStartKey") and self.fail_second_page:
+                    self.fail_second_page -= 1
+                    raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "retry"}}, "Scan")
+                if request.get("ExclusiveStartKey"):
+                    return {"Items": self.rows[2:]}
+                return {"Items": self.rows[:2], "LastEvaluatedKey": {"finding_key": {"S": "page-2"}}}
+            def query(self, **request):
+                state = request["ExpressionAttributeValues"][":state"]["S"]
+                return {"Items": [item for item in self.rows if item.get("notification_state", {}).get("S") == state]}
+            def update_item(self, **request):
+                key = request["Key"]["finding_key"]["S"]
+                target = next(item for item in self.rows if item["finding_key"]["S"] == key)
+                self_outer.assertEqual(target["notification_payload"], request["ExpressionAttributeValues"][":payload"])
+                target["notification_state"] = {"S": "LEGACY_PENDING"}
+        self_outer = self
+        table = Table()
+        now = int(datetime(2026, 11, 4, 12, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}), \
+             patch.object(digest.time, "sleep"):
+            table.fail_second_page = 3
+            with self.assertRaises(ClientError):
+                digest.scan_findings(table, packed=True, index_legacy=True)
+            groups, pages, active, _ = digest.scan_findings(table, packed=True, index_legacy=True)
+            indexed, indexed_pages, indexed_active, _ = digest.scan_findings_indexed(
+                table, "2026-11-04T08:00:00Z", now)
+        self.assertEqual(sum(len(records) for records in groups.values()), 3)
+        self.assertIn("old-open-incident", active)
+        self.assertEqual(table.rows[2]["notification_state"]["S"], "LEGACY_PENDING")
+        self.assertEqual(sum(len(records) for records in indexed.values()), 4)
+        self.assertIn("old-open-incident", indexed_active)
+        self.assertEqual(indexed_pages["old-open-incident"][0]["record_state"], "ARCHIVED")
+        self.assertNotEqual(first["page_group"]["key"], second["page_group"]["key"])
+
+    def test_router_records_multi_finding_batch_without_slow_inspector_calls(self):
+        findings = []
+        for index in range(20):
+            item = image_finding(f"CVE-{index}")
+            item["Id"] = item["Id"].replace("b" * 32, f"{index:032x}")
+            findings.append(item)
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": findings}}
+        calls = []
+        def record(_table, _finding, **kwargs):
+            calls.append(kwargs)
+            return True
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true",
+                                  "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}), \
+             patch.object(router, "_record_grouped", side_effect=record), \
+             patch.object(router, "_get_item", return_value={}), \
+             patch.object(router, "_inspector_ecr_evidence",
+                          side_effect=AssertionError("slow or throttled lookup ran in router")):
+            result = router.route_event(event, object(), object())
+        self.assertEqual(result["recorded"], 20)
+        self.assertEqual(calls, [{"lookup_inspector": False}] * 20)
+
+    def test_router_persists_unknown_and_worker_can_enrich_later(self):
+        item = image_finding()
+        class Table:
+            writes = []
+            def update_item(self, **request):
+                self.writes.append(request)
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test",
+                                  "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}), \
+             patch.object(router, "_get_item", return_value={}), \
+             patch.object(router, "_inspector_ecr_evidence",
+                          side_effect=AssertionError("router called Inspector")):
+            self.assertTrue(router._record_grouped(table, item, lookup_inspector=False))
+        first = json.loads(table.writes[-1]["ExpressionAttributeValues"][":payload"]["S"])
+        self.assertEqual(first["risk_context"]["deployment"], "unknown")
+        current = {"notification_payload": json.dumps(first), "notification_updated_at": item["UpdatedAt"],
+                   "notification_updated_epoch": str(router._timestamp_micros(item["UpdatedAt"])),
+                   "notification_digest_pending": "1", "notification_state": "ACTIVE"}
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test",
+                                  "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true"}), \
+             patch.object(router, "_get_item", return_value=current), \
+             patch.object(router, "_inspector_ecr_evidence", return_value={
+                 "deployment": "observed_in_use", "checked_at": "2026-11-05T08:00:00Z"}) as lookup:
+            self.assertTrue(router._record_grouped(table, item))
+        lookup.assert_called_once_with(item)
+        enriched = json.loads(table.writes[-1]["ExpressionAttributeValues"][":payload"]["S"])
+        self.assertEqual(enriched["risk_context"]["deployment"], "observed_in_use")
+
+    def test_application_incident_lifecycle_has_one_create_until_reopen(self):
+        def record(number, digest_char, verified=None):
+            item = image_finding(f"CVE-2026-{number:05d}")
+            item["Id"] = item["Id"].replace("b" * 32, f"{number:032x}")
+            item["Resources"][0]["Id"] = item["Resources"][0]["Id"].replace("a" * 64, digest_char * 64)
+            item["Vulnerabilities"][0]["Id"] = f"CVE-2026-{number:05d}"
+            return router._compact_finding(item, verified)
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production", "QUIET_PERIOD_SECONDS": "3600"}):
+            first, second, third = record(1, "a"), record(2, "b"), record(3, "c")
+            self.assertEqual(len({item["page_group"]["key"] for item in (first, second, third)}), 1)
+            state = {}
+            actions = []
+            priorities = []
+            closed = []
+            def save(_table, _key, fields):
+                state.update(fields)
+            def action(method, path, body):
+                actions.append((method, path, body))
+            def send(records, at):
+                summary = digest.summarize_group(records, identity="page_group")
+                digest.sync_opsgenie(object(), summary, state.copy(), at)
+            with patch.object(digest, "_request", return_value={"data": {}}), \
+                 patch.object(digest, "_ops_action", side_effect=action), \
+                 patch.object(digest, "_ensure_opsgenie_priority", side_effect=lambda *args: priorities.append(args)), \
+                 patch.object(digest, "_close_opsgenie_alias", side_effect=lambda *args: closed.append(args)), \
+                 patch.object(digest, "_set_fields", side_effect=save), \
+                 patch.object(digest, "_clear_critical_claim"), patch.object(digest, "_clear_urgent_claim"):
+                send([first, second], 1793782800)
+                send([first, second], 1793782801)  # duplicate event
+                send([first, second, third], 1793782802)  # new CVE, third image
+                escalated = record(3, "c", {"deployment": "observed_in_use", "exposure": "exposed"})
+                send([first, second, escalated], 1793782803)
+                send([first, second, third], 1793782804)  # P1 to P2
+                archived = {**first, "record_state": "ARCHIVED", "workflow": "RESOLVED"}
+                send([archived, second, third], 1793782805)  # partial resolution
+                all_archived = [{**item, "record_state": "ARCHIVED", "workflow": "RESOLVED"}
+                                for item in (first, second, third)]
+                send(all_archived, 1793782806)
+                send(all_archived, 1793786407)  # quiet period elapsed
+                send([record(4, "d")], 1793786408)  # reopen
+        creates = [entry for entry in actions if entry[0] == "POST" and entry[1] == "/v2/alerts"]
+        self.assertEqual(len(creates), 2)
+        self.assertEqual([entry[2]["priority"] for entry in creates], ["P2", "P2"])
+        self.assertEqual([entry[1] for entry in priorities], ["P1", "P2"])
+        self.assertEqual(len(closed), 1)
+        self.assertEqual(len([entry for entry in actions if entry[0] == "PUT" and "/message" in entry[1]]), 2)
+        self.assertEqual(len([entry for entry in actions if entry[0] == "POST" and "/details" in entry[1]]), 4)
+        self.assertFalse(any("/notes" in entry[1] for entry in actions))
+
     def test_pending_watermark_keeps_late_finding_with_old_source_timestamp(self):
         first = router._compact_finding(image_finding())
         second = dict(first, finding_key="second")
@@ -178,6 +589,7 @@ class HardeningTests(unittest.TestCase):
                    "notification_updated_at": original["UpdatedAt"],
                    "notification_updated_epoch": str(router._timestamp_micros(original["UpdatedAt"])),
                    "notification_pending": "1", "notification_pending_at": "2026-11-04T08:02:00Z",
+                   "notification_digest_pending": "1",
                    "notification_state": "ACTIVE"}
         updated = dict(original, UpdatedAt="2026-11-04T08:03:00Z")
         class Table:
@@ -191,6 +603,7 @@ class HardeningTests(unittest.TestCase):
         values = table.request["ExpressionAttributeValues"]
         self.assertEqual(values[":pending"]["S"], "1")
         self.assertEqual(values[":pending_at"]["S"], current["notification_pending_at"])
+        self.assertNotIn("notification_digest_pending", table.request["ExpressionAttributeNames"].values())
 
     def test_policy_change_rearms_pending_marker_after_daily_watermark(self):
         finding = image_finding()
@@ -376,11 +789,12 @@ class HardeningTests(unittest.TestCase):
         pages = digest.PackedGroups({record["page_group"]["key"]: [blob]})
         with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}), \
              patch.object(digest, "_get_item", return_value={}), \
-             patch.object(digest, "_publish_slack"), \
+             patch.object(digest, "_stage_daily_outbox") as stage, \
+             patch.object(digest, "_deliver_daily_outbox", return_value=True), \
              patch.object(digest, "_acknowledge_pending_batch", side_effect=AssertionError("row writes are unbounded")), \
-             patch.object(digest, "_set_fields") as write:
+             patch.object(digest, "_set_fields"):
             digest.send_slack_batch_packed(object(), object(), groups, pages, 1793782800)
-        self.assertTrue(any("last_daily_slack_at" in call.args[2] for call in write.call_args_list))
+        stage.assert_called_once()
 
 
     def test_application_alias_isolated_by_account_region_project_and_environment(self):
@@ -877,6 +1291,8 @@ class HardeningTests(unittest.TestCase):
         with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}), \
              patch.object(digest, "_get_item", return_value={}), \
              patch.object(digest, "_publish_slack", side_effect=lambda _sns, summary: captured.append(digest._slack_payload(summary, False))), \
+             patch.object(digest, "_stage_daily_outbox", side_effect=lambda _table, summary, _changes, _pending, _now: captured.append(digest._slack_payload(summary, False))), \
+             patch.object(digest, "_deliver_daily_outbox", return_value=True), \
              patch.object(digest, "_acknowledge_new"), patch.object(digest, "_set_fields"):
             digest.send_slack_batch(object(), object(), groups, 1793782800)
             digest.send_slack_batch_packed(object(), object(), pack(groups), pack(page_groups), 1793782800)
