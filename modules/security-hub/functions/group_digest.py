@@ -958,10 +958,23 @@ def _deliver_incident_slack(table, sns, marker):
     if state.get("opsgenie_slack_sent") != delivery_id:
         sns.publish(TopicArn=os.environ["SLACK_TOPIC_ARN"], Subject="Security Hub grouped incident",
                     Message=json.dumps(payload, separators=(",", ":")))
-        _set_fields(table, marker, {"opsgenie_slack_sent": delivery_id})
-    _set_fields(table, marker, {"opsgenie_slack_pending": "", "opsgenie_slack_payload": ""})
+    # Checkpoint the exact pending ID atomically. An overlapping worker can
+    # stage a newer copy during SNS publication; this must not clear it.
+    names = {"#pending": "opsgenie_slack_pending", "#payload": "opsgenie_slack_payload",
+             "#sent": "opsgenie_slack_sent"}
+    values = {":id": {"S": delivery_id}, ":empty": {"S": ""}}
+    update = "SET #sent = :id, #pending = :empty, #payload = :empty"
+    condition = "#pending = :id"
     if closing:
-        _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
+        names.update({"#state": "notification_state", "#open": "opsgenie_open"})
+        values.update({":closed": {"S": "CLOSED_MARKER"}, ":zero": {"S": "0"}})
+        update += ", #state = :closed"
+        condition += " AND #open = :zero"
+    table.update_item(
+        TableName=os.environ["DELIVERY_TABLE_NAME"], Key={"finding_key": {"S": marker}},
+        UpdateExpression=update, ConditionExpression=condition,
+        ExpressionAttributeNames=names, ExpressionAttributeValues=values,
+    )
     return True
 
 

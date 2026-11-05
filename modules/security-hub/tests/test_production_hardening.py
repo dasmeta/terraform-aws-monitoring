@@ -80,7 +80,10 @@ class DailyLedger:
         elif request["ExpressionAttributeNames"].get("#pending") == "opsgenie_slack_pending" and \
                 request.get("ConditionExpression"):
             old = row.get("opsgenie_slack_pending", {"S": ""})["S"]
-            if old and old != values[":old"]["S"]:
+            expected = values[":old"]["S"] if ":old" in values else values[":id"]["S"]
+            if old != expected and not (not old and ":old" in values):
+                raise self.error("ConditionalCheckFailedException")
+            if "#open" in request["ExpressionAttributeNames"] and row.get("opsgenie_open") != values[":zero"]:
                 raise self.error("ConditionalCheckFailedException")
         elif key.startswith("group#") and key != "group#checkpoint" and self.fail_group_once:
             self.fail_group_once = False
@@ -2150,6 +2153,27 @@ class HardeningTests(unittest.TestCase):
                 digest._stage_incident_slack(ledger, marker,
                     {**summary, "urgent_signature": "new-finding"}, stale, "updated", "P2")
         self.assertEqual(ledger.items[marker]["opsgenie_slack_payload"]["S"].count("new-finding"), 0)
+
+    def test_slack_checkpoint_cannot_clear_newer_overlapping_copy(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["urgent_signature"])
+        class RacingSns(AcceptedSns):
+            def publish(self, **request):
+                result = super().publish(**request)
+                digest._stage_incident_slack(ledger, marker,
+                    {**summary, "urgent_signature": "newer"}, digest._get_item(ledger, marker),
+                    "updated", "P2")
+                return result
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}):
+            digest._stage_incident_slack(ledger, marker, summary, digest._get_item(ledger, marker),
+                                         "updated", "P2")
+            with self.assertRaises(ClientError):
+                digest._deliver_incident_slack(ledger, RacingSns(), marker)
+        self.assertIn("newer", ledger.items[marker]["opsgenie_slack_payload"]["S"])
+        self.assertNotEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
 
     def test_opsgenie_close_waits_for_slack_mirror_and_retries(self):
         record = router._compact_finding(image_finding())
