@@ -1,6 +1,7 @@
 """Reconcile Security Hub and send bounded remediation-group notifications."""
 
 import collections
+import concurrent.futures
 import hashlib
 import json
 import logging
@@ -8,6 +9,7 @@ import os
 import time
 import urllib.error
 import urllib.parse
+import uuid
 import zlib
 from datetime import datetime, timedelta, timezone
 
@@ -22,8 +24,13 @@ from opsgenie_notifier import _request, _wait_for_request
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 MAX_RECONCILED_FINDINGS = 250000
-MAX_LEDGER_ITEMS = 250000
-MAX_GROUP_ITEMS = 10000
+MAX_LEDGER_ITEMS = 1000000
+MAX_GROUP_ITEMS = 1000000
+RECONCILE_PAGES_PER_RUN = 300
+RECONCILE_SECONDS_PER_RUN = 240
+RECONCILE_WINDOW_SECONDS = 900
+RECENT_RECONCILE_MAX_PAGES = 250
+LEDGER_SCAN_SEGMENTS = 8
 MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
@@ -59,6 +66,7 @@ def _set_fields(table, key, fields):
 def _read_page(call, **request):
     """Retry transient AWS read failures without advancing pagination state."""
     retryable = {"ThrottlingException", "TooManyRequestsException", "RequestLimitExceeded",
+                 "LimitExceededException", "InternalException",
                  "ProvisionedThroughputExceededException", "InternalServerException",
                  "InternalServerError", "ServiceUnavailableException", "TransactionInProgressException"}
     for attempt in range(3):
@@ -93,6 +101,66 @@ def _batch_get_findings(table, findings, consumed=None):
     raise RuntimeError(f"DynamoDB left {len(request.get(table_name, {}).get('Keys', []))} finding keys unprocessed")
 
 
+def _mark_legacy_index(table, row):
+    """Keep unresolved legacy alerts queryable after the full-scan bootstrap."""
+    old_state = row.get("notification_state")
+    if old_state == "LEGACY_PENDING":
+        return
+    values = {":legacy": {"S": "LEGACY_PENDING"}, ":payload": {"S": row["notification_payload"]}}
+    condition = "#payload = :payload AND "
+    if old_state:
+        values[":old"] = {"S": old_state}
+        condition += "#state = :old"
+    else:
+        condition += "attribute_not_exists(#state)"
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": row["finding_key"]}},
+            UpdateExpression="SET #state = :legacy",
+            ConditionExpression=condition,
+            ExpressionAttributeNames={"#state": "notification_state", "#payload": "notification_payload"},
+            ExpressionAttributeValues=values,
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+
+
+def _retire_legacy_index(table, key):
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": key}},
+            UpdateExpression="SET #state = :archived",
+            ConditionExpression="#state = :legacy",
+            ExpressionAttributeNames={"#state": "notification_state"},
+            ExpressionAttributeValues={":legacy": {"S": "LEGACY_PENDING"}, ":archived": {"S": "ARCHIVED"}},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+
+
+class PackedRecords:
+    """Decode one finding at a time so large legacy groups fit in memory."""
+
+    def __init__(self, blobs):
+        self.blobs = blobs
+
+    def __len__(self):
+        return len(self.blobs)
+
+    def __iter__(self):
+        for blob in self.blobs:
+            yield json.loads(zlib.decompress(blob))
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [json.loads(zlib.decompress(blob)) for blob in self.blobs[index]]
+        return json.loads(zlib.decompress(self.blobs[index]))
+
+
 class PackedGroups:
     """Keep ledger payloads compressed and decode only the group being handled."""
 
@@ -106,7 +174,7 @@ class PackedGroups:
         return iter(self.groups)
 
     def __getitem__(self, key):
-        return [json.loads(zlib.decompress(blob)) for blob in self.groups[key]]
+        return PackedRecords(self.groups[key])
 
     def items(self):
         for key in self.groups:
@@ -115,6 +183,10 @@ class PackedGroups:
     def values(self):
         for key in self.groups:
             yield self[key]
+
+
+class MissingMarkerSnapshot(RuntimeError):
+    """An open incident cannot be closed safely without its last group facts."""
 
 
 def reconcile_findings(table, securityhub, now):
@@ -160,7 +232,160 @@ def reconcile_findings(table, securityhub, now):
     return seen, changed, full
 
 
-def scan_findings(table, packed=False):
+def _save_reconcile_progress(table, state, fields):
+    """Compare-and-set a durable cursor so overlapping invocations cannot regress it."""
+    version = uuid.uuid4().hex
+    fields = {**fields, "reconcile_version": version}
+    names = {f"#f{index}": name for index, name in enumerate(fields)}
+    values = {f":v{index}": {"S": value} for index, value in enumerate(fields.values())}
+    names.update({"#version": "reconcile_version", "#through": "reconciled_through"})
+    old_version = state.get("reconcile_version")
+    old_through = state.get("reconciled_through")
+    conditions = []
+    if old_version:
+        values[":old_version"] = {"S": old_version}
+        conditions.append("#version = :old_version")
+    else:
+        conditions.append("attribute_not_exists(#version)")
+    if old_through:
+        values[":old_through"] = {"S": old_through}
+        conditions.append("#through = :old_through")
+    else:
+        conditions.append("attribute_not_exists(#through)")
+    try:
+        table.update_item(
+            TableName=os.environ["DELIVERY_TABLE_NAME"],
+            Key={"finding_key": {"S": "group#checkpoint"}},
+            UpdateExpression="SET " + ", ".join(f"#f{i} = :v{i}" for i in range(len(fields))),
+            ConditionExpression=" AND ".join(conditions),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise RuntimeError("Reconciliation checkpoint changed concurrently; retry") from error
+        raise
+    state.update(fields)
+
+
+def reconcile_findings_bounded(table, securityhub, now, checkpoint, context=None):
+    """Advance fixed 15-minute update windows and persist a cursor before returning.
+
+    A failed page is replayed on the next invocation. Successful windows are
+    never replayed solely because a later window or the daily digest failed.
+    """
+    cutover = _timestamp(os.environ["FINDING_CUTOVER_AT"])
+    target_text = checkpoint.get("reconcile_target")
+    if target_text:
+        if not checkpoint.get("reconcile_cursor"):
+            raise RuntimeError("Reconciliation checkpoint has a target but no cursor")
+        cursor = _timestamp(checkpoint["reconcile_cursor"])
+        target = _timestamp(target_text)
+        token = checkpoint.get("reconcile_next_token") or None
+        full = checkpoint.get("reconcile_full") == "1"
+    else:
+        last_full = checkpoint.get("last_full_reconcile")
+        previous = checkpoint.get("reconciled_through")
+        full = not last_full or now - _timestamp(last_full).timestamp() >= 86400
+        cursor = cutover if full or not previous else max(cutover, _timestamp(previous) - timedelta(hours=1))
+        target = datetime.fromtimestamp(now, timezone.utc)
+        token = None
+    if cursor > target:
+        raise RuntimeError("Reconciliation cursor is newer than its target")
+    seen = changed = pages = 0
+    read_units = [0.0]
+    started = time.monotonic()
+    while cursor < target:
+        window_end = min(cursor + timedelta(seconds=RECONCILE_WINDOW_SECONDS), target)
+        filters = {
+            "CreatedAt": [{"Start": cutover.isoformat(), "End": target.isoformat()}],
+            "UpdatedAt": [{"Start": cursor.isoformat(), "End": window_end.isoformat()}],
+        }
+        request = {"Filters": filters, "MaxResults": 100}
+        if token:
+            request["NextToken"] = token
+        try:
+            page = _read_page(securityhub.get_findings, **request)
+        except ClientError as error:
+            # Security Hub tokens need not live as long as a multi-run replay.
+            # Restart only this small window if a saved token has expired.
+            if not token or error.response.get("Error", {}).get("Code") not in {"InvalidInputException", "InvalidTokenException"}:
+                raise
+            _save_reconcile_progress(table, checkpoint, {
+                "reconcile_cursor": cursor.isoformat(), "reconcile_target": target.isoformat(),
+                "reconcile_next_token": "", "reconcile_full": "1" if full else "0",
+            })
+            LOG.warning("Expired Security Hub page token; restarting the current update window")
+            return seen, changed, full, False
+        pages += 1
+        findings = page.get("Findings", [])
+        current_items = _batch_get_findings(table, findings, read_units)
+        for finding in findings:
+            seen += 1
+            changed += int(_record_grouped(table, finding, current=current_items.get(_finding_key(finding), {})))
+        token = page.get("NextToken")
+        if pages % 25 == 0:
+            LOG.info("Bounded reconciliation progress: pages=%d seen=%d changed=%d ledger_read_units=%.1f",
+                     pages, seen, changed, read_units[0])
+        if not token:
+            cursor = window_end
+            if cursor == target:
+                fields = {"reconciled_through": target.isoformat(), "reconcile_cursor": "",
+                          "reconcile_target": "", "reconcile_next_token": "", "reconcile_full": ""}
+                if full:
+                    fields["last_full_reconcile"] = target.isoformat()
+                _save_reconcile_progress(table, checkpoint, fields)
+                LOG.info("Security Hub reconciliation complete: pages=%d seen=%d changed=%d ledger_read_units=%.1f",
+                         pages, seen, changed, read_units[0])
+                return seen, changed, full, True
+        remaining = context.get_remaining_time_in_millis() if context else None
+        if (pages >= RECONCILE_PAGES_PER_RUN or time.monotonic() - started >= RECONCILE_SECONDS_PER_RUN or
+                remaining is not None and remaining < 360000):
+            _save_reconcile_progress(table, checkpoint, {
+                "reconcile_cursor": cursor.isoformat(), "reconcile_target": target.isoformat(),
+                "reconcile_next_token": token or "", "reconcile_full": "1" if full else "0",
+            })
+            LOG.info("Security Hub reconciliation paused: pages=%d seen=%d changed=%d cursor=%s",
+                     pages, seen, changed, cursor.isoformat())
+            return seen, changed, full, False
+    fields = {"reconciled_through": target.isoformat(), "reconcile_cursor": "",
+              "reconcile_target": "", "reconcile_next_token": "", "reconcile_full": ""}
+    if full:
+        fields["last_full_reconcile"] = target.isoformat()
+    _save_reconcile_progress(table, checkpoint, fields)
+    return seen, changed, full, True
+
+
+def reconcile_recent_findings(table, securityhub, now):
+    """Keep new routine and resolved findings current while a full replay runs."""
+    cutover = _timestamp(os.environ["FINDING_CUTOVER_AT"])
+    end = datetime.fromtimestamp(now, timezone.utc)
+    since = max(cutover, end - timedelta(hours=1))
+    token = None
+    seen = changed = pages = 0
+    while True:
+        request = {"Filters": {
+            "CreatedAt": [{"Start": cutover.isoformat(), "End": end.isoformat()}],
+            "UpdatedAt": [{"Start": since.isoformat(), "End": end.isoformat()}],
+        }, "MaxResults": 100}
+        if token:
+            request["NextToken"] = token
+        page = _read_page(securityhub.get_findings, **request)
+        pages += 1
+        findings = page.get("Findings", [])
+        current_items = _batch_get_findings(table, findings)
+        for finding in findings:
+            seen += 1
+            changed += int(_record_grouped(table, finding, current=current_items.get(_finding_key(finding), {})))
+        token = page.get("NextToken")
+        if not token:
+            LOG.info("Recent Security Hub reconciliation: pages=%d seen=%d changed=%d", pages, seen, changed)
+            return seen, changed
+        if pages >= RECENT_RECONCILE_MAX_PAGES:
+            raise RuntimeError(f"Recent Security Hub reconciliation exceeded {RECENT_RECONCILE_MAX_PAGES} pages; widen the live-update path")
+
+
+def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None, state=None, index_legacy=False):
     items = [] if not packed else None
     groups = collections.defaultdict(list) if packed else None
     page_groups = collections.defaultdict(list) if packed else None
@@ -172,15 +397,27 @@ def scan_findings(table, packed=False):
     read_units = 0.0
     findings = 0
     while True:
-        request = {
-            "TableName": os.environ["DELIVERY_TABLE_NAME"],
-            "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_updated_at, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
-            "ConsistentRead": True,
-            "ReturnConsumedCapacity": "TOTAL",
-        }
+        if state is None:
+            request = {
+                "TableName": os.environ["DELIVERY_TABLE_NAME"],
+                "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_pending_at, notification_updated_at, notification_state, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
+                "ConsistentRead": True,
+                "ReturnConsumedCapacity": "TOTAL",
+            }
+            if segments > 1:
+                request.update(Segment=segment, TotalSegments=segments)
+        else:
+            request = {
+                "TableName": os.environ["DELIVERY_TABLE_NAME"],
+                "IndexName": "notification-state",
+                "KeyConditionExpression": "#state = :state",
+                "ExpressionAttributeNames": {"#state": "notification_state"},
+                "ExpressionAttributeValues": {":state": {"S": state}},
+                "ReturnConsumedCapacity": "TOTAL",
+            }
         if token:
             request["ExclusiveStartKey"] = token
-        page = _read_page(table.scan, **request)
+        page = _read_page(table.scan if state is None else table.query, **request)
         pages += 1
         scanned += page.get("ScannedCount", len(page.get("Items", [])))
         read_units += (page.get("ConsumedCapacity") or {}).get("CapacityUnits", 0)
@@ -195,6 +432,9 @@ def scan_findings(table, packed=False):
                 continue
             if row.get("notification_kind") != "finding":
                 continue
+            if state == "LEGACY_PENDING" and row.get("legacy_group_migrated") == "1":
+                _retire_legacy_index(table, marker)
+                continue
             record = json.loads(row["notification_payload"])
             if record.get("group") and not record.get("page_group"):
                 record["page_group"] = _page_group_from_remediation(record["group"], record.get("resource", ""))
@@ -204,10 +444,16 @@ def scan_findings(table, packed=False):
                         record["page_priority"] = "P2"
             if _timestamp(record["created_at"]) < _timestamp(os.environ["FINDING_CUTOVER_AT"]):
                 continue
-            record["pending"] = row.get("notification_pending", "1") == "1"
-            if record["pending"]:
+            pending_at = (row.get("notification_pending_at") or row.get("notification_updated_at") or
+                          record.get("updated_at") or record["created_at"])
+            record["pending"] = (row.get("notification_pending", "1") == "1" and
+                                 (not pending_after or _timestamp(pending_at) > _timestamp(pending_after)))
+            record["_ledger_revision"] = pending_at
+            if record["pending"] and not packed:
                 record["_ledger_payload"] = row["notification_payload"]
             record["legacy_opsgenie"] = row.get("opsgenie_delivery_mode") == "API" and row.get("opsgenie_state") == "SENT" and row.get("opsgenie_resolution_state") != "SENT" and row.get("legacy_group_migrated") != "1"
+            if index_legacy and state is None and record["legacy_opsgenie"] and (record["record_state"] != "ACTIVE" or record["workflow"] == "RESOLVED"):
+                _mark_legacy_index(table, row)
             findings += 1
             if packed:
                 blob = zlib.compress(json.dumps(record, separators=(",", ":")).encode("utf-8"), level=1)
@@ -231,8 +477,140 @@ def scan_findings(table, packed=False):
             LOG.info("Finding ledger complete: pages=%d scanned=%d findings=%d read_units=%.1f",
                      pages, scanned, findings, read_units)
             if packed:
-                return PackedGroups(groups), PackedGroups(page_groups), active_markers, closed_markers
-            return items, active_markers, closed_markers
+                return groups, page_groups, active_markers, closed_markers, findings, scanned, read_units
+            return items, active_markers, closed_markers, findings, scanned, read_units
+
+
+def scan_findings(table, packed=False, segments=1, pending_after=None, index_legacy=False):
+    """Read the ledger in parallel while keeping every group in one result."""
+    if segments == 1:
+        result = _scan_segment(table, packed, pending_after=pending_after, index_legacy=index_legacy)
+        if packed:
+            groups, page_groups, active, closed, _, _, _ = result
+            return PackedGroups(groups), PackedGroups(page_groups), active, closed
+        items, active, closed, _, _, _ = result
+        return items, active, closed
+    if not packed:
+        raise ValueError("Parallel ledger scans require packed groups")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=segments) as executor:
+        futures = [executor.submit(_scan_segment, table, True, segment, segments, pending_after, None, index_legacy)
+                   for segment in range(segments)]
+        results = [future.result() for future in futures]
+    return _merge_packed_parts(results, f"parallel segments={segments}")
+
+
+def _merge_packed_parts(results, label):
+    groups = collections.defaultdict(list)
+    page_groups = collections.defaultdict(list)
+    active_markers, closed_markers = set(), set()
+    findings = scanned = 0
+    read_units = 0.0
+    for part_groups, part_pages, part_active, part_closed, part_findings, part_scanned, part_units in results:
+        findings += part_findings
+        scanned += part_scanned
+        read_units += part_units
+        if findings > MAX_LEDGER_ITEMS:
+            raise RuntimeError(f"Security Hub finding ledger exceeded {MAX_LEDGER_ITEMS} items; partition the digest before continuing")
+        for key, blobs in part_groups.items():
+            groups[key].extend(blobs)
+            if len(groups[key]) > MAX_GROUP_ITEMS:
+                raise RuntimeError(f"Security Hub group exceeded {MAX_GROUP_ITEMS} findings; partition group processing")
+        for key, blobs in part_pages.items():
+            page_groups[key].extend(blobs)
+            if len(page_groups[key]) > MAX_GROUP_ITEMS:
+                raise RuntimeError(f"Security Hub group exceeded {MAX_GROUP_ITEMS} findings; partition group processing")
+        active_markers.update(part_active)
+        closed_markers.update(part_closed)
+    LOG.info("Finding ledger complete: %s scanned=%d findings=%d read_units=%.1f",
+             label, scanned, findings, read_units)
+    return PackedGroups(groups), PackedGroups(page_groups), active_markers, closed_markers
+
+
+def _query_open_markers(table):
+    markers = {}
+    token = None
+    while True:
+        request = {
+            "TableName": os.environ["DELIVERY_TABLE_NAME"], "IndexName": "notification-state",
+            "KeyConditionExpression": "#state = :state",
+            "ExpressionAttributeNames": {"#state": "notification_state"},
+            "ExpressionAttributeValues": {":state": {"S": "OPEN_MARKER"}},
+        }
+        if token:
+            request["ExclusiveStartKey"] = token
+        page = _read_page(table.query, **request)
+        for item in page.get("Items", []):
+            row = _decode(item)
+            key = row.get("finding_key", "")
+            if key.startswith("group#") and key != "group#checkpoint":
+                markers[key.removeprefix("group#")] = row
+        token = page.get("LastEvaluatedKey")
+        if not token:
+            return markers
+
+
+def _closed_marker_record(group, last_updated):
+    return {
+        "finding_key": "group#" + group["key"], "group": group, "page_group": group,
+        "record_state": "ARCHIVED", "workflow": "RESOLVED", "severity": "UNKNOWN",
+        "title": "", "vulnerability_ids": [], "resource": "", "resource_ids": [],
+        "updated_at": last_updated, "created_at": last_updated,
+        "first_seen_at": last_updated, "pending": False, "page_priority": None,
+        "fix_available": "UNKNOWN", "risk_context": {}, "public_exposure": False,
+    }
+
+
+def _dedupe_index_results(groups):
+    """An eventually consistent GSI can briefly return both sides of a state change."""
+    newest = {}
+    for blobs in groups.groups.values():
+        for blob in blobs:
+            record = json.loads(zlib.decompress(blob))
+            key = record["finding_key"]
+            revision = _timestamp(record["_ledger_revision"])
+            if key not in newest or revision > newest[key][0]:
+                newest[key] = (revision, record, blob)
+    by_group = collections.defaultdict(list)
+    by_page = collections.defaultdict(list)
+    for _, record, blob in newest.values():
+        by_group[record["group"]["key"]].append(blob)
+        by_page[record.get("page_group", record["group"])["key"]].append(blob)
+    return PackedGroups(by_group), PackedGroups(by_page)
+
+
+def scan_findings_indexed(table, pending_after, now):
+    """Read active findings, recent inactive changes, and open incidents only."""
+    if not pending_after:
+        raise ValueError("Indexed ledger scan requires a successful daily acknowledgement watermark")
+    first = _timestamp(pending_after).date()
+    last = datetime.fromtimestamp(now, timezone.utc).date()
+    days = (last - first).days
+    if days < 0 or days > 31:
+        raise RuntimeError("Daily digest watermark is too old for bounded indexed reconciliation")
+    states = ["ACTIVE", "LEGACY_PENDING"] + [
+        "INACTIVE#" + (first + timedelta(days=index)).isoformat() for index in range(days + 1)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(LEDGER_SCAN_SEGMENTS, len(states) + 1)) as executor:
+        futures = [executor.submit(_scan_segment, table, True, 0, 1, pending_after, state)
+                   for state in states]
+        markers_future = executor.submit(_query_open_markers, table)
+        results = [future.result() for future in futures]
+        markers = markers_future.result()
+    groups, page_groups, active, closed = _merge_packed_parts(results, "indexed states=" + str(len(states)))
+    groups, page_groups = _dedupe_index_results(groups)
+    active.update(markers)
+    for key, marker in markers.items():
+        if key in page_groups.groups:
+            continue
+        try:
+            group = json.loads(marker["opsgenie_group_payload"])
+            last_updated = marker["opsgenie_group_updated_at"]
+        except (KeyError, ValueError, TypeError) as error:
+            raise MissingMarkerSnapshot(f"Open group {key} has no durable snapshot") from error
+        record = _closed_marker_record(group, last_updated)
+        blob = zlib.compress(json.dumps(record, separators=(",", ":")).encode("utf-8"), level=1)
+        page_groups.groups[key].append(blob)
+        groups.groups[key].append(blob)
+    return groups, page_groups, active, closed
 
 
 def _needs_opsgenie_sync(summary, key, active_markers):
@@ -242,7 +620,7 @@ def _needs_opsgenie_sync(summary, key, active_markers):
 def summarize_group(records, identity="group"):
     if not records:
         raise ValueError("Cannot summarize an empty finding group")
-    new = [record for record in records if record.get("pending", True)]
+    new_severities = collections.Counter(record["severity"] for record in records if record.get("pending", True))
     active = [record for record in records if record["record_state"] == "ACTIVE" and record["workflow"] in {"NEW", "NOTIFIED"}]
     high = [record for record in active if record["severity"] in HIGH_SEVERITIES]
     def page_priority(record):
@@ -258,9 +636,8 @@ def summarize_group(records, identity="group"):
     titles = collections.Counter(record["title"] for record in active)
     return {
         "group": records[0].get(identity, records[0]["group"]),
-        "new_count": len(new),
-        "new_records": new,
-        "new_severities": dict(collections.Counter(record["severity"] for record in new)),
+        "new_count": sum(new_severities.values()),
+        "new_severities": dict(new_severities),
         "active_count": len(active),
         "high_count": len(high),
         "urgent_count": len(urgent),
@@ -421,6 +798,15 @@ def sync_opsgenie(table, summary, state, now):
     alias = "securityhub-group-" + group_key
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
+    group_updated_at = summary.get("latest_updated_at") or datetime.fromtimestamp(now, timezone.utc).isoformat()
+    if priority or state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
+        group_payload = json.dumps(summary["group"], separators=(",", ":"))
+        if (state.get("notification_state") != "OPEN_MARKER" or
+                state.get("opsgenie_group_payload") != group_payload or
+                state.get("opsgenie_group_updated_at") != group_updated_at):
+            _set_fields(table, marker, {"notification_state": "OPEN_MARKER",
+                                        "opsgenie_group_payload": group_payload,
+                                        "opsgenie_group_updated_at": group_updated_at})
     if priority:
         if state.get("opsgenie_no_urgent_since"):
             _set_fields(table, marker, {"opsgenie_no_urgent_since": ""})
@@ -488,6 +874,9 @@ def sync_opsgenie(table, summary, state, now):
                                     "opsgenie_format_version": "", "opsgenie_urgent_signature": "", "opsgenie_last_update_at": "",
                                     "opsgenie_no_urgent_since": ""})
         _clear_urgent_claim(table, marker)
+        _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
+    elif state.get("notification_state") == "OPEN_MARKER":
+        _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
 
 
 def migrate_legacy_alerts(table, records, summary, limit=MAX_LEGACY_MIGRATIONS_PER_RUN):
@@ -507,13 +896,15 @@ def migrate_legacy_alerts(table, records, summary, limit=MAX_LEGACY_MIGRATIONS_P
         _close_opsgenie_alias(alias,
             "Replaced by remediation-group alert; individual finding remains in Security Hub")
         _set_fields(table, record["finding_key"], {"legacy_group_migrated": "1"})
+        _retire_legacy_index(table, record["finding_key"])
         moved += 1
     return moved
 
 
 def migrate_previous_groups(table, groups, closed_markers=None):
     """Close a stale fallback alert after its new remediation group is open."""
-    active_keys = set(groups)
+    active_keys = {key for key, records in groups.items()
+                   if records and not records[0].get("finding_key", "").startswith("group#")}
     closed_markers = closed_markers or set()
     moved = 0
     for key, records in groups.items():
@@ -538,6 +929,8 @@ def migrate_previous_groups(table, groups, closed_markers=None):
                 _close_opsgenie_alias("securityhub-group-" + old_key,
                                       "Replaced by a remediation-group alert for the same resource")
             _set_fields(table, marker, {"opsgenie_open": "0", "superseded_group_closed": "1"})
+            _clear_urgent_claim(table, marker)
+            _set_fields(table, marker, {"notification_state": "CLOSED_MARKER"})
             moved += 1
     return moved
 
@@ -918,22 +1311,44 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
                        for item in selected],
     }
     _publish_slack(sns, summary)
-    _acknowledge_pending_batch(table, (record for _, records in groups.items()
-                                       for record in records if record.get("pending")))
-    _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
     for key, desired in changes:
         _set_fields(table, "group#" + key, {"slack_open": desired})
         if desired == "0":
             _clear_urgent_claim(table, "group#" + key)
+    # The checkpoint is the acknowledgement watermark. Updating every archived
+    # row individually would require hundreds of thousands of writes on a busy
+    # account; a later accepted finding change gets a fresh pending_at instead.
+    _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
     return True
 
 
-def run(table, securityhub, sns, now=None):
+def run(table, securityhub, sns, now=None, context=None):
     now = int(time.time() if now is None else now)
     checkpoint_state = _get_item(table, "group#checkpoint")
     initial = not checkpoint_state.get("reconciled_through")
-    seen, changed, full = reconcile_findings(table, securityhub, now)
-    groups, page_groups, active_markers, closed_markers = scan_findings(table, packed=True)
+    bootstrap = checkpoint_state.get("ledger_index_ready") != "1"
+    if bootstrap:
+        seen = changed = 0
+        complete = False
+        groups, page_groups, active_markers, closed_markers = scan_findings(
+            table, packed=True, segments=LEDGER_SCAN_SEGMENTS,
+            pending_after=checkpoint_state.get("last_daily_slack_at"), index_legacy=True)
+    else:
+        recent_seen = recent_changed = 0
+        if checkpoint_state.get("reconcile_target"):
+            recent_seen, recent_changed = reconcile_recent_findings(table, securityhub, now)
+        seen, changed, _, complete = reconcile_findings_bounded(table, securityhub, now, checkpoint_state, context)
+        seen += recent_seen
+        changed += recent_changed
+        pending_after = checkpoint_state.get("last_daily_slack_at")
+        if not pending_after and os.environ.get("DAILY_DIGEST_ENABLED", "true") != "true":
+            pending_after = datetime.fromtimestamp(now - 86400, timezone.utc).isoformat()
+        try:
+            groups, page_groups, active_markers, closed_markers = scan_findings_indexed(
+                table, pending_after, now)
+        except MissingMarkerSnapshot:
+            _set_fields(table, "group#checkpoint", {"ledger_index_ready": "0"})
+            raise
     sent = 0
     migrated = 0
     failures = []
@@ -967,14 +1382,24 @@ def run(table, securityhub, sns, now=None):
         failures.append(error)
     if failures:
         raise RuntimeError(f"{len(failures)} Opsgenie group actions failed; Slack digests were processed") from failures[0]
-    checkpoint = {"reconciled_through": datetime.fromtimestamp(now, timezone.utc).isoformat()}
-    if full:
-        checkpoint["last_full_reconcile"] = checkpoint["reconciled_through"]
-    _set_fields(table, "group#checkpoint", checkpoint)
-    result = {"reconciled": seen, "changed": changed, "groups": len(groups), "slack_digests": sent, "legacy_alerts_migrated": migrated}
+    if bootstrap:
+        for key in active_markers:
+            state = _get_item(table, "group#" + key)
+            if (state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or
+                    state.get("critical_state") == "SENT") and (
+                        state.get("notification_state") != "OPEN_MARKER" or not state.get("opsgenie_group_payload")):
+                raise RuntimeError(f"Open group {key} lacks an indexed snapshot; retry bootstrap")
+        today = datetime.fromtimestamp(now, timezone.utc).date()
+        last_daily = checkpoint_state.get("last_daily_slack_at")
+        digest_current = bool(last_daily and _timestamp(last_daily).date() == today)
+        if sent or digest_current or os.environ.get("DAILY_DIGEST_ENABLED", "true") != "true":
+            _set_fields(table, "group#checkpoint", {"ledger_index_ready": "1"})
+    result = {"reconciled": seen, "changed": changed, "reconciliation_complete": complete,
+              "ledger_bootstrap": bootstrap, "groups": len(groups),
+              "slack_digests": sent, "legacy_alerts_migrated": migrated}
     LOG.info("Security Hub group digest: %s", result)
     return result
 
 
 def lambda_handler(event, context):
-    return run(boto3.client("dynamodb"), boto3.client("securityhub"), boto3.client("sns"))
+    return run(boto3.client("dynamodb"), boto3.client("securityhub"), boto3.client("sns"), context=context)

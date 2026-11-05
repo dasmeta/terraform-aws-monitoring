@@ -258,7 +258,7 @@ class RiskPagingTests(unittest.TestCase):
              patch.object(digest, "_clear_urgent_claim"):
             digest.sync_opsgenie(object(), summary, {"opsgenie_open": "1", "opsgenie_no_urgent_since": "2026-11-01T08:00:00Z"}, 1793782800)
         close.assert_called_once()
-        self.assertEqual(set_fields.call_args.args[2]["opsgenie_open"], "0")
+        self.assertTrue(any(call.args[2].get("opsgenie_open") == "0" for call in set_fields.call_args_list))
 
     def test_reconciliation_paginates_high_volume_findings(self):
         class Table:

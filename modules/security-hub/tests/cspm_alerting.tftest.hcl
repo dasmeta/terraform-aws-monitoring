@@ -117,9 +117,12 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       module.finding_router[0].lambda_function_name != module.finding_group_digest[0].lambda_function_name &&
       aws_cloudwatch_event_rule.finding_group_digest[0].schedule_expression == "rate(15 minutes)" &&
       length(aws_cloudwatch_event_target.finding_group_digest) == 1 &&
+      length([for index in aws_dynamodb_table.finding_delivery[0].global_secondary_index : index
+      if index.name == "notification-state" && index.hash_key == "notification_state"]) == 1 &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].treat_missing_data == "ignore" &&
       length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 1 &&
-      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 480000 &&
+      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 720000 &&
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.RecordState, "ACTIVE") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Workflow.Status, "NEW") &&

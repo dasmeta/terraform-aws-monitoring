@@ -24,6 +24,22 @@ resource "aws_dynamodb_table" "finding_delivery" {
     type = "S"
   }
 
+  attribute {
+    name = "notification_state"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "notification-state"
+    hash_key        = "notification_state"
+    range_key       = "finding_key"
+    projection_type = "ALL"
+  }
+
+  timeouts {
+    update = "60m"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
@@ -171,6 +187,12 @@ data "aws_iam_policy_document" "finding_group_digest" {
   }
 
   statement {
+    sid       = "QueryActiveFindingLedger"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.finding_delivery[0].arn}/index/notification-state"]
+  }
+
+  statement {
     sid       = "PublishSecurityDigest"
     actions   = ["sns:Publish"]
     resources = [module.alarm_actions[0].topic_arn]
@@ -182,14 +204,15 @@ module "finding_group_digest" {
   version = "6.8.0"
   count   = local.grouped_delivery_enabled ? 1 : 0
 
-  function_name = substr("${var.name}-finding-group-digest", 0, 64)
-  description   = "Reconcile all Security Hub findings and notify by remediation group"
-  runtime       = "python3.12"
-  handler       = "group_digest.lambda_handler"
-  source_path   = "${path.module}/functions"
-  hash_extra    = "finding-group-digest"
-  timeout       = 600
-  memory_size   = 2048
+  function_name                  = substr("${var.name}-finding-group-digest", 0, 64)
+  description                    = "Reconcile all Security Hub findings and notify by remediation group"
+  runtime                        = "python3.12"
+  handler                        = "group_digest.lambda_handler"
+  source_path                    = "${path.module}/functions"
+  hash_extra                     = "finding-group-digest"
+  timeout                        = 900
+  memory_size                    = 4096
+  reserved_concurrent_executions = 1
 
   environment_variables = {
     DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
@@ -216,13 +239,13 @@ module "finding_group_digest" {
   attach_dead_letter_policy = true
 }
 
-# Surface scaling pressure before the 600-second digest timeout causes missed
+# Surface scaling pressure before the 900-second digest timeout causes missed
 # reconciliation cycles. Delivery uses the existing failure notification path.
 resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
   count = local.grouped_delivery_enabled ? 1 : 0
 
   alarm_name          = "${var.name}-finding-group-digest-duration"
-  alarm_description   = "Security Hub grouped digest exceeded 480 seconds; review finding volume and reconciliation capacity."
+  alarm_description   = "Security Hub grouped digest exceeded 720 seconds; review finding volume and reconciliation capacity."
   namespace           = "AWS/Lambda"
   metric_name         = "Duration"
   dimensions          = { FunctionName = module.finding_group_digest[0].lambda_function_name }
@@ -230,8 +253,8 @@ resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
   period              = 900
   evaluation_periods  = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
-  threshold           = 480000
-  treat_missing_data  = "notBreaching"
+  threshold           = 720000
+  treat_missing_data  = "ignore"
   alarm_actions       = [local.delivery_failure_escalation_topic_arn]
 }
 
@@ -377,6 +400,6 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
   evaluation_periods  = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1
-  treat_missing_data  = "notBreaching"
+  treat_missing_data  = each.key == "group-digest-lambda" ? "ignore" : "notBreaching"
   alarm_actions       = [module.security_failure_actions[0].topic_arn]
 }

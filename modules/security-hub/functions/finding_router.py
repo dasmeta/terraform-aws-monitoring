@@ -340,20 +340,28 @@ def _record_grouped(table, finding, verified=None, current=None):
         record["change_kind"] = ("reopened" if is_active and not was_active else
                                  "resolved" if was_active and not is_active else
                                  "escalated" if is_active and (escalated or record["page_priority"] == "P1" and previous.get("page_priority") != "P1") else "updated")
-    pending = "1" if migrate_group or migrate_page or policy_change else current.get("notification_pending", "1")
+    pending_raised = migrate_group or migrate_page or policy_change
+    pending = "1" if pending_raised else current.get("notification_pending", "1")
     if current.get("notification_state") not in (None, "ACTIVE") and record["record_state"] == "ACTIVE":
         pending = "1"
+        pending_raised = True
     if record["change_kind"] in {"new", "escalated", "reopened", "resolved"}:
         pending = "1"
+        pending_raised = True
     inactive = record["record_state"] != "ACTIVE" or record["workflow"] == "RESOLVED"
+    accepted_at = datetime.now(timezone.utc)
+    index_state = "INACTIVE#" + accepted_at.date().isoformat() if inactive else "ACTIVE"
+    pending_at = (accepted_at.isoformat() if pending_raised else
+                  current.get("notification_pending_at") or current.get("notification_updated_at") or accepted_at.isoformat())
     retention_days = int(os.environ.get("FINDING_RETENTION_DAYS", "365"))
-    update_expression = "SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #epoch = :epoch, #state = :state, #pending = :pending"
+    update_expression = "SET #kind = :kind, #group = :group, #payload = :payload, #updated = :updated, #epoch = :epoch, #state = :state, #pending = :pending, #pending_at = :pending_at"
     update_expression += ", #expiry = :expiry" if inactive else " REMOVE #expiry"
     names = {
         "#kind": "notification_kind", "#group": "notification_group_key",
         "#payload": "notification_payload", "#updated": "notification_updated_at",
         "#epoch": "notification_updated_epoch",
-        "#state": "notification_state", "#pending": "notification_pending", "#expiry": "expires_at",
+        "#state": "notification_state", "#pending": "notification_pending",
+        "#pending_at": "notification_pending_at", "#expiry": "expires_at",
     }
     values = {
         ":kind": {"S": "finding"}, ":group": {"S": record["group"]["key"]},
@@ -362,7 +370,8 @@ def _record_grouped(table, finding, verified=None, current=None):
         ":epoch": {"N": str(incoming_epoch)},
         ":observed_updated": {"S": previous_updated or ""},
         ":observed_payload": {"S": current.get("notification_payload", "")},
-        ":state": {"S": record["record_state"]}, ":pending": {"S": pending},
+        ":state": {"S": index_state}, ":pending": {"S": pending},
+        ":pending_at": {"S": pending_at},
     }
     if inactive:
         values[":expiry"] = {"N": str(int(time.time()) + retention_days * 86400)}
@@ -399,6 +408,10 @@ def _claim(table, key, destination, now, mode=None, lifecycle=None):
         ":token": {"S": token},
     }
     update = "SET #state = :pending, #lease = :lease, #token = :token"
+    if key.startswith("group#") and destination in {"urgent", "critical"}:
+        names["#index"] = "notification_state"
+        values[":index"] = {"S": "OPEN_MARKER"}
+        update += ", #index = :index"
     if key.startswith("alert#"):
         names["#expiry"] = "expires_at"
         values[":expiry"] = {"N": str(now + int(os.environ.get("FINDING_RETENTION_DAYS", "365")) * 86400)}

@@ -151,7 +151,7 @@ class InspectorGroupingTests(unittest.TestCase):
              patch.object(digest, "_opsgenie_description", return_value="description"):
             with self.assertRaisesRegex(RuntimeError, "update failed"):
                 digest.sync_opsgenie(object(), summary, {"urgent_state": "SENT"}, 1793698200)
-        self.assertEqual(len(set_fields.call_args_list), 1)
+        self.assertEqual(len(set_fields.call_args_list), 2)
         self.assertEqual(set_fields.call_args.args[2], {"opsgenie_open": "1", "opsgenie_priority": "P1"})
 
     def test_priority_reconciliation_reads_remote_before_updating(self):
@@ -177,6 +177,7 @@ class InspectorGroupingTests(unittest.TestCase):
             return {"opsgenie_open": "1"} if key == "group#new-group" else {"urgent_state": "SENT"}
         with patch.object(digest, "_get_item", side_effect=get_item), \
              patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_clear_urgent_claim"), \
              patch.object(digest, "_set_fields") as set_fields:
             self.assertEqual(digest.migrate_previous_groups(object(), groups), 1)
         self.assertEqual(close.call_args.args[0], "securityhub-group-old-group")
@@ -222,9 +223,9 @@ class InspectorGroupingTests(unittest.TestCase):
     def test_digest_skips_state_reads_for_routine_groups(self):
         records = [{"group": {"key": str(index)}} for index in range(100)]
         groups = {record["group"]["key"]: [record] for record in records}
-        with patch.object(digest, "_get_item", return_value={}) as get_item, \
-             patch.object(digest, "reconcile_findings", return_value=(0, 0, False)), \
-             patch.object(digest, "scan_findings", return_value=(groups, groups, set(), set())), \
+        with patch.object(digest, "_get_item", return_value={"ledger_index_ready": "1", "last_daily_slack_at": "2026-11-03T08:00:00Z"}) as get_item, \
+             patch.object(digest, "reconcile_findings_bounded", return_value=(0, 0, False, True)), \
+             patch.object(digest, "scan_findings_indexed", return_value=(groups, groups, set(), set())), \
              patch.object(digest, "summarize_group", return_value={"priority": None}), \
              patch.object(digest, "_daily_due", return_value=False), \
              patch.object(digest, "migrate_legacy_alerts", return_value=0), \
@@ -252,7 +253,7 @@ class InspectorGroupingTests(unittest.TestCase):
             digest.sync_opsgenie(object(), summary, state, start + digest.QUIET_CLOSE_SECONDS + 1)
             close.assert_called_once()
             clear.assert_called_once()
-            self.assertEqual(set_fields.call_args.args[2]["opsgenie_open"], "0")
+            self.assertTrue(any(call.args[2].get("opsgenie_open") == "0" for call in set_fields.call_args_list))
 
     def test_closed_group_does_not_close_again(self):
         summary = {"group": {"key": "group"}, "priority": None,

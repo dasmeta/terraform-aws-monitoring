@@ -5,6 +5,8 @@ import os
 import pathlib
 import sys
 import unittest
+import zlib
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from botocore.exceptions import ClientError
@@ -37,6 +39,350 @@ def image_finding(identifier="finding-a", severity="CRITICAL"):
 
 
 class HardeningTests(unittest.TestCase):
+    def test_bounded_reconciliation_resumes_page_and_window_without_replaying_completed_work(self):
+        finding = image_finding()
+        checkpoint = {}
+        calls = []
+        class Table:
+            writes = []
+            def update_item(self, **request):
+                self.writes.append(request)
+        class SecurityHub:
+            def get_findings(self, **request):
+                calls.append(request)
+                start = request["Filters"]["UpdatedAt"][0]["Start"]
+                if start.startswith("2026-11-04T08:00") and not request.get("NextToken"):
+                    return {"Findings": [finding], "NextToken": "second-page"}
+                return {"Findings": [finding]}
+        now = int(datetime(2026, 11, 4, 8, 30, tzinfo=timezone.utc).timestamp())
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:00:00Z"}), \
+             patch.object(digest, "RECONCILE_PAGES_PER_RUN", 1), \
+             patch.object(digest, "_batch_get_findings", return_value={}), \
+             patch.object(digest, "_record_grouped", return_value=False) as record:
+            first = digest.reconcile_findings_bounded(table, SecurityHub(), now, checkpoint)
+            self.assertFalse(first[3])
+            self.assertEqual(checkpoint["reconcile_next_token"], "second-page")
+            second = digest.reconcile_findings_bounded(table, SecurityHub(), now + 900, checkpoint)
+            self.assertFalse(second[3])
+            self.assertTrue(checkpoint["reconcile_cursor"].startswith("2026-11-04T08:15"))
+            third = digest.reconcile_findings_bounded(table, SecurityHub(), now + 1800, checkpoint)
+        self.assertTrue(third[3])
+        self.assertEqual(checkpoint["reconciled_through"], "2026-11-04T08:30:00+00:00")
+        self.assertEqual(checkpoint["reconcile_target"], "")
+        self.assertEqual([call.get("NextToken") for call in calls], [None, "second-page", None])
+        self.assertEqual(record.call_count, 3)
+        self.assertEqual(len(table.writes), 3)
+        self.assertTrue(all("#version" in write["ConditionExpression"] for write in table.writes))
+
+    def test_expired_reconciliation_token_restarts_only_its_window(self):
+        checkpoint = {"reconcile_version": "old", "reconcile_cursor": "2026-11-04T08:00:00+00:00",
+                      "reconcile_target": "2026-11-04T08:15:00+00:00", "reconcile_next_token": "expired",
+                      "reconcile_full": "1"}
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            calls = []
+            def get_findings(self, **request):
+                self.calls.append(request)
+                if request.get("NextToken"):
+                    raise ClientError({"Error": {"Code": "InvalidInputException", "Message": "expired"}}, "GetFindings")
+                return {"Findings": []}
+        hub = SecurityHub()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:00:00Z"}):
+            self.assertFalse(digest.reconcile_findings_bounded(Table(), hub, 1793781000, checkpoint)[3])
+            self.assertEqual(checkpoint["reconcile_next_token"], "")
+            self.assertTrue(digest.reconcile_findings_bounded(Table(), hub, 1793781000, checkpoint)[3])
+        self.assertEqual([call.get("NextToken") for call in hub.calls], ["expired", None])
+
+    def test_concurrent_cursor_write_fails_without_advancing_checkpoint(self):
+        checkpoint = {"reconcile_version": "old", "reconciled_through": "2026-11-03T08:00:00Z"}
+        class Table:
+            def update_item(self, **_request):
+                raise ClientError({"Error": {"Code": "ConditionalCheckFailedException", "Message": "race"}}, "UpdateItem")
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}):
+            with self.assertRaisesRegex(RuntimeError, "changed concurrently"):
+                digest._save_reconcile_progress(Table(), checkpoint, {"reconcile_cursor": "new"})
+        self.assertNotIn("reconcile_cursor", checkpoint)
+
+    def test_bounded_reconciliation_retries_security_hub_limit_error(self):
+        checkpoint = {}
+        class Table:
+            def update_item(self, **_request):
+                pass
+        class SecurityHub:
+            calls = 0
+            def get_findings(self, **_request):
+                self.calls += 1
+                if self.calls == 1:
+                    raise ClientError({"Error": {"Code": "LimitExceededException", "Message": "rate"}}, "GetFindings")
+                return {"Findings": []}
+        hub = SecurityHub()
+        now = int(datetime(2026, 11, 4, 8, 15, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T08:00:00Z"}), \
+             patch.object(digest.time, "sleep"):
+            self.assertTrue(digest.reconcile_findings_bounded(Table(), hub, now, checkpoint)[3])
+        self.assertEqual(hub.calls, 2)
+
+    def test_parallel_scan_retries_one_segment_without_skipping_pages(self):
+        first = router._compact_finding(image_finding())
+        second = dict(first, finding_key="second")
+        third = dict(first, finding_key="third")
+        def row(record):
+            return {"finding_key": {"S": record["finding_key"]}, "notification_kind": {"S": "finding"},
+                    "notification_payload": {"S": json.dumps(record)}}
+        class Table:
+            calls = []
+            throttled = False
+            def scan(self, **request):
+                segment = request["Segment"]
+                token = bool(request.get("ExclusiveStartKey"))
+                self.calls.append((segment, token))
+                if segment == 0 and not token and not self.throttled:
+                    self.throttled = True
+                    raise ClientError({"Error": {"Code": "ProvisionedThroughputExceededException", "Message": "retry"}}, "Scan")
+                if segment == 0 and not token:
+                    return {"Items": [row(first)], "LastEvaluatedKey": {"finding_key": {"S": "one"}}}
+                return {"Items": [row(second if segment == 0 else third)]}
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}), \
+             patch.object(digest.time, "sleep"):
+            groups, _, _, _ = digest.scan_findings(table, packed=True, segments=2)
+        self.assertEqual(sum(len(records) for records in groups.values()), 3)
+        self.assertEqual(table.calls.count((0, False)), 2)
+        self.assertIn((0, True), table.calls)
+        self.assertIn((1, False), table.calls)
+
+    def test_pending_watermark_keeps_late_finding_with_old_source_timestamp(self):
+        first = router._compact_finding(image_finding())
+        second = dict(first, finding_key="second")
+        def row(record, pending_at):
+            return {"finding_key": {"S": record["finding_key"]}, "notification_kind": {"S": "finding"},
+                    "notification_payload": {"S": json.dumps(record)}, "notification_pending": {"S": "1"},
+                    "notification_pending_at": {"S": pending_at}}
+        class Table:
+            def scan(self, **_request):
+                return {"Items": [row(first, "2026-11-04T08:00:00Z"),
+                                  row(second, "2026-11-04T10:00:00Z")]}
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}):
+            groups, _, _, _ = digest.scan_findings(Table(), packed=True,
+                                                     pending_after="2026-11-04T09:00:00Z")
+        pending = {record["finding_key"]: record["pending"] for records in groups.values() for record in records}
+        self.assertEqual(pending, {first["finding_key"]: False, "second": True})
+
+    def test_trivial_update_does_not_rearm_acknowledged_pending_marker(self):
+        original = image_finding()
+        previous = router._compact_finding(original)
+        current = {"notification_payload": json.dumps(previous),
+                   "notification_updated_at": original["UpdatedAt"],
+                   "notification_updated_epoch": str(router._timestamp_micros(original["UpdatedAt"])),
+                   "notification_pending": "1", "notification_pending_at": "2026-11-04T08:02:00Z",
+                   "notification_state": "ACTIVE"}
+        updated = dict(original, UpdatedAt="2026-11-04T08:03:00Z")
+        class Table:
+            request = None
+            def update_item(self, **request):
+                self.request = request
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}), \
+             patch.object(router, "_get_item", return_value=current):
+            self.assertTrue(router._record_grouped(table, updated))
+        values = table.request["ExpressionAttributeValues"]
+        self.assertEqual(values[":pending"]["S"], "1")
+        self.assertEqual(values[":pending_at"]["S"], current["notification_pending_at"])
+
+    def test_policy_change_rearms_pending_marker_after_daily_watermark(self):
+        finding = image_finding()
+        previous = router._compact_finding(finding)
+        current = {"notification_payload": json.dumps(previous),
+                   "notification_updated_at": finding["UpdatedAt"],
+                   "notification_updated_epoch": str(router._timestamp_micros(finding["UpdatedAt"])),
+                   "notification_pending": "1", "notification_pending_at": "2026-11-04T08:02:00Z",
+                   "notification_state": "ACTIVE"}
+        class Table:
+            request = None
+            def update_item(self, **request):
+                self.request = request
+        table = Table()
+        emergency = json.dumps({"ecr_emergency_vulnerability_ids": ["CVE-2026-10001"]})
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "PAGING_POLICY": emergency}), \
+             patch.object(router, "_get_item", return_value=current):
+            self.assertTrue(router._record_grouped(table, finding))
+        self.assertNotEqual(table.request["ExpressionAttributeValues"][":pending_at"]["S"],
+                            current["notification_pending_at"])
+
+    def test_indexed_scan_pages_active_findings_and_preserves_open_marker(self):
+        first = router._compact_finding(image_finding())
+        second = dict(first, finding_key="second")
+        orphan = {**first["page_group"], "key": "orphan", "label": "Open legacy incident"}
+        def row(record):
+            return {"finding_key": {"S": record["finding_key"]}, "notification_kind": {"S": "finding"},
+                    "notification_payload": {"S": json.dumps(record)}, "notification_state": {"S": "ACTIVE"}}
+        class Table:
+            calls = []
+            def query(self, **request):
+                state = request["ExpressionAttributeValues"][":state"]["S"]
+                self.calls.append((state, bool(request.get("ExclusiveStartKey"))))
+                if state == "ACTIVE" and not request.get("ExclusiveStartKey"):
+                    return {"Items": [row(first)], "LastEvaluatedKey": {"finding_key": {"S": "first"}}}
+                if state == "ACTIVE":
+                    return {"Items": [row(second)]}
+                if state == "OPEN_MARKER":
+                    return {"Items": [{"finding_key": {"S": "group#orphan"},
+                                       "opsgenie_open": {"S": "1"},
+                                       "opsgenie_group_payload": {"S": json.dumps(orphan)},
+                                       "opsgenie_group_updated_at": {"S": "2026-11-04T08:01:00Z"}}]}
+                return {"Items": []}
+        table = Table()
+        now = int(datetime(2026, 11, 4, 12, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}):
+            groups, pages, active, _ = digest.scan_findings_indexed(table, "2026-11-04T09:00:00Z", now)
+        self.assertEqual(sum(len(records) for records in groups.values()), 3)
+        self.assertIn("orphan", active)
+        self.assertEqual(pages["orphan"][0]["record_state"], "ARCHIVED")
+        self.assertIn(("ACTIVE", True), table.calls)
+
+    def test_packed_group_access_decodes_only_requested_finding(self):
+        record = router._compact_finding(image_finding())
+        blob = zlib.compress(json.dumps(record).encode())
+        packed = digest.PackedRecords([blob] * 10000)
+        with patch.object(digest.zlib, "decompress", wraps=zlib.decompress) as decompress:
+            self.assertEqual(len(packed), 10000)
+            self.assertEqual(decompress.call_count, 0)
+            self.assertEqual(packed[0]["finding_key"], record["finding_key"])
+            self.assertEqual(decompress.call_count, 1)
+
+    def test_first_run_bootstraps_existing_ledger_before_reconciliation(self):
+        checkpoint = {"reconciled_through": "2026-11-03T13:22:30Z",
+                      "last_daily_slack_at": "2026-11-03T11:05:18Z"}
+        empty = digest.PackedGroups({})
+        now = int(datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc).timestamp())
+        with patch.object(digest, "_get_item", return_value=checkpoint), \
+             patch.object(digest, "scan_findings", return_value=(empty, empty, set(), set())) as scan, \
+             patch.object(digest, "reconcile_findings_bounded", side_effect=AssertionError("bootstrap must run first")), \
+             patch.object(digest, "_daily_due", return_value=True), \
+             patch.object(digest, "send_slack_batch_packed", return_value=True), \
+             patch.object(digest, "_set_fields") as write:
+            result = digest.run(object(), object(), object(), now)
+        self.assertTrue(result["ledger_bootstrap"])
+        self.assertEqual(result["slack_digests"], 1)
+        self.assertTrue(scan.call_args.kwargs["index_legacy"])
+        self.assertTrue(any(call.args[2] == {"ledger_index_ready": "1"} for call in write.call_args_list))
+
+    def test_bootstrap_does_not_switch_to_index_before_old_pending_digest(self):
+        checkpoint = {"last_daily_slack_at": "2026-11-03T11:05:18Z"}
+        empty = digest.PackedGroups({})
+        now = int(datetime(2026, 11, 5, 7, 0, tzinfo=timezone.utc).timestamp())
+        with patch.object(digest, "_get_item", return_value=checkpoint), \
+             patch.object(digest, "scan_findings", return_value=(empty, empty, set(), set())), \
+             patch.object(digest, "_daily_due", return_value=False), \
+             patch.object(digest, "_set_fields") as write:
+            digest.run(object(), object(), object(), now)
+        self.assertFalse(any(call.args[2].get("ledger_index_ready") == "1" for call in write.call_args_list))
+
+    def test_recent_updates_are_reconciled_during_historical_replay(self):
+        checkpoint = {"ledger_index_ready": "1", "reconcile_target": "2026-11-05T08:00:00Z",
+                      "last_daily_slack_at": "2026-11-05T08:00:00Z"}
+        empty = digest.PackedGroups({})
+        now = int(datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc).timestamp())
+        with patch.object(digest, "_get_item", return_value=checkpoint), \
+             patch.object(digest, "reconcile_recent_findings", return_value=(3, 1)) as recent, \
+             patch.object(digest, "reconcile_findings_bounded", return_value=(5, 2, True, False)), \
+             patch.object(digest, "scan_findings_indexed", return_value=(empty, empty, set(), set())), \
+             patch.object(digest, "_daily_due", return_value=False):
+            result = digest.run(object(), object(), object(), now)
+        recent.assert_called_once()
+        self.assertEqual((result["reconciled"], result["changed"]), (8, 3))
+        self.assertFalse(result["reconciliation_complete"])
+
+    def test_index_duplicate_prefers_latest_archived_snapshot(self):
+        active = router._compact_finding(image_finding())
+        archived = dict(active, record_state="ARCHIVED", updated_at="2026-11-04T10:00:00Z")
+        def row(record, revision):
+            return {"finding_key": {"S": record["finding_key"]}, "notification_kind": {"S": "finding"},
+                    "notification_payload": {"S": json.dumps(record)},
+                    "notification_pending_at": {"S": revision}}
+        class Table:
+            def query(self, **request):
+                state = request["ExpressionAttributeValues"][":state"]["S"]
+                if state == "ACTIVE":
+                    return {"Items": [row(active, "2026-11-04T08:00:00Z")]}
+                if state == "INACTIVE#2026-11-04":
+                    return {"Items": [row(archived, "2026-11-04T10:00:00Z")]}
+                return {"Items": []}
+        now = int(datetime(2026, 11, 4, 12, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}):
+            _, groups, _, _ = digest.scan_findings_indexed(Table(), "2026-11-04T09:00:00Z", now)
+        records = list(next(groups.values()))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["record_state"], "ARCHIVED")
+
+    def test_failed_claim_clear_keeps_closed_incident_indexed_for_retry(self):
+        summary = {"group": {"key": "group"}, "priority": None,
+                   "latest_updated_at": "2026-11-04T08:00:00Z"}
+        state = {"opsgenie_open": "1", "opsgenie_no_urgent_since": "2026-11-04T08:00:00Z",
+                 "notification_state": "OPEN_MARKER"}
+        with patch.object(digest, "_close_opsgenie_alias"), \
+             patch.object(digest, "_clear_urgent_claim", side_effect=RuntimeError("DDB unavailable")), \
+             patch.object(digest, "_set_fields") as write:
+            with self.assertRaisesRegex(RuntimeError, "DDB unavailable"):
+                digest.sync_opsgenie(object(), summary, state, 1793782800)
+        self.assertFalse(any(call.args[2].get("notification_state") == "CLOSED_MARKER"
+                             for call in write.call_args_list))
+
+    def test_superseded_open_marker_placeholder_does_not_block_migration(self):
+        groups = {"new": [{"finding_key": "finding-new", "previous_page_group_key": "old"}],
+                  "old": [{"finding_key": "group#old"}]}
+        def state(_table, key):
+            return {"opsgenie_open": "1"} if key in {"group#new", "group#old"} else {}
+        with patch.object(digest, "_get_item", side_effect=state), \
+             patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_clear_urgent_claim"), \
+             patch.object(digest, "_set_fields"):
+            self.assertEqual(digest.migrate_previous_groups(object(), groups), 1)
+        self.assertEqual(close.call_args.args[0], "securityhub-group-old")
+
+    def test_legacy_index_backfill_uses_exact_snapshot_condition(self):
+        row = {"finding_key": "finding", "notification_state": "ARCHIVED",
+               "notification_payload": "original"}
+        class Table:
+            request = None
+            def update_item(self, **request):
+                self.request = request
+                raise ClientError({"Error": {"Code": "ConditionalCheckFailedException", "Message": "newer event"}}, "UpdateItem")
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}):
+            digest._mark_legacy_index(table, row)
+        self.assertIn("#payload = :payload", table.request["ConditionExpression"])
+        self.assertEqual(table.request["ExpressionAttributeValues"][":payload"]["S"], "original")
+
+    def test_missing_open_marker_snapshot_reverts_to_full_bootstrap(self):
+        checkpoint = {"ledger_index_ready": "1", "last_daily_slack_at": "2026-11-05T08:00:00Z"}
+        now = int(datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc).timestamp())
+        with patch.object(digest, "_get_item", return_value=checkpoint), \
+             patch.object(digest, "reconcile_findings_bounded", return_value=(0, 0, False, True)), \
+             patch.object(digest, "scan_findings_indexed", side_effect=digest.MissingMarkerSnapshot("missing")), \
+             patch.object(digest, "_set_fields") as write:
+            with self.assertRaises(digest.MissingMarkerSnapshot):
+                digest.run(object(), object(), object(), now)
+        write.assert_called_once_with(unittest.mock.ANY, "group#checkpoint", {"ledger_index_ready": "0"})
+
+    def test_packed_daily_digest_uses_one_watermark_without_per_finding_ack(self):
+        record = router._compact_finding(image_finding())
+        record["pending"] = True
+        blob = zlib.compress(json.dumps(record).encode())
+        groups = digest.PackedGroups({record["group"]["key"]: [blob]})
+        pages = digest.PackedGroups({record["page_group"]["key"]: [blob]})
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}), \
+             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_publish_slack"), \
+             patch.object(digest, "_acknowledge_pending_batch", side_effect=AssertionError("row writes are unbounded")), \
+             patch.object(digest, "_set_fields") as write:
+            digest.send_slack_batch_packed(object(), object(), groups, pages, 1793782800)
+        self.assertTrue(any("last_daily_slack_at" in call.args[2] for call in write.call_args_list))
+
+
     def test_application_alias_isolated_by_account_region_project_and_environment(self):
         base = image_finding()
         cases = []
@@ -332,7 +678,7 @@ class HardeningTests(unittest.TestCase):
              patch.object(digest, "_set_fields") as set_fields:
             with self.assertRaisesRegex(RuntimeError, "DDB unavailable"):
                 digest.sync_opsgenie(object(), summary, state, 1793790001)
-        set_fields.assert_not_called()
+        self.assertFalse(any("opsgenie_priority" in call.args[2] for call in set_fields.call_args_list))
 
     def test_large_ledger_fails_explicitly_after_paginated_capacity_bound(self):
         """A bounded worker reports excess volume without advancing its checkpoint."""
@@ -409,7 +755,7 @@ class HardeningTests(unittest.TestCase):
                         "UnprocessedKeys": {}, "ConsumedCapacity": [{"CapacityUnits": 1.0}]}
         table = Table()
         with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z", "DELIVERY_TABLE_NAME": "test"}), \
-             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_get_item", return_value={"ledger_index_ready": "1"}), \
              patch.object(digest, "_record_grouped", return_value=False) as record, \
              patch.object(digest.LOG, "info") as log, \
              patch.object(digest.time, "sleep"):
@@ -431,7 +777,7 @@ class HardeningTests(unittest.TestCase):
                 return {"Responses": {}, "UnprocessedKeys": request["RequestItems"]}
         table = Table()
         with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z", "DELIVERY_TABLE_NAME": "test"}), \
-             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_get_item", return_value={"ledger_index_ready": "1"}), \
              patch.object(digest, "_record_grouped") as record, \
              patch.object(digest, "_set_fields") as write, \
              patch.object(digest.time, "sleep"):
@@ -449,8 +795,8 @@ class HardeningTests(unittest.TestCase):
                 raise ClientError({"Error": {"Code": "ThrottlingException", "Message": "retry"}}, "GetFindings")
         securityhub = SecurityHub()
         with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}), \
-             patch.object(digest, "_get_item", return_value={}), \
-             patch.object(digest, "scan_findings") as scan, \
+             patch.object(digest, "_get_item", return_value={"ledger_index_ready": "1"}), \
+             patch.object(digest, "scan_findings_indexed") as scan, \
              patch.object(digest, "_set_fields") as write, \
              patch.object(digest.time, "sleep"):
             with self.assertRaises(ClientError):
@@ -666,6 +1012,7 @@ class HardeningTests(unittest.TestCase):
         close.assert_not_called()
         with patch.object(digest, "_get_item", return_value={"opsgenie_open": "1"}), \
              patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_retire_legacy_index"), \
              patch.object(digest, "_set_fields") as set_fields:
             self.assertEqual(digest.migrate_legacy_alerts(object(), [record], summary), 1)
         close.assert_called_once()
