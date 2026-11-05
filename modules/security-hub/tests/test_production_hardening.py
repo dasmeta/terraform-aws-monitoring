@@ -1799,6 +1799,23 @@ class HardeningTests(unittest.TestCase):
             digest._close_opsgenie_alias("securityhub-example", "migrated")
         action.assert_not_called()
 
+    def test_legacy_close_retries_marker_write_without_second_remote_close(self):
+        record = {"finding_key": "legacy-finding", "legacy_opsgenie": True}
+        summary = {"group": {"key": "replacement"}}
+        with patch.object(digest, "_get_item", return_value={"opsgenie_open": "1"}), \
+             patch.object(digest, "_request", side_effect=[{"data": {"status": "open"}},
+                                                        {"data": {"status": "closed"}}]), \
+             patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_set_fields", side_effect=[RuntimeError("DynamoDB unavailable"), None]) as write, \
+             patch.object(digest, "_retire_legacy_index") as retire:
+            with self.assertRaisesRegex(RuntimeError, "DynamoDB unavailable"):
+                digest.migrate_legacy_alerts(object(), [record], summary)
+            self.assertEqual(digest.migrate_legacy_alerts(object(), [record], summary), 1)
+        self.assertEqual(action.call_count, 1)
+        self.assertIn("/close?", action.call_args.args[1])
+        self.assertEqual(write.call_count, 2)
+        retire.assert_called_once()
+
     def test_daily_ack_does_not_clear_same_timestamp_policy_change(self):
         record = router._compact_finding(image_finding())
         record["_ledger_payload"] = json.dumps(record)
