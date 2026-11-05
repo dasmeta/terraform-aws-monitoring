@@ -171,6 +171,47 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(sns.messages[0]["_dasmeta_daily_delivery_id"],
                          sns.messages[1]["_dasmeta_daily_delivery_id"])
 
+    def test_daily_outbox_recovers_after_acknowledgements_before_sns(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        record = self.daily_record()
+        ledger.items[record["finding_key"]] = {
+            "finding_key": {"S": record["finding_key"]},
+            "notification_digest_pending": {"S": "1"},
+            "notification_pending_at": {"S": record["_ledger_revision"]},
+        }
+        groups, pages = self.daily_groups([record])
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        original_publish = sns.publish
+        attempts = []
+
+        def publish(**request):
+            attempts.append(json.loads(request["Message"]))
+            if len(attempts) == 1:
+                raise RuntimeError("SNS rejected the digest")
+            return original_publish(**request)
+
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(sns, "publish", side_effect=publish), \
+             patch.object(digest.time, "time", return_value=1000):
+            with self.assertRaisesRegex(RuntimeError, "SNS rejected"):
+                digest.send_slack_batch_packed(ledger, sns, groups, pages, now)
+            self.assertFalse(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        outbox = ledger.items[digest.DAILY_OUTBOX_KEY]
+        self.assertEqual(outbox["daily_state"]["S"], "CLAIMED")
+        self.assertEqual(outbox["daily_ack_cursor"]["N"], "1")
+        self.assertEqual(ledger.items[record["finding_key"]]["notification_digest_pending"]["S"], "0")
+        self.assertNotIn("last_daily_slack_at", ledger.items.get("group#checkpoint", {}))
+        self.assertEqual(len(sns.messages), 0)
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(sns, "publish", side_effect=publish), \
+             patch.object(digest.time, "time", return_value=1901):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_daily_delivery_id"],
+                         json.loads(outbox["daily_message"]["S"])["_dasmeta_daily_delivery_id"])
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 1)
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_state"]["S"], "DONE")
+
     def test_overlapping_daily_invocation_cannot_publish_same_claim(self):
         ledger, sns = DailyLedger(), AcceptedSns()
         groups, pages = self.daily_groups([self.daily_record()])
@@ -516,6 +557,57 @@ class HardeningTests(unittest.TestCase):
         lookup.assert_called_once_with(item)
         enriched = json.loads(table.writes[-1]["ExpressionAttributeValues"][":payload"]["S"])
         self.assertEqual(enriched["risk_context"]["deployment"], "observed_in_use")
+
+    def test_scheduled_enrichment_escalates_existing_p2_alias_only_with_exposure(self):
+        finding = image_finding()
+        finding["Resources"][0]["Tags"] = {"Environment": "Production"}
+        finding["Resources"].append({"Type": "AwsEc2Instance", "Id": "i-12345678",
+                                     "Details": {"AwsEc2Instance": {"PublicIpAddress": "203.0.113.10"}}})
+        first = router._compact_finding(finding)
+        self.assertEqual(first["page_priority"], "P2")
+        current = {"notification_payload": json.dumps(first), "notification_updated_at": finding["UpdatedAt"],
+                   "notification_updated_epoch": str(router._timestamp_micros(finding["UpdatedAt"])),
+                   "notification_state": "ACTIVE", "notification_digest_pending": "0"}
+        checkpoint = {"reconcile_cursor": "2026-11-04T08:00:00Z",
+                      "reconcile_target": "2026-11-04T08:15:00Z", "reconcile_full": "0"}
+
+        class Table:
+            writes = []
+            def update_item(self, **request):
+                self.writes.append(request)
+
+        class SecurityHub:
+            def get_findings(self, **request):
+                return {"Findings": [finding]}
+
+        table = Table()
+        env = {"DELIVERY_TABLE_NAME": "test", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+               "ECR_DEPLOYMENT_LOOKUP_ENABLED": "true", "SECURITY_ENVIRONMENT": "Production"}
+        with patch.dict(os.environ, env), \
+             patch.object(digest, "_batch_get_findings", return_value={router._finding_key(finding): current}), \
+             patch.object(digest, "_save_reconcile_progress"), \
+             patch.object(router, "_inspector_ecr_evidence", side_effect=[
+                 {"deployment": "unknown"},
+                 {"deployment": "observed_in_use", "checked_at": "2026-11-05T09:00:00Z"}]):
+            self.assertEqual(digest.reconcile_findings_bounded(
+                table, SecurityHub(), 1793869200, checkpoint)[1], 0)
+            self.assertEqual(digest.reconcile_findings_bounded(
+                table, SecurityHub(), 1793869200, checkpoint)[1], 1)
+        enriched = json.loads(table.writes[-1]["ExpressionAttributeValues"][":payload"]["S"])
+        self.assertEqual(enriched["page_group"]["key"], first["page_group"]["key"])
+        self.assertEqual(enriched["page_priority"], "P1")
+        self.assertEqual(enriched["risk_context"]["deployment"], "observed_in_use")
+        self.assertEqual(enriched["risk_context"]["exposure"], "exposed")
+        summary = digest.summarize_group([enriched], identity="page_group")
+        state = {"opsgenie_open": "1", "opsgenie_priority": "P2",
+                 "opsgenie_format_version": digest.OPSGENIE_FORMAT_VERSION,
+                 "opsgenie_urgent_signature": "previous"}
+        with patch.object(digest, "_ensure_opsgenie_priority") as priority, \
+             patch.object(digest, "_ops_action") as action, \
+             patch.object(digest, "_set_fields"):
+            digest.sync_opsgenie(object(), summary, state, 1793869200)
+        priority.assert_called_once_with("securityhub-group-" + first["page_group"]["key"], "P1")
+        self.assertFalse(any(call.args[1] == "/v2/alerts" for call in action.call_args_list))
 
     def test_recent_reconciliation_defers_inspector_reads_to_bounded_pass(self):
         class SecurityHub:
@@ -1266,6 +1358,26 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
         self.assertEqual(state["opsgenie_open"], "1")
 
+    def test_external_close_reopens_for_replacement_finding_with_same_cve(self):
+        state = {"opsgenie_open": "0", "opsgenie_external_closed_signature": "old",
+                 "opsgenie_external_closed_priority": "P2",
+                 "opsgenie_external_closed_urgent_count": "1",
+                 "opsgenie_external_closed_vulnerabilities": '["CVE-1"]',
+                 "opsgenie_external_closed_vulnerability_total": "1",
+                 "opsgenie_external_closed_finding_keys": '["old-finding"]',
+                 "opsgenie_external_closed_finding_total": "1"}
+        summary = {"group": {"key": "application", "product": "Inspector"}, "priority": "P2",
+                   "urgent_signature": "replacement", "urgent_count": 1, "active_count": 1,
+                   "urgent_vulnerability_ids": ["CVE-1"], "urgent_finding_keys": ["new-finding"]}
+        with patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+             patch.object(digest, "_set_fields"), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(object(), summary, state, 1793790000)
+        self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
+
     def test_resolved_external_close_allows_same_cve_in_new_episode(self):
         state = {"opsgenie_open": "0", "opsgenie_external_closed_signature": "old",
                  "opsgenie_external_closed_priority": "P2",
@@ -1638,6 +1750,7 @@ class HardeningTests(unittest.TestCase):
         summary = digest.summarize_group([first, second], identity="page_group")
         self.assertEqual(summary["priority"], "P1")
         self.assertEqual(len(summary["vulnerability_ids"]), 2)
+        self.assertEqual(summary["urgent_finding_keys"], sorted([first["finding_key"], second["finding_key"]]))
         state = {"opsgenie_open": "1", "opsgenie_priority": "P1",
                  "opsgenie_format_version": digest.OPSGENIE_FORMAT_VERSION,
                  "opsgenie_urgent_signature": "old"}
@@ -1661,6 +1774,13 @@ class HardeningTests(unittest.TestCase):
         summary = digest.summarize_group([record], identity="page_group")
         marker = "group#" + summary["group"]["key"]
         with patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_close_opsgenie_alias") as close:
+            self.assertEqual(digest.migrate_legacy_alerts(object(), [record], summary), 0)
+        close.assert_not_called()
+        record["pending"] = False  # Daily digest succeeded, but the replacement incident failed.
+        with patch.dict(os.environ, {"DAILY_DIGEST_ENABLED": "true"}), \
+             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_set_fields"), patch.object(digest, "_retire_legacy_index"), \
              patch.object(digest, "_close_opsgenie_alias") as close:
             self.assertEqual(digest.migrate_legacy_alerts(object(), [record], summary), 0)
         close.assert_not_called()

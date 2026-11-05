@@ -391,14 +391,16 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
     } }
   ) : {}
 
-  alarm_name          = substr("${var.name}-${each.key}-new-failures", 0, 255)
-  alarm_description   = "New Security Hub ${each.key} delivery failure; inspect the destination, subscription logs, and dead-letter queue."
-  namespace           = each.value.namespace
-  metric_name         = each.value.metric_name
-  dimensions          = each.value.dimensions
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
+  alarm_name        = substr("${var.name}-${each.key}-new-failures", 0, 255)
+  alarm_description = "New Security Hub ${each.key} delivery failure; inspect the destination, subscription logs, and dead-letter queue."
+  namespace         = each.value.namespace
+  metric_name       = each.value.metric_name
+  dimensions        = each.value.dimensions
+  statistic         = "Sum"
+  period            = 300
+  # Keep an ongoing digest failure in ALARM through intervening zero-error datapoints.
+  evaluation_periods  = each.key == "group-digest-lambda" ? 3 : 1
+  datapoints_to_alarm = each.key == "group-digest-lambda" ? 1 : null
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1
   treat_missing_data  = each.key == "group-digest-lambda" ? "ignore" : "notBreaching"

@@ -183,6 +183,18 @@ class InspectorGroupingTests(unittest.TestCase):
         self.assertEqual(close.call_args.args[0], "securityhub-group-old-group")
         self.assertEqual(set_fields.call_args.args[1], "group#old-group")
 
+    def test_superseded_group_stays_open_when_only_daily_digest_succeeded(self):
+        groups = {"new-group": [{"finding_key": "finding-new", "previous_group_key": "old-group",
+                                  "pending": False, "record_state": "ACTIVE", "workflow": "NEW",
+                                  "severity": "CRITICAL"}]}
+        with patch.dict(os.environ, {"DAILY_DIGEST_ENABLED": "true"}), \
+             patch.object(digest, "_get_item", return_value={}), \
+             patch.object(digest, "_close_opsgenie_alias") as close, \
+             patch.object(digest, "_clear_urgent_claim"), \
+             patch.object(digest, "_set_fields"):
+            self.assertEqual(digest.migrate_previous_groups(object(), groups), 0)
+        close.assert_not_called()
+
     def test_closed_legacy_group_is_skipped_without_another_read(self):
         groups = {"new-group": [{"previous_group_key": "old-group"}]}
         with patch.object(digest, "_get_item", return_value={"opsgenie_open": "1"}) as get_item, \

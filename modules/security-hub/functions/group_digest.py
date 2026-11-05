@@ -34,6 +34,7 @@ RECENT_RECONCILE_MAX_PAGES = 250
 LEDGER_SCAN_SEGMENTS = 8
 MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
+MAX_EXTERNAL_CLOSED_FINDINGS = 3000
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
 OPSGENIE_FORMAT_VERSION = "4"
 
@@ -655,6 +656,7 @@ def summarize_group(records, identity="group"):
         "high_severities": dict(collections.Counter(record["severity"] for record in high)),
         "urgent_titles": collections.Counter(record["title"] for record in urgent).most_common(3),
         "urgent_vulnerability_ids": sorted({identifier for record in urgent for identifier in record["vulnerability_ids"]}),
+        "urgent_finding_keys": sorted({record["finding_key"] for record in urgent}),
         "urgent_signature": hashlib.sha256(json.dumps(
             sorted({(record["finding_key"], record["severity"], record.get("page_priority"),
                      tuple(record["vulnerability_ids"]), tuple(record.get("resource_ids", []))) for record in active}),
@@ -777,12 +779,15 @@ def _ensure_opsgenie_priority(alias, priority):
 
 def _externally_closed_fields(summary, priority):
     vulnerabilities = summary.get("urgent_vulnerability_ids", [])
+    finding_keys = summary.get("urgent_finding_keys", [])
     return {"opsgenie_open": "0", "opsgenie_priority": "", "notification_state": "OPEN_MARKER",
             "opsgenie_external_closed_signature": summary["urgent_signature"],
             "opsgenie_external_closed_priority": priority,
             "opsgenie_external_closed_urgent_count": str(summary.get("urgent_count", 0)),
             "opsgenie_external_closed_vulnerabilities": json.dumps(vulnerabilities[:256]),
-            "opsgenie_external_closed_vulnerability_total": str(len(vulnerabilities))}
+            "opsgenie_external_closed_vulnerability_total": str(len(vulnerabilities)),
+            "opsgenie_external_closed_finding_keys": json.dumps(finding_keys[:MAX_EXTERNAL_CLOSED_FINDINGS]),
+            "opsgenie_external_closed_finding_total": str(len(finding_keys))}
 
 
 def _new_urgent_after_external_close(summary, state, priority):
@@ -790,6 +795,12 @@ def _new_urgent_after_external_close(summary, state, priority):
         return True
     if int(summary.get("urgent_count", 0)) > int(state.get("opsgenie_external_closed_urgent_count", "0")):
         return True
+    if state.get("opsgenie_external_closed_finding_keys") and summary.get("urgent_finding_keys") is not None:
+        finding_keys = summary["urgent_finding_keys"]
+        old_keys = json.loads(state["opsgenie_external_closed_finding_keys"])
+        if len(finding_keys) > MAX_EXTERNAL_CLOSED_FINDINGS or int(state.get("opsgenie_external_closed_finding_total", "0")) > MAX_EXTERNAL_CLOSED_FINDINGS:
+            return summary["urgent_signature"] != state["opsgenie_external_closed_signature"]
+        return bool(set(finding_keys) - set(old_keys))
     vulnerabilities = summary.get("urgent_vulnerability_ids", [])
     previous = json.loads(state.get("opsgenie_external_closed_vulnerabilities") or "[]")
     if len(vulnerabilities) > 256 or int(state.get("opsgenie_external_closed_vulnerability_total", "0")) > 256:
@@ -847,7 +858,9 @@ def sync_opsgenie(table, summary, state, now):
                                     "opsgenie_external_closed_priority": "",
                                     "opsgenie_external_closed_urgent_count": "0",
                                     "opsgenie_external_closed_vulnerabilities": "[]",
-                                    "opsgenie_external_closed_vulnerability_total": "0"})
+                                    "opsgenie_external_closed_vulnerability_total": "0",
+                                    "opsgenie_external_closed_finding_keys": "[]",
+                                    "opsgenie_external_closed_finding_total": "0"})
     if priority and state.get("opsgenie_external_closed_signature"):
         if not _new_urgent_after_external_close(summary, state, priority):
             if state["opsgenie_external_closed_signature"] != summary["urgent_signature"]:
@@ -946,9 +959,7 @@ def sync_opsgenie(table, summary, state, now):
 def migrate_legacy_alerts(table, records, summary, limit=MAX_LEGACY_MIGRATIONS_PER_RUN):
     """Close old per-finding alerts only after their replacement group exists."""
     replacement_open = _get_item(table, "group#" + summary["group"]["key"]).get("opsgenie_open") == "1"
-    digest_represented = (os.environ.get("DAILY_DIGEST_ENABLED", "true") == "true" and
-                          all(not record.get("pending", True) for record in records))
-    if not replacement_open and not digest_represented:
+    if not replacement_open:
         return 0
     moved = 0
     for record in records:
@@ -977,10 +988,7 @@ def migrate_previous_groups(table, groups, closed_markers=None):
         old_keys.discard(None)
         if not old_keys:
             continue
-        if (_get_item(table, "group#" + key).get("opsgenie_open") != "1" and
-                not (os.environ.get("DAILY_DIGEST_ENABLED", "true") == "true" and
-                     any(_actionable(record) for record in records) and
-                     all(not record.get("pending") for record in records))):
+        if _get_item(table, "group#" + key).get("opsgenie_open") != "1":
             continue
         for old_key in old_keys - active_keys:
             if old_key in closed_markers:
