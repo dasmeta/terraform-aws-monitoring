@@ -8,20 +8,22 @@ import os
 import time
 import urllib.error
 import urllib.parse
+import zlib
 from datetime import datetime, timedelta, timezone
 
 import boto3
 from botocore.exceptions import ClientError
 
-from finding_router import _page_group_from_remediation, _record_grouped, _timestamp
+from finding_router import _finding_key, _page_group_from_remediation, _record_grouped, _timestamp
 from group_alert_format import description_header, group_action, group_message, securityhub_url
 from opsgenie_notifier import _request, _wait_for_request
 
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
-MAX_RECONCILED_FINDINGS = 100000
-MAX_LEDGER_ITEMS = 100000
+MAX_RECONCILED_FINDINGS = 250000
+MAX_LEDGER_ITEMS = 250000
+MAX_GROUP_ITEMS = 10000
 MAX_LEGACY_MIGRATIONS_PER_RUN = 50
 QUIET_CLOSE_SECONDS = 3600
 HIGH_SEVERITIES = {"HIGH", "CRITICAL"}
@@ -54,6 +56,67 @@ def _set_fields(table, key, fields):
     )
 
 
+def _read_page(call, **request):
+    """Retry transient AWS read failures without advancing pagination state."""
+    retryable = {"ThrottlingException", "TooManyRequestsException", "RequestLimitExceeded",
+                 "ProvisionedThroughputExceededException", "InternalServerException",
+                 "InternalServerError", "ServiceUnavailableException", "TransactionInProgressException"}
+    for attempt in range(3):
+        try:
+            return call(**request)
+        except ClientError as error:
+            if attempt == 2 or error.response.get("Error", {}).get("Code") not in retryable:
+                raise
+            time.sleep(0.2 * (2 ** attempt))
+
+
+def _batch_get_findings(table, findings, consumed=None):
+    """Read one Security Hub page of ledger rows; fail if any key stays unprocessed."""
+    table_name = os.environ["DELIVERY_TABLE_NAME"]
+    keys = {_finding_key(finding) for finding in findings}
+    if not keys:
+        return {}
+    request = {table_name: {"Keys": [{"finding_key": {"S": key}} for key in keys],
+                            "ConsistentRead": True}}
+    items = {}
+    for attempt in range(5):
+        response = _read_page(table.batch_get_item, RequestItems=request, ReturnConsumedCapacity="TOTAL")
+        if consumed is not None:
+            consumed[0] += sum(item.get("CapacityUnits", 0) for item in response.get("ConsumedCapacity", []))
+        for item in response.get("Responses", {}).get(table_name, []):
+            decoded = _decode(item)
+            items[decoded["finding_key"]] = decoded
+        request = response.get("UnprocessedKeys") or {}
+        if not request:
+            return items
+        time.sleep(0.2 * (2 ** attempt))
+    raise RuntimeError(f"DynamoDB left {len(request.get(table_name, {}).get('Keys', []))} finding keys unprocessed")
+
+
+class PackedGroups:
+    """Keep ledger payloads compressed and decode only the group being handled."""
+
+    def __init__(self, groups):
+        self.groups = groups
+
+    def __len__(self):
+        return len(self.groups)
+
+    def __iter__(self):
+        return iter(self.groups)
+
+    def __getitem__(self, key):
+        return [json.loads(zlib.decompress(blob)) for blob in self.groups[key]]
+
+    def items(self):
+        for key in self.groups:
+            yield key, self[key]
+
+    def values(self):
+        for key in self.groups:
+            yield self[key]
+
+
 def reconcile_findings(table, securityhub, now):
     """Backfill once, then overlap the last successful checkpoint by one hour."""
     checkpoint = _get_item(table, "group#checkpoint")
@@ -71,35 +134,43 @@ def reconcile_findings(table, securityhub, now):
     seen = 0
     changed = 0
     pages = 0
+    read_units = [0.0]
     while True:
         request = {"Filters": filters, "MaxResults": 100}
         if token:
             request["NextToken"] = token
-        page = securityhub.get_findings(**request)
+        page = _read_page(securityhub.get_findings, **request)
         pages += 1
-        for finding in page.get("Findings", []):
+        findings = page.get("Findings", [])
+        current_items = _batch_get_findings(table, findings, read_units)
+        for finding in findings:
             seen += 1
             if seen > MAX_RECONCILED_FINDINGS:
                 LOG.error("Security Hub reconciliation limit reached: pages=%d seen=%d", pages, seen)
-                raise RuntimeError("Security Hub reconciliation exceeded 100000 findings; widen or partition the worker before continuing")
-            changed += int(_record_grouped(table, finding))
+                raise RuntimeError(f"Security Hub reconciliation exceeded {MAX_RECONCILED_FINDINGS} findings; widen or partition the worker before continuing")
+            changed += int(_record_grouped(table, finding, current=current_items.get(_finding_key(finding), {})))
         token = page.get("NextToken")
         if pages % 25 == 0:
-            LOG.info("Security Hub reconciliation progress: pages=%d seen=%d changed=%d", pages, seen, changed)
+            LOG.info("Security Hub reconciliation progress: pages=%d seen=%d changed=%d ledger_read_units=%.1f",
+                     pages, seen, changed, read_units[0])
         if not token:
             break
-    LOG.info("Security Hub reconciliation: pages=%d seen=%d changed=%d from=%s", pages, seen, changed, since.isoformat())
+    LOG.info("Security Hub reconciliation: pages=%d seen=%d changed=%d ledger_read_units=%.1f from=%s",
+             pages, seen, changed, read_units[0], since.isoformat())
     return seen, changed, full
 
 
-def scan_findings(table):
-    items = []
+def scan_findings(table, packed=False):
+    items = [] if not packed else None
+    groups = collections.defaultdict(list) if packed else None
+    page_groups = collections.defaultdict(list) if packed else None
     active_markers = set()
     closed_markers = set()
     token = None
     pages = 0
     scanned = 0
     read_units = 0.0
+    findings = 0
     while True:
         request = {
             "TableName": os.environ["DELIVERY_TABLE_NAME"],
@@ -109,7 +180,7 @@ def scan_findings(table):
         }
         if token:
             request["ExclusiveStartKey"] = token
-        page = table.scan(**request)
+        page = _read_page(table.scan, **request)
         pages += 1
         scanned += page.get("ScannedCount", len(page.get("Items", [])))
         read_units += (page.get("ConsumedCapacity") or {}).get("CapacityUnits", 0)
@@ -137,18 +208,30 @@ def scan_findings(table):
             if record["pending"]:
                 record["_ledger_payload"] = row["notification_payload"]
             record["legacy_opsgenie"] = row.get("opsgenie_delivery_mode") == "API" and row.get("opsgenie_state") == "SENT" and row.get("opsgenie_resolution_state") != "SENT" and row.get("legacy_group_migrated") != "1"
-            items.append(record)
-            if len(items) > MAX_LEDGER_ITEMS:
+            findings += 1
+            if packed:
+                blob = zlib.compress(json.dumps(record, separators=(",", ":")).encode("utf-8"), level=1)
+                group_records = groups[record["group"]["key"]]
+                page_records = page_groups[record.get("page_group", record["group"])["key"]]
+                group_records.append(blob)
+                page_records.append(blob)
+                if len(group_records) > MAX_GROUP_ITEMS or len(page_records) > MAX_GROUP_ITEMS:
+                    raise RuntimeError(f"Security Hub group exceeded {MAX_GROUP_ITEMS} findings; partition group processing")
+            else:
+                items.append(record)
+            if findings > MAX_LEDGER_ITEMS:
                 LOG.error("Finding ledger limit reached: pages=%d scanned=%d findings=%d read_units=%.1f",
-                          pages, scanned, len(items), read_units)
-                raise RuntimeError("Security Hub finding ledger exceeded 100000 items; partition the digest before continuing")
+                          pages, scanned, findings, read_units)
+                raise RuntimeError(f"Security Hub finding ledger exceeded {MAX_LEDGER_ITEMS} items; partition the digest before continuing")
         token = page.get("LastEvaluatedKey")
         if pages % 25 == 0:
             LOG.info("Finding ledger progress: pages=%d scanned=%d findings=%d read_units=%.1f",
-                     pages, scanned, len(items), read_units)
+                     pages, scanned, findings, read_units)
         if not token:
             LOG.info("Finding ledger complete: pages=%d scanned=%d findings=%d read_units=%.1f",
-                     pages, scanned, len(items), read_units)
+                     pages, scanned, findings, read_units)
+            if packed:
+                return PackedGroups(groups), PackedGroups(page_groups), active_markers, closed_markers
             return items, active_markers, closed_markers
 
 
@@ -479,11 +562,11 @@ def _slack_payload(summary, closing):
             "groups_changed_total": summary.get("groups_changed_total", len(summary.get("groups_changed", []))),
             "other_group_count": summary.get("other_group_count", 0),
             "groups_cleared": summary.get("groups_cleared", [])[:10],
-            "groups_cleared_total": len(summary.get("groups_cleared", [])),
+            "groups_cleared_total": summary.get("groups_cleared_total", len(summary.get("groups_cleared", []))),
             "baseline": summary.get("baseline", False),
             "digest_kind": summary.get("digest_kind"),
             "application_summaries": summary.get("application_summaries", [])[:3],
-            "application_total": len(summary.get("application_summaries", [])),
+            "application_total": summary.get("application_total", len(summary.get("application_summaries", []))),
             "environment": summary.get("environment", group.get("environment", "Unknown")),
             "account_label": summary.get("account_label", group["account"]),
             "top_groups": summary.get("top_groups", []),
@@ -514,6 +597,49 @@ def _acknowledge_new(table, records):
             if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
             # A newer import arrived during this digest; keep it pending.
+
+
+def _acknowledge_pending_batch(table, records):
+    """Conditionally acknowledge a brief in bounded transactions."""
+    def flush(batch):
+        if not batch:
+            return
+        if not hasattr(table, "transact_write_items"):
+            _acknowledge_new(table, batch)
+            return
+        actions = [{"Update": {
+            "TableName": os.environ["DELIVERY_TABLE_NAME"],
+            "Key": {"finding_key": {"S": record["finding_key"]}},
+            "UpdateExpression": "SET #pending = :done",
+            "ConditionExpression": "#updated = :updated AND #payload = :payload AND #pending = :expected",
+            "ExpressionAttributeNames": {"#pending": "notification_pending", "#updated": "notification_updated_at",
+                                         "#payload": "notification_payload"},
+            "ExpressionAttributeValues": {":done": {"S": "0"}, ":updated": {"S": record["updated_at"]},
+                                          ":payload": {"S": record["_ledger_payload"]}, ":expected": {"S": "1"}},
+        }} for record in batch]
+        try:
+            _read_page(table.transact_write_items, TransactItems=actions)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "TransactionCanceledException":
+                raise
+            # One concurrent finding update can reject the whole transaction.
+            # Retry each row with the original exact-snapshot condition.
+            _acknowledge_new(table, batch)
+
+    batch = []
+    size = 0
+    keys = set()
+    for record in records:
+        if "_ledger_payload" not in record:
+            raise ValueError("Digest acknowledgement requires the exact ledger snapshot")
+        estimate = len(record["_ledger_payload"].encode("utf-8")) + 500
+        if batch and (len(batch) >= 100 or size + estimate > 3000000 or record["finding_key"] in keys):
+            flush(batch)
+            batch, size, keys = [], 0, set()
+        batch.append(record)
+        keys.add(record["finding_key"])
+        size += estimate
+    flush(batch)
 
 
 def _publish_slack(sns, summary, closing=False):
@@ -678,17 +804,136 @@ def send_slack_batch(table, sns, groups, now, initial=False):
     return True
 
 
+def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False):
+    """Build the same daily brief without retaining every decoded finding."""
+    max_groups = int(os.environ.get("DAILY_DIGEST_MAX_GROUPS", "5"))
+    quiet_seconds = int(os.environ.get("QUIET_PERIOD_SECONDS", str(QUIET_CLOSE_SECONDS)))
+    selected = []
+    changes = []
+    first_group = None
+    first_active_group = None
+    active_count = new_count = routine_count = active_groups = container_groups = 0
+    quiet_count = resolved_count = 0
+    active_severities = collections.Counter()
+    new_severities = collections.Counter()
+    accounts, regions, resources, vulnerabilities = set(), set(), set(), set()
+    quiet_labels = []
+    for key, records in groups.items():
+        if not records:
+            continue
+        first_group = first_group or records[0]["group"]
+        state = _get_item(table, "group#" + key)
+        active = [record for record in records if _actionable(record)]
+        routine_count += sum(record.get("pending", False) and not _actionable(record) for record in records)
+        changed = [record for record in active if record.get("pending") and
+                   record.get("change_kind", "new") in {"new", "escalated", "reopened"}]
+        if active:
+            first_active_group = first_active_group or active[0]["group"]
+            active_groups += 1
+            active_count += len(active)
+            for record in active:
+                active_severities[record["severity"]] += 1
+                accounts.add(record["account"])
+                regions.add(record["group"]["region"])
+                resources.update(item for item in record.get("resource_ids", [record["resource"]]) if item)
+                vulnerabilities.update(record["vulnerability_ids"])
+            if not initial:
+                new_count += len(changed)
+                new_severities.update(record["severity"] for record in changed)
+            summary = summarize_group(records)
+            summary.pop("new_records", None)
+            summary["new_count"] = 0 if initial else len(changed)
+            summary["active_count"] = len(active)
+            summary["active_severities"] = dict(collections.Counter(record["severity"] for record in active))
+            if summary["group"].get("repository") and summary["group"].get("product") == "Inspector":
+                container_groups += 1
+            else:
+                selected.append(summary)
+                selected.sort(key=_group_rank)
+                del selected[max_groups:]
+            if state.get("slack_open") != "1":
+                changes.append((key, "1"))
+        elif state.get("slack_open") == "1" and now - _timestamp(max(record["updated_at"] for record in records)).timestamp() >= quiet_seconds:
+            quiet_count += 1
+            if len(quiet_labels) < 10:
+                quiet_labels.append(records[0]["group"]["label"])
+            if all(record["record_state"] != "ACTIVE" or record["workflow"] == "RESOLVED" for record in records):
+                resolved_count += 1
+            changes.append((key, "0"))
+
+    application_summaries = []
+    application_total = 0
+    for _, records in page_groups.items():
+        if not records:
+            continue
+        group = records[0].get("page_group", records[0]["group"])
+        if group.get("incident_category") != "container-vulnerability":
+            continue
+        active = [record for record in records if _actionable(record)]
+        if not active:
+            continue
+        app = summarize_group(records, identity="page_group")
+        application_total += 1
+        item = {"repository": group["repository"], "images": app["affected_images"],
+                "vulnerabilities": len(app["vulnerability_ids"]), "findings": len(active),
+                "new": 0 if initial else sum(record.get("pending") and record.get("change_kind", "new") in
+                                               {"new", "escalated", "reopened"} for record in active),
+                "critical": sum(record["severity"] == "CRITICAL" for record in active),
+                "high": sum(record["severity"] == "HIGH" for record in active),
+                "deployment_status": app["deployment_status"], "url": _securityhub_url(group)}
+        application_summaries.append(item)
+        application_summaries.sort(key=lambda value: (-bool(value["critical"]), -value["critical"],
+                                                      -value["new"], -value["vulnerabilities"], value["repository"]))
+        del application_summaries[3:]
+
+    first_group = first_active_group or first_group or {
+        "key": "daily", "label": "Security Hub daily digest", "account": "unknown",
+        "region": os.environ.get("AWS_REGION", "unknown"), "product": "Security Hub",
+        "cluster": "", "nodepool": "", "image": "",
+    }
+    account = next(iter(accounts)) if len(accounts) == 1 else "multiple" if accounts else first_group["account"]
+    summary = {
+        "group": {**first_group, "label": "Security Hub daily digest", "product": "Security Hub", "account": account},
+        "new_count": new_count, "new_severities": dict(new_severities), "routine_count": routine_count,
+        "routine_severities": {}, "active_count": active_count, "active_severities": dict(active_severities),
+        "affected_resources": len(resources), "vulnerability_ids": sorted(vulnerabilities),
+        "top_titles": [], "baseline": initial, "digest_kind": "daily",
+        "application_summaries": application_summaries, "application_total": application_total,
+        "groups_changed": [{"label": item["group"]["label"], "new": item["new_count"],
+                            "active": item["active_count"]} for item in selected],
+        "groups_changed_total": active_groups,
+        "other_group_count": active_groups - len(selected) - container_groups,
+        "groups_cleared": quiet_labels, "groups_cleared_total": quiet_count,
+        "quiet_count": quiet_count, "resolved_count": resolved_count,
+        "regions": sorted(regions) or [first_group["region"]],
+        "environment": os.environ.get("SECURITY_ENVIRONMENT") or first_group.get("environment", "Unknown"),
+        "account_label": os.environ.get("SECURITY_ACCOUNT_LABEL") or
+                         (next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"]),
+        "top_groups": [{"label": item["group"]["label"], "product": item["group"]["product"],
+                        "new": item["new_count"], "active": item["active_count"],
+                        "resources": item["affected_resources"],
+                        "severity": next((level for level in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+                                         if item["active_severities"].get(level)), "UNKNOWN"),
+                        "action": group_action(item["group"]), "url": _securityhub_url(item["group"])}
+                       for item in selected],
+    }
+    _publish_slack(sns, summary)
+    _acknowledge_pending_batch(table, (record for _, records in groups.items()
+                                       for record in records if record.get("pending")))
+    _set_fields(table, "group#checkpoint", {"last_daily_slack_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
+    for key, desired in changes:
+        _set_fields(table, "group#" + key, {"slack_open": desired})
+        if desired == "0":
+            _clear_urgent_claim(table, "group#" + key)
+    return True
+
+
 def run(table, securityhub, sns, now=None):
     now = int(time.time() if now is None else now)
     checkpoint_state = _get_item(table, "group#checkpoint")
     initial = not checkpoint_state.get("reconciled_through")
     seen, changed, full = reconcile_findings(table, securityhub, now)
-    groups = collections.defaultdict(list)
-    page_groups = collections.defaultdict(list)
-    records, active_markers, closed_markers = scan_findings(table)
-    for record in records:
-        groups[record["group"]["key"]].append(record)
-        page_groups[record.get("page_group", record["group"])["key"]].append(record)
+    groups, page_groups, active_markers, closed_markers = scan_findings(table, packed=True)
     sent = 0
     migrated = 0
     failures = []
@@ -703,7 +948,7 @@ def run(table, securityhub, sns, now=None):
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)
     if _daily_due(checkpoint_state, now):
-        sent += int(send_slack_batch(table, sns, groups, now, initial=initial))
+        sent += int(send_slack_batch_packed(table, sns, groups, page_groups, now, initial=initial))
     remaining = MAX_LEGACY_MIGRATIONS_PER_RUN
     for key, records in page_groups.items():
         if remaining <= 0:

@@ -166,7 +166,7 @@ data "aws_iam_policy_document" "finding_group_digest" {
 
   statement {
     sid       = "ReadAndUpdateFindingLedger"
-    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
+    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
   }
 
@@ -188,8 +188,8 @@ module "finding_group_digest" {
   handler       = "group_digest.lambda_handler"
   source_path   = "${path.module}/functions"
   hash_extra    = "finding-group-digest"
-  timeout       = 300
-  memory_size   = 512
+  timeout       = 600
+  memory_size   = 2048
 
   environment_variables = {
     DELIVERY_TABLE_NAME     = aws_dynamodb_table.finding_delivery[0].name
@@ -216,13 +216,13 @@ module "finding_group_digest" {
   attach_dead_letter_policy = true
 }
 
-# Surface scaling pressure before the 300-second digest timeout causes missed
+# Surface scaling pressure before the 600-second digest timeout causes missed
 # reconciliation cycles. Delivery uses the existing failure notification path.
 resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
   count = local.grouped_delivery_enabled ? 1 : 0
 
   alarm_name          = "${var.name}-finding-group-digest-duration"
-  alarm_description   = "Security Hub grouped digest exceeded 240 seconds; review finding volume and reconciliation capacity."
+  alarm_description   = "Security Hub grouped digest exceeded 480 seconds; review finding volume and reconciliation capacity."
   namespace           = "AWS/Lambda"
   metric_name         = "Duration"
   dimensions          = { FunctionName = module.finding_group_digest[0].lambda_function_name }
@@ -230,7 +230,7 @@ resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
   period              = 900
   evaluation_periods  = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
-  threshold           = 240000
+  threshold           = 480000
   treat_missing_data  = "notBreaching"
   alarm_actions       = [local.delivery_failure_escalation_topic_arn]
 }

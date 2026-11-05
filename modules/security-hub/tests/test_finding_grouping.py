@@ -221,9 +221,10 @@ class InspectorGroupingTests(unittest.TestCase):
 
     def test_digest_skips_state_reads_for_routine_groups(self):
         records = [{"group": {"key": str(index)}} for index in range(100)]
+        groups = {record["group"]["key"]: [record] for record in records}
         with patch.object(digest, "_get_item", return_value={}) as get_item, \
              patch.object(digest, "reconcile_findings", return_value=(0, 0, False)), \
-             patch.object(digest, "scan_findings", return_value=(records, set(), set())), \
+             patch.object(digest, "scan_findings", return_value=(groups, groups, set(), set())), \
              patch.object(digest, "summarize_group", return_value={"priority": None}), \
              patch.object(digest, "_daily_due", return_value=False), \
              patch.object(digest, "migrate_legacy_alerts", return_value=0), \

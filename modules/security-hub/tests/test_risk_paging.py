@@ -113,6 +113,19 @@ class RiskPagingTests(unittest.TestCase):
         with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Development", "PAGING_POLICY": "{}"}):
             self.assertEqual(policy.paging_priority(item, verified), "P2")
 
+    def test_inspector_observed_use_requires_separate_risk_evidence_for_p1(self):
+        item = image_finding("CVE-2026-10001")
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production", "PAGING_POLICY": "{}"}):
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use"}), "P2")
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use", "exposure": "exposed"}), "P1")
+            item["Vulnerabilities"][0]["ExploitAvailable"] = "NO"
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use", "exposure": "exposed"}), "P2")
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use", "active_exploitation": True}), "P1")
+            item["Vulnerabilities"][0]["ExploitAvailable"] = "YES"
+            item["Severity"]["Label"] = "HIGH"
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use"}), None)
+            self.assertEqual(policy.paging_priority(item, {"deployment": "observed_in_use", "exposure": "exposed"}), "P1")
+
     def test_high_without_verified_exposure_stays_in_digest(self):
         item = image_finding("CVE-2026-10001", severity="HIGH")
         self.assertIsNone(policy.paging_priority(item))
@@ -248,16 +261,21 @@ class RiskPagingTests(unittest.TestCase):
         self.assertEqual(set_fields.call_args.args[2]["opsgenie_open"], "0")
 
     def test_reconciliation_paginates_high_volume_findings(self):
+        class Table:
+            def batch_get_item(self, **_request):
+                return {"Responses": {}, "UnprocessedKeys": {}}
         class SecurityHub:
             calls = 0
             def get_findings(self, **kwargs):
                 self.calls += 1
-                return {"Findings": [{}] * 100, "NextToken": "page-2"} if self.calls == 1 else {"Findings": [{}] * 100}
+                findings = [{**image_finding(f"finding-{self.calls}-{index}"), "Id": f"finding-{self.calls}-{index}"}
+                            for index in range(100)]
+                return {"Findings": findings, "NextToken": "page-2"} if self.calls == 1 else {"Findings": findings}
         securityhub = SecurityHub()
-        with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z"}), \
+        with patch.dict(os.environ, {"FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z", "DELIVERY_TABLE_NAME": "test"}), \
              patch.object(digest, "_get_item", return_value={}), \
              patch.object(digest, "_record_grouped", return_value=True) as record:
-            seen, changed, full = digest.reconcile_findings(object(), securityhub, 1793782800)
+            seen, changed, full = digest.reconcile_findings(Table(), securityhub, 1793782800)
         self.assertEqual((seen, changed, full), (200, 200, True))
         self.assertEqual(record.call_count, 200)
         self.assertEqual(securityhub.calls, 2)

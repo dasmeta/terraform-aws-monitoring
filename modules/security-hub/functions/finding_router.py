@@ -25,6 +25,7 @@ SOURCE_FIELDS = ("finding_id", "product_arn", "account", "resource_ids", "title"
                  "vulnerability_ids", "exploit_available", "fix_available", "severity",
                  "compliance_status", "record_state", "workflow", "created_at", "last_seen_at")
 EVIDENCE_MAX_AGE_SECONDS = 36 * 3600
+EVIDENCE_REFRESH_SECONDS = 24 * 3600
 
 
 def _timestamp(value):
@@ -185,40 +186,56 @@ def _same_source_snapshot(previous, current):
 def _inspector_ecr_evidence(finding, inspector=None):
     """Use only positive, matching Inspector ECS/EKS image-use evidence."""
     if not is_inspector_ecr(finding):
-        return {}
+        return {"deployment": "unknown"}
     arn = finding.get("Id", "")
-    match = re.fullmatch(r"arn:[^:]+:inspector2:([^:]+):([0-9]{12}):finding/[0-9a-fA-F]{32}", arn)
-    if not match or match.group(2) != finding.get("AwsAccountId"):
-        return {}
-    region = match.group(1)
+    match = re.fullmatch(r"arn:([^:]+):inspector2:([^:]+):([0-9]{12}):finding/[0-9a-fA-F]{32}", arn)
+    if not match or match.group(3) != finding.get("AwsAccountId"):
+        return {"deployment": "unknown"}
+    partition, region, account = match.groups()
     images = set()
     for resource in finding.get("Resources") or []:
         if resource.get("Type") != "AwsEcrContainerImage":
             continue
-        image = re.fullmatch(r"arn:[^:]+:ecr:([^:]+):([0-9]{12}):repository/(.+)/sha256:([0-9a-fA-F]{64})", resource.get("Id", ""))
-        if image and image.group(1) == region and image.group(2) == match.group(2):
-            images.add((image.group(3), "sha256:" + image.group(4).lower()))
+        image = re.fullmatch(r"arn:([^:]+):ecr:([^:]+):([0-9]{12}):repository/(.+)/sha256:([0-9a-fA-F]{64})", resource.get("Id", ""))
+        if image and image.group(1) == partition and image.group(2) == region and image.group(3) == account:
+            images.add((image.group(4), "sha256:" + image.group(5).lower()))
     if not images:
-        return {}
+        return {"deployment": "unknown"}
     try:
         client = inspector or boto3.client("inspector2", region_name=region, config=Config(
-            connect_timeout=2, read_timeout=3, retries={"max_attempts": 1}))
-        response = client.list_findings(filterCriteria={"findingArn": [{"comparison": "EQUALS", "value": arn}]}, maxResults=10)
+            connect_timeout=2, read_timeout=3, retries={"total_max_attempts": 1}))
+        token = None
+        while True:
+            request = {"filterCriteria": {"findingArn": [{"comparison": "EQUALS", "value": arn}]}, "maxResults": 25}
+            if token:
+                request["nextToken"] = token
+            for attempt in range(2):
+                try:
+                    response = client.list_findings(**request)
+                    break
+                except ClientError as error:
+                    code = error.response.get("Error", {}).get("Code")
+                    if attempt or code not in {"ThrottlingException", "InternalServerException", "ServiceUnavailableException"}:
+                        raise
+                    time.sleep(0.2)
+            for result in response.get("findings") or []:
+                if result.get("findingArn") != arn or result.get("awsAccountId") != account:
+                    continue
+                for resource in result.get("resources") or []:
+                    if resource.get("type") != "AWS_ECR_CONTAINER_IMAGE":
+                        continue
+                    details = (resource.get("details") or {}).get("awsEcrContainerImage") or {}
+                    if (details.get("repositoryName"), (details.get("imageHash") or "").lower()) not in images:
+                        continue
+                    if type(details.get("inUseCount")) is int and details["inUseCount"] > 0:
+                        return {"deployment": "observed_in_use", "checked_at": datetime.now(timezone.utc).isoformat()}
+            token = response.get("nextToken")
+            if not token:
+                break
     except Exception as error:
         LOG.warning("Inspector image-use lookup unavailable for finding %s: %s", _finding_key(finding), type(error).__name__)
-        return {}
-    for result in response.get("findings") or []:
-        if result.get("findingArn") != arn or result.get("awsAccountId") != match.group(2):
-            continue
-        for resource in result.get("resources") or []:
-            if resource.get("type") != "AWS_ECR_CONTAINER_IMAGE":
-                continue
-            details = (resource.get("details") or {}).get("awsEcrContainerImage") or {}
-            if (details.get("repositoryName"), (details.get("imageHash") or "").lower()) not in images:
-                continue
-            if isinstance(details.get("inUseCount"), int) and details["inUseCount"] > 0:
-                return {"deployment": "observed_in_use", "checked_at": datetime.now(timezone.utc).isoformat()}
-    return {}
+        return {"deployment": "unknown"}
+    return {"deployment": "unknown", "checked_at": datetime.now(timezone.utc).isoformat()}
 
 
 def _paging_identity(finding, group):
@@ -245,19 +262,32 @@ def _page_group_from_remediation(group, resource=""):
             "vulnerability": "", "package": "", "incident_category": "container-vulnerability"}
 
 
-def _record_grouped(table, finding, verified=None):
+def _record_grouped(table, finding, verified=None, current=None):
     """Keep the latest snapshot; a duplicate event does not create a new digest item."""
     key = _finding_key(finding)
-    current = _get_item(table, key)
+    current = _get_item(table, key) if current is None else current
     previous = json.loads(current["notification_payload"]) if current.get("notification_payload") else None
-    if previous and not verified and previous.get("deployment_evidence_at"):
+    incoming_updated = finding.get("UpdatedAt", finding["CreatedAt"])
+    previous_updated = current.get("notification_updated_at")
+    if previous_updated and _timestamp_micros(previous_updated) > _timestamp_micros(incoming_updated):
+        return False
+    if previous and previous_updated and _timestamp_micros(previous_updated) == _timestamp_micros(incoming_updated):
+        if not _same_source_snapshot(previous, _compact_finding(finding)):
+            return False
+    if verified is None and is_inspector_ecr(finding) and finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES and os.environ.get("ECR_DEPLOYMENT_LOOKUP_ENABLED") == "true":
+        checked_at = previous.get("deployment_evidence_at") if previous else None
         try:
-            fresh = time.time() - _timestamp(previous["deployment_evidence_at"]).timestamp() < EVIDENCE_MAX_AGE_SECONDS
-        except ValueError:
+            age = time.time() - _timestamp(checked_at).timestamp() if checked_at else EVIDENCE_MAX_AGE_SECONDS
+            fresh = 0 <= age < min(EVIDENCE_REFRESH_SECONDS, EVIDENCE_MAX_AGE_SECONDS)
+        except (TypeError, ValueError):
             fresh = False
-        observed = previous.get("risk_context", {}).get("deployment")
-        if fresh and observed in {"deployed", "observed_in_use"}:
-            verified = {"deployment": observed, "checked_at": previous["deployment_evidence_at"]}
+        if fresh:
+            verified = {"deployment": previous.get("risk_context", {}).get("deployment", "unknown"),
+                        "checked_at": checked_at}
+        else:
+            verified = _inspector_ecr_evidence(finding)
+    elif verified is None:
+        verified = {}
     record = _compact_finding(finding, verified)
     fallback_key = hashlib.sha256("|".join((
         record["account"], record["group"]["region"], record["group"]["product"], key,
@@ -274,10 +304,8 @@ def _record_grouped(table, finding, verified=None):
                          previous.get("priority_reason") != record["priority_reason"] or
                          previous.get("realtime", record["realtime"]) != record["realtime"] or
                          previous.get("risk_context") != record["risk_context"]))
-    evidence_refresh = bool(previous and record["deployment_evidence_at"] and
-                            record["deployment_evidence_at"] != previous.get("deployment_evidence_at"))
+    evidence_refresh = bool(previous and record["deployment_evidence_at"] != previous.get("deployment_evidence_at", ""))
     incoming_epoch = _timestamp_micros(record["updated_at"])
-    previous_updated = current.get("notification_updated_at")
     previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
     if previous_epoch is not None and (previous_epoch > incoming_epoch or
                                        previous_epoch == incoming_epoch and
@@ -528,10 +556,7 @@ def route_event(event, table, sns, now=None):
             if _timestamp(finding["CreatedAt"]) < cutoff:
                 counts["skipped"] += 1
                 continue
-            verified = _inspector_ecr_evidence(finding) if (is_inspector_ecr(finding) and
-                        finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES and
-                        os.environ.get("ECR_DEPLOYMENT_LOOKUP_ENABLED", "false") == "true") else None
-            recorded = _record_grouped(table, finding, verified=verified)
+            recorded = _record_grouped(table, finding)
             counts["recorded"] += int(recorded)
             item = _get_item(table, _finding_key(finding))
             if (not item.get("notification_updated_at") or
@@ -541,11 +566,11 @@ def route_event(event, table, sns, now=None):
                 counts["skipped"] += 1
                 continue
             record = json.loads(item["notification_payload"])
-            if not _same_source_snapshot(record, _compact_finding(finding, verified)):
+            if not _same_source_snapshot(record, _compact_finding(finding)):
                 counts["skipped"] += 1
                 continue
-            page_priority = record["page_priority"] if "page_priority" in record else paging_priority(finding, verified)
-            send_realtime = record["realtime"] if "realtime" in record else realtime(finding, verified)
+            page_priority = record["page_priority"] if "page_priority" in record else paging_priority(finding)
+            send_realtime = record["realtime"] if "realtime" in record else realtime(finding)
             if send_realtime or page_priority:
                 group = record.get("page_group", record["group"])
                 marker = "group#" + group["key"]

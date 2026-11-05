@@ -130,16 +130,16 @@ def priority_with_reason(finding, verified=None):
                 return None, "Image verified unused; retain finding in daily digest"
             if emergency:
                 return "P1", "Security-owner emergency vulnerability override"
-            if production and context["deployment"] == "deployed" and (
+            if production and context["deployment"] in {"deployed", "observed_in_use"} and (
                     context["active_exploitation"] or
                     context["exposure"] == "exposed" and exploitable(finding)):
-                return "P1", "Deployed production image with verified exposure or exploitation"
+                return "P1", "Production image use with independently verified exposure or active exploitation"
             fallback = policy.get("ecr_critical_unknown_priority", "P2")
             return (None if fallback == "DIGEST" else fallback), "Critical image deployment or exposure unverified"
-        if (level == "HIGH" and production and context["deployment"] == "deployed" and
+        if (level == "HIGH" and production and context["deployment"] in {"deployed", "observed_in_use"} and
                 context["exposure"] == "exposed" and exploitable(finding) and
                 policy.get("high_exploitable", True)):
-            return "P1", "Exploitable HIGH on a verified deployed and exposed production image"
+            return "P1", "Exploitable HIGH on a production image with observed use and verified exposure"
         return None, "Routine Inspector image finding for daily digest"
     if level == "CRITICAL":
         return ("P1", "Critical non-container finding") if policy.get("critical", True) else (None, "Critical paging disabled by policy")

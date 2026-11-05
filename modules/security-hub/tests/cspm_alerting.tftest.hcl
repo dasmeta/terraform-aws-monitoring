@@ -119,7 +119,7 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       length(aws_cloudwatch_event_target.finding_group_digest) == 1 &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].metric_name == "Errors" &&
       length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 1 &&
-      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 240000 &&
+      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 480000 &&
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.RecordState, "ACTIVE") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Workflow.Status, "NEW") &&
