@@ -711,6 +711,50 @@ class HardeningTests(unittest.TestCase):
         self.assertTrue(scan.call_args.kwargs["index_legacy"])
         self.assertTrue(any(call.args[2] == {"ledger_index_ready": "1"} for call in write.call_args_list))
 
+    def test_superseded_closed_legacy_marker_does_not_block_bootstrap(self):
+        checkpoint = {"reconciled_through": "2026-11-03T13:22:30Z",
+                      "last_daily_slack_at": "2026-11-05T08:00:00Z"}
+        marker = {"finding_key": {"S": "group#old"}, "opsgenie_open": {"S": "0"},
+                  "superseded_group_closed": {"S": "1"}, "urgent_state": {"S": "SENT"}}
+
+        class Table:
+            def scan(self, **request):
+                return {"Items": [marker], "ScannedCount": 1}
+
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "DAILY_DIGEST_ENABLED": "false"}), \
+             patch.object(digest, "LEDGER_SCAN_SEGMENTS", 1), \
+             patch.object(digest, "_deliver_daily_outbox", return_value=False), \
+             patch.object(digest, "_get_item", side_effect=lambda table, key: checkpoint if key == "group#checkpoint" else
+                          {"opsgenie_open": "0", "superseded_group_closed": "1", "urgent_state": "SENT"}), \
+             patch.object(digest, "_daily_due", return_value=False), \
+             patch.object(digest, "_set_fields") as write:
+            result = digest.run(Table(), object(), object(),
+                                int(datetime(2026, 11, 5, 9, tzinfo=timezone.utc).timestamp()))
+        self.assertTrue(result["ledger_bootstrap"])
+        self.assertTrue(any(call.args[2] == {"ledger_index_ready": "1"} for call in write.call_args_list))
+
+    def test_superseded_marker_with_open_incident_still_blocks_bootstrap(self):
+        checkpoint = {"reconciled_through": "2026-11-03T13:22:30Z",
+                      "last_daily_slack_at": "2026-11-05T08:00:00Z"}
+        marker = {"finding_key": {"S": "group#old"}, "opsgenie_open": {"S": "1"},
+                  "superseded_group_closed": {"S": "1"}}
+
+        class Table:
+            def scan(self, **request):
+                return {"Items": [marker], "ScannedCount": 1}
+
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "DAILY_DIGEST_ENABLED": "false"}), \
+             patch.object(digest, "LEDGER_SCAN_SEGMENTS", 1), \
+             patch.object(digest, "_deliver_daily_outbox", return_value=False), \
+             patch.object(digest, "_get_item", side_effect=lambda table, key: checkpoint if key == "group#checkpoint" else
+                          {"opsgenie_open": "1", "superseded_group_closed": "1"}), \
+             patch.object(digest, "_daily_due", return_value=False), \
+             patch.object(digest, "_set_fields") as write:
+            with self.assertRaisesRegex(RuntimeError, "lacks an indexed snapshot"):
+                digest.run(Table(), object(), object(),
+                           int(datetime(2026, 11, 5, 9, tzinfo=timezone.utc).timestamp()))
+        self.assertFalse(any(call.args[2].get("ledger_index_ready") == "1" for call in write.call_args_list))
+
     def test_bootstrap_does_not_switch_to_index_before_old_pending_digest(self):
         checkpoint = {"last_daily_slack_at": "2026-11-03T11:05:18Z"}
         empty = digest.PackedGroups({})

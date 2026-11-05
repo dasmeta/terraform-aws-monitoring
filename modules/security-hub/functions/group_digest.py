@@ -428,6 +428,9 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
             row = _decode(item)
             marker = row.get("finding_key", "")
             if marker.startswith("group#"):
+                if row.get("superseded_group_closed") == "1" and row.get("opsgenie_open") != "1":
+                    closed_markers.add(marker.removeprefix("group#"))
+                    continue
                 if row.get("opsgenie_open") == "1" or row.get("urgent_state") == "SENT" or row.get("critical_state") == "SENT":
                     active_markers.add(marker.removeprefix("group#"))
                 if row.get("superseded_group_closed") == "1":
@@ -1571,6 +1574,8 @@ def run(table, securityhub, sns, now=None, context=None):
     if bootstrap:
         for key in active_markers:
             state = _get_item(table, "group#" + key)
+            if state.get("superseded_group_closed") == "1" and state.get("opsgenie_open") != "1":
+                continue
             if (state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or
                     state.get("critical_state") == "SENT") and (
                         state.get("notification_state") != "OPEN_MARKER" or not state.get("opsgenie_group_payload")):
