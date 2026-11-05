@@ -403,7 +403,7 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
         if state is None:
             request = {
                 "TableName": os.environ["DELIVERY_TABLE_NAME"],
-                "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_digest_pending, notification_pending_at, notification_updated_at, notification_state, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed",
+                "ProjectionExpression": "finding_key, notification_kind, notification_payload, notification_pending, notification_digest_pending, notification_pending_at, notification_updated_at, notification_state, opsgenie_delivery_mode, opsgenie_state, opsgenie_resolution_state, legacy_group_migrated, opsgenie_open, urgent_state, critical_state, superseded_group_closed, opsgenie_external_closed_signature",
                 "ConsistentRead": True,
                 "ReturnConsumedCapacity": "TOTAL",
             }
@@ -428,8 +428,10 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
             row = _decode(item)
             marker = row.get("finding_key", "")
             if marker.startswith("group#"):
-                if row.get("superseded_group_closed") == "1" and row.get("opsgenie_open") != "1":
-                    closed_markers.add(marker.removeprefix("group#"))
+                if row.get("opsgenie_open") != "1" and (
+                        row.get("superseded_group_closed") == "1" or row.get("opsgenie_external_closed_signature")):
+                    if row.get("superseded_group_closed") == "1":
+                        closed_markers.add(marker.removeprefix("group#"))
                     continue
                 if row.get("opsgenie_open") == "1" or row.get("urgent_state") == "SENT" or row.get("critical_state") == "SENT":
                     active_markers.add(marker.removeprefix("group#"))
@@ -773,6 +775,38 @@ def _ensure_opsgenie_priority(alias, priority):
         _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
 
 
+def _externally_closed_fields(summary, priority):
+    vulnerabilities = summary.get("urgent_vulnerability_ids", [])
+    return {"opsgenie_open": "0", "opsgenie_priority": "", "notification_state": "OPEN_MARKER",
+            "opsgenie_external_closed_signature": summary["urgent_signature"],
+            "opsgenie_external_closed_priority": priority,
+            "opsgenie_external_closed_urgent_count": str(summary.get("urgent_count", 0)),
+            "opsgenie_external_closed_vulnerabilities": json.dumps(vulnerabilities[:256]),
+            "opsgenie_external_closed_vulnerability_total": str(len(vulnerabilities))}
+
+
+def _new_urgent_after_external_close(summary, state, priority):
+    if priority == "P1" and state.get("opsgenie_external_closed_priority") != "P1":
+        return True
+    if int(summary.get("urgent_count", 0)) > int(state.get("opsgenie_external_closed_urgent_count", "0")):
+        return True
+    vulnerabilities = summary.get("urgent_vulnerability_ids", [])
+    previous = json.loads(state.get("opsgenie_external_closed_vulnerabilities") or "[]")
+    if len(vulnerabilities) > 256 or int(state.get("opsgenie_external_closed_vulnerability_total", "0")) > 256:
+        return summary["urgent_signature"] != state["opsgenie_external_closed_signature"]
+    return bool(set(vulnerabilities) - set(previous))
+
+
+def _create_group_alert(alias, summary, priority):
+    _ops_action("POST", "/v2/alerts", {
+        "message": _opsgenie_message(summary), "alias": alias,
+        "description": _opsgenie_description(summary), "priority": priority,
+        "source": "AWS Security Hub",
+        "tags": ["securityhub-grouped", summary["group"]["product"].lower().replace(" ", "-")],
+        "details": _opsgenie_details(summary),
+    })
+
+
 def _clear_urgent_claim(table, marker):
     table.update_item(
         TableName=os.environ["DELIVERY_TABLE_NAME"],
@@ -808,6 +842,17 @@ def sync_opsgenie(table, summary, state, now):
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
     group_updated_at = summary.get("latest_updated_at") or datetime.fromtimestamp(now, timezone.utc).isoformat()
+    if not priority and state.get("opsgenie_external_closed_signature"):
+        _set_fields(table, marker, {"opsgenie_external_closed_signature": "",
+                                    "opsgenie_external_closed_priority": "",
+                                    "opsgenie_external_closed_urgent_count": "0",
+                                    "opsgenie_external_closed_vulnerabilities": "[]",
+                                    "opsgenie_external_closed_vulnerability_total": "0"})
+    if priority and state.get("opsgenie_external_closed_signature"):
+        if not _new_urgent_after_external_close(summary, state, priority):
+            if state["opsgenie_external_closed_signature"] != summary["urgent_signature"]:
+                _set_fields(table, marker, _externally_closed_fields(summary, priority))
+            return
     if priority or state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
         group_payload = json.dumps(summary["group"], separators=(",", ":"))
         if (state.get("notification_state") != "OPEN_MARKER" or
@@ -830,18 +875,13 @@ def sync_opsgenie(table, summary, state, now):
                 if remote.get("priority") != priority:
                     _ensure_opsgenie_priority(alias, priority)
             else:
-                _ops_action("POST", "/v2/alerts", {
-                    "message": _opsgenie_message(summary),
-                    "alias": alias,
-                    "description": _opsgenie_description(summary),
-                    "priority": priority,
-                    "source": "AWS Security Hub",
-                    "tags": ["securityhub-grouped", summary["group"]["product"].lower().replace(" ", "-")],
-                    "details": _opsgenie_details(summary),
-                })
+                _create_group_alert(alias, summary, priority)
             # Record confirmed creation before optional enrichment. A failed
             # update then retries the update, not the create notification.
-            _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority})
+            confirmed = {"opsgenie_open": "1", "opsgenie_priority": priority}
+            if state.get("opsgenie_external_closed_signature"):
+                confirmed["opsgenie_external_closed_signature"] = ""
+            _set_fields(table, marker, confirmed)
             if remote or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
                 # An immediate P1 action may already have created this alias.
                 # Enrich it with the complete group on the first reconciliation.
@@ -854,21 +894,36 @@ def sync_opsgenie(table, summary, state, now):
         else:
             reformat = state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION
             changed_urgent = state.get("opsgenie_urgent_signature") != summary["urgent_signature"]
-            if priority != state.get("opsgenie_priority"):
-                _ensure_opsgenie_priority(alias, priority)
-                if state.get("opsgenie_priority") == "P1" and priority == "P2":
-                    _clear_critical_claim(table, marker)
-                _set_fields(table, marker, {"opsgenie_priority": priority})
-            if priority != state.get("opsgenie_priority") or reformat:
-                _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
-            if changed_urgent or reformat or priority != state.get("opsgenie_priority"):
-                _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
-                _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
-                _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
-                                            "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
-                                            "opsgenie_active_count": str(summary["active_count"])})
-            if reformat:
-                _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
+            try:
+                if priority != state.get("opsgenie_priority"):
+                    _ensure_opsgenie_priority(alias, priority)
+                    if state.get("opsgenie_priority") == "P1" and priority == "P2":
+                        _clear_critical_claim(table, marker)
+                    _set_fields(table, marker, {"opsgenie_priority": priority})
+                if priority != state.get("opsgenie_priority") or reformat:
+                    _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
+                if changed_urgent or reformat or priority != state.get("opsgenie_priority"):
+                    _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
+                    _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
+                    _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
+                                                "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                                                "opsgenie_active_count": str(summary["active_count"])})
+                if reformat:
+                    _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
+            except (urllib.error.HTTPError, RuntimeError) as error:
+                missing = error.code == 404 if isinstance(error, urllib.error.HTTPError) else "Alert does not exist" in str(error)
+                if not missing:
+                    raise
+                closed_priority = state.get("opsgenie_priority") or priority
+                _set_fields(table, marker, _externally_closed_fields(summary, closed_priority))
+                if priority == "P1" and closed_priority != "P1":
+                    _create_group_alert(alias, summary, priority)
+                    _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority,
+                                                "notification_state": "OPEN_MARKER", "opsgenie_external_closed_signature": "",
+                                                "opsgenie_urgent_signature": summary["urgent_signature"],
+                                                "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
+                                                "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                                                "opsgenie_active_count": str(summary["active_count"])})
         return
     if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
         quiet_since = state.get("opsgenie_no_urgent_since")
@@ -1574,7 +1629,8 @@ def run(table, securityhub, sns, now=None, context=None):
     if bootstrap:
         for key in active_markers:
             state = _get_item(table, "group#" + key)
-            if state.get("superseded_group_closed") == "1" and state.get("opsgenie_open") != "1":
+            if state.get("opsgenie_open") != "1" and (
+                    state.get("superseded_group_closed") == "1" or state.get("opsgenie_external_closed_signature")):
                 continue
             if (state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or
                     state.get("critical_state") == "SENT") and (

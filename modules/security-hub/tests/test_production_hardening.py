@@ -5,6 +5,7 @@ import os
 import pathlib
 import sys
 import unittest
+import urllib.error
 import zlib
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -755,6 +756,18 @@ class HardeningTests(unittest.TestCase):
                            int(datetime(2026, 11, 5, 9, tzinfo=timezone.utc).timestamp()))
         self.assertFalse(any(call.args[2].get("ledger_index_ready") == "1" for call in write.call_args_list))
 
+    def test_externally_closed_marker_with_stale_claim_is_not_open(self):
+        marker = {"finding_key": {"S": "group#closed"}, "opsgenie_open": {"S": "0"},
+                  "opsgenie_external_closed_signature": {"S": "snapshot"}, "urgent_state": {"S": "SENT"}}
+
+        class Table:
+            def scan(self, **request):
+                return {"Items": [marker], "ScannedCount": 1}
+
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test"}):
+            _, _, active, _ = digest.scan_findings(Table(), packed=True, segments=1)
+        self.assertNotIn("closed", active)
+
     def test_bootstrap_does_not_switch_to_index_before_old_pending_digest(self):
         checkpoint = {"last_daily_slack_at": "2026-11-03T11:05:18Z"}
         empty = digest.PackedGroups({})
@@ -1188,6 +1201,96 @@ class HardeningTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "DDB unavailable"):
                 digest.sync_opsgenie(object(), summary, state, 1793790001)
         self.assertFalse(any("opsgenie_priority" in call.args[2] for call in set_fields.call_args_list))
+
+    def test_external_p2_close_suppresses_repeats_but_new_cve_reopens(self):
+        summary = {"group": {"key": "application", "product": "Inspector"}, "priority": "P2",
+                   "urgent_signature": "first", "urgent_count": 2, "active_count": 2,
+                   "urgent_vulnerability_ids": ["CVE-1"]}
+        state = {"opsgenie_open": "1", "opsgenie_priority": "P2",
+                 "opsgenie_format_version": digest.OPSGENIE_FORMAT_VERSION,
+                 "opsgenie_urgent_signature": "older"}
+
+        def save(table, key, fields):
+            state.update(fields)
+
+        with patch.object(digest, "_set_fields", side_effect=save), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"):
+            with patch.object(digest, "_ops_action", side_effect=RuntimeError("Opsgenie rejected alert action: Alert does not exist")):
+                digest.sync_opsgenie(object(), summary, state, 1793790000)
+            self.assertEqual(state["opsgenie_open"], "0")
+            self.assertEqual(state["notification_state"], "OPEN_MARKER")
+            with patch.object(digest, "_ops_action") as action:
+                digest.sync_opsgenie(object(), summary, state, 1793790001)
+                digest.sync_opsgenie(object(), {**summary, "urgent_signature": "resolution", "urgent_count": 1},
+                                    state, 1793790002)
+            action.assert_not_called()
+            self.assertEqual(state["opsgenie_external_closed_urgent_count"], "1")
+            with patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+                 patch.object(digest, "_ops_action") as action:
+                digest.sync_opsgenie(object(), {**summary, "urgent_signature": "new-cve", "urgent_count": 2,
+                                                "urgent_vulnerability_ids": ["CVE-1", "CVE-2"]}, state, 1793790003)
+            self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
+            self.assertEqual(state["opsgenie_open"], "1")
+
+    def test_closed_p2_escalation_creates_p1_and_retries_after_create_failure(self):
+        summary = {"group": {"key": "application", "product": "Inspector"}, "priority": "P1",
+                   "urgent_signature": "new-p1", "urgent_count": 2, "active_count": 2,
+                   "urgent_vulnerability_ids": ["CVE-1", "CVE-2"]}
+        state = {"opsgenie_open": "1", "opsgenie_priority": "P2",
+                 "opsgenie_format_version": digest.OPSGENIE_FORMAT_VERSION,
+                 "opsgenie_urgent_signature": "old-p2"}
+
+        def save(table, key, fields):
+            state.update(fields)
+
+        missing = urllib.error.HTTPError("", 404, "missing", {}, None)
+        with patch.object(digest, "_set_fields", side_effect=save), \
+             patch.object(digest, "_ensure_opsgenie_priority", side_effect=missing), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"), \
+             patch.object(digest, "_ops_action", side_effect=RuntimeError("create failed")):
+            with self.assertRaisesRegex(RuntimeError, "create failed"):
+                digest.sync_opsgenie(object(), summary, state, 1793790000)
+        self.assertEqual(state["opsgenie_open"], "0")
+        self.assertEqual(state["opsgenie_external_closed_priority"], "P2")
+        with patch.object(digest, "_set_fields", side_effect=save), \
+             patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(object(), summary, state, 1793790001)
+        self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
+        self.assertEqual(state["opsgenie_open"], "1")
+
+    def test_resolved_external_close_allows_same_cve_in_new_episode(self):
+        state = {"opsgenie_open": "0", "opsgenie_external_closed_signature": "old",
+                 "opsgenie_external_closed_priority": "P2",
+                 "opsgenie_external_closed_urgent_count": "1",
+                 "opsgenie_external_closed_vulnerabilities": '["CVE-1"]',
+                 "opsgenie_external_closed_vulnerability_total": "1"}
+
+        def save(table, key, fields):
+            state.update(fields)
+
+        group = {"key": "application", "product": "Inspector"}
+        with patch.object(digest, "_set_fields", side_effect=save):
+            digest.sync_opsgenie(object(), {"group": group, "priority": None, "urgent_signature": "none"},
+                                state, 1793790000)
+        self.assertEqual(state["opsgenie_external_closed_signature"], "")
+        with patch.object(digest, "_set_fields", side_effect=save), \
+             patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+             patch.object(digest, "_opsgenie_message", return_value="message"), \
+             patch.object(digest, "_opsgenie_details", return_value={}), \
+             patch.object(digest, "_opsgenie_description", return_value="description"), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(object(), {"group": group, "priority": "P2", "urgent_signature": "again",
+                                            "urgent_count": 1, "active_count": 1,
+                                            "urgent_vulnerability_ids": ["CVE-1"]}, state, 1793790001)
+        self.assertEqual([call.args[1] for call in action.call_args_list], ["/v2/alerts"])
 
     def test_large_ledger_fails_explicitly_after_paginated_capacity_bound(self):
         """A bounded worker reports excess volume without advancing its checkpoint."""
