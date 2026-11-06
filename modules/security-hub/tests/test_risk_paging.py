@@ -151,7 +151,24 @@ class RiskPagingTests(unittest.TestCase):
             item["Types"] = ["TTPs/Discovery/Recon:EC2-PortProbeUnprotectedPort"]
             self.assertEqual(policy.priority_with_reason(item)[0], "P2")
             item["Types"] = ["TTPs/Discovery/IAMUser-AnomalousBehavior"]
-            self.assertIsNone(policy.priority_with_reason(item)[0])
+            self.assertEqual(policy.priority_with_reason(item)[0], "P2")
+
+    def test_every_high_or_critical_guardduty_finding_has_default_incident_priority(self):
+        item = image_finding("threat")
+        item.update({"ProductName": "GuardDuty",
+                     "Types": ["TTPs/AnomalousBehavior/PrivilegeEscalation:Kubernetes-WorkloadDeployed!PrivilegedContainer"],
+                     "Action": {}, "Severity": {"Label": "HIGH"}})
+        with patch.dict(os.environ, {"PAGING_POLICY": "{}", "REALTIME_ENABLED": "true",
+                                          "GUARD_DUTY_MIN_SEVERITY": "HIGH"}):
+            self.assertEqual(policy.paging_priority(item), "P2")
+            self.assertTrue(policy.realtime(item))
+            item["Severity"]["Label"] = "CRITICAL"
+            self.assertEqual(policy.paging_priority(item), "P1")
+            item["Action"] = {"PortProbeAction": {"PortProbeDetails": [{}]}}
+            self.assertEqual(policy.paging_priority(item), "P2")
+            item["Severity"]["Label"] = "MEDIUM"
+            self.assertIsNone(policy.paging_priority(item))
+            self.assertFalse(policy.realtime(item))
 
     def test_p2_then_explicit_p1_uses_same_marker_and_only_one_claim_per_tier(self):
         first = image_finding("CVE-2026-10001")

@@ -109,9 +109,11 @@ def _group_identity(finding):
         parts = (account, region, product, "lambda", resource_id)
         label = f"Inspector | {resource_id.split(':function:', 1)[-1]}"
     elif is_guardduty(finding):
-        parts = (account, region, product, finding_type,
-                 ",".join(item.get("Id", "") for item in resources), source_ip, str(target_port or ""))
-        label = f"GuardDuty | {finding_type} | {resource_id.rsplit('/', 1)[-1] or 'resource'}"
+        product_arn_parts = finding.get("ProductArn", "").split(":")
+        region = finding.get("Region") or (product_arn_parts[3] if len(product_arn_parts) > 3 else region)
+        finding_key = _finding_key(finding)
+        parts = (account, region, "GuardDuty", finding_key)
+        label = f"GuardDuty | {finding_type} | {resource_id.rsplit('/', 1)[-1] or 'resource'} | {finding_key[:8]}"
     elif control and resource_id:
         parts = (account, region, product, control, cluster or resource_id, pool or "")
         label = f"{control} | {cluster + '/' + pool if cluster and pool else resource_id.rsplit('/', 1)[-1]}"
@@ -312,6 +314,12 @@ def _record_grouped(table, finding, verified=None, current=None, lookup_inspecto
                            old_group.get("label", "").startswith(f"Inspector | {record['group'].get('repository')} | sha256:") and
                            record["group"].get("repository"))))
     old_page_key = (previous.get("page_group") or old_group).get("key") if previous else None
+    if previous and is_guardduty(finding) and previous.get("page_priority") and old_page_key:
+        # Keep an already-alerted finding on its existing alias during upgrade.
+        # New GuardDuty findings get one alias per finding without repaging old groups.
+        old_page = previous.get("page_group") or old_group
+        record["page_group"] = {**record["page_group"], "key": old_page_key,
+                                "label": old_page.get("label", record["page_group"]["label"])}
     migrate_page = bool(previous and old_page_key != record["page_group"]["key"])
     policy_change = bool(previous and (previous.get("page_priority") != record["page_priority"] or
                          previous.get("priority_reason") != record["priority_reason"] or

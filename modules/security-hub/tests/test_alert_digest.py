@@ -264,25 +264,29 @@ class AlertDigestTests(unittest.TestCase):
             threat["Types"] = ["Recon:EC2/PortProbeUnprotectedPort"]
             self.assertEqual(policy.paging_priority(threat), "P2")
             threat["Types"] = ["Policy:IAMUser/RootCredentialUsage"]
-            self.assertIsNone(policy.paging_priority(threat))
+            self.assertEqual(policy.paging_priority(threat), "P2")
             threat["Vulnerabilities"] = [{"Id": "CVE-1", "ExploitAvailable": "YES"}]
-            self.assertIsNone(policy.paging_priority(threat))
+            self.assertEqual(policy.paging_priority(threat), "P2")
         with patch.dict(os.environ, {"PAGING_POLICY": json.dumps({"environments": ["Production"]}),
                                       "SECURITY_ENVIRONMENT": "Development"}):
             self.assertIsNone(policy.paging_priority(finding(exploit=True)))
             self.assertEqual(policy.paging_priority(finding(severity="CRITICAL")), "P1")
 
-    def test_guardduty_group_distinguishes_source_and_type(self):
+    def test_guardduty_group_distinguishes_findings_but_keeps_identity_on_update(self):
         first = finding("a", product="GuardDuty")
         second = finding("b", product="GuardDuty")
         for item in (first, second):
             item["Types"] = ["Recon:EC2/PortProbeUnprotectedPort"]
             item["Action"] = {"PortProbeAction": {"PortProbeDetails": [{
                 "RemoteIpDetails": {"IpAddressV4": "203.0.113.10"}, "LocalPortDetails": {"Port": 22}}]}}
-        self.assertEqual(router._group_identity(first)["key"], router._group_identity(second)["key"])
-        second["Action"]["PortProbeAction"]["PortProbeDetails"][0]["RemoteIpDetails"]["IpAddressV4"] = "203.0.113.11"
         self.assertNotEqual(router._group_identity(first)["key"], router._group_identity(second)["key"])
+        original_key = router._group_identity(second)["key"]
+        second["Action"]["PortProbeAction"]["PortProbeDetails"][0]["RemoteIpDetails"]["IpAddressV4"] = "203.0.113.11"
+        second["Types"] = ["Recon:EC2/PortProbeUnprotectedPortUpdated"]
+        self.assertEqual(original_key, router._group_identity(second)["key"])
+        original_key = router._group_identity(first)["key"]
         first["ProductName"] = "Amazon GuardDuty"
+        self.assertEqual(original_key, router._group_identity(first)["key"])
         self.assertEqual(router._group_identity(first)["finding_type"], "Recon:EC2/PortProbeUnprotectedPort")
 
     def test_multi_resource_count_is_distinct(self):

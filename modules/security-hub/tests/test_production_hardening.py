@@ -1881,17 +1881,20 @@ class HardeningTests(unittest.TestCase):
                 digest._acknowledge_pending_batch(table, [record])
         self.assertEqual(table.calls, 3)
 
-    def test_guardduty_probe_is_slack_only_and_urgent_threat_pages_once(self):
+    def test_guardduty_high_probe_and_urgent_threat_reach_both_destinations_once(self):
         probe = image_finding("probe", severity="HIGH")
         probe.update({"Id": "guardduty-probe", "ProductName": "GuardDuty",
                       "Types": ["TTPs/Discovery/Recon:EC2-PortProbeUnprotectedPort"],
                       "Action": {"PortProbeAction": {"PortProbeDetails": [{}]}},
                       "Resources": [{"Type": "AwsEc2Instance", "Id": "i-example-1"}]})
         threat = {**probe, "Id": "guardduty-threat",
-                  "Types": ["TTPs/Initial Access/UnauthorizedAccess:EC2-SSHBruteForce"], "Action": {}}
+                  "Types": ["TTPs/Initial Access/UnauthorizedAccess:EC2-SSHBruteForce"],
+                  "Action": {}, "Severity": {"Label": "CRITICAL"}}
+        sibling = {**probe, "Id": "guardduty-probe-sibling"}
         published = set()
+        priorities = {}
         def get_item(_table, key):
-            for finding in (probe, threat):
+            for finding in (probe, sibling, threat):
                 if key == router._finding_key(finding):
                     return {"notification_updated_at": finding["UpdatedAt"], "notification_state": "ACTIVE",
                             "notification_payload": json.dumps(router._compact_finding(finding))}
@@ -1901,22 +1904,93 @@ class HardeningTests(unittest.TestCase):
             if identity in published:
                 return False
             published.add(identity)
+            priorities[identity] = _args[1]["_dasmeta_page_priority"]
             return True
         event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
                  "detail": {"findings": [probe]}}
         env = {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
                "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack", "DELIVERY_TABLE_NAME": "table",
-               "PAGING_POLICY": json.dumps({"guardduty_types": ["UnauthorizedAccess:"]})}
+               "PAGING_POLICY": "{}"}
         table = type("Table", (), {"update_item": lambda *a, **k: None})()
         with patch.dict(os.environ, env), patch.object(router, "_record_grouped", return_value=True), \
              patch.object(router, "_get_item", side_effect=get_item), \
              patch.object(router, "_publish_once", side_effect=publish):
             first = router.route_event(event, table, object())
             repeated = router.route_event(event, table, object())
+            distinct = router.route_event({**event, "detail": {"findings": [sibling]}}, table, object())
             urgent = router.route_event({**event, "detail": {"findings": [threat]}}, table, object())
-        self.assertEqual((first["urgent"], first["urgent_slack"]), (0, 1))
+        self.assertEqual((first["urgent"], first["urgent_slack"]), (1, 1))
         self.assertEqual((repeated["urgent"], repeated["urgent_slack"]), (0, 0))
+        self.assertEqual((distinct["urgent"], distinct["urgent_slack"]), (1, 1))
         self.assertEqual((urgent["urgent"], urgent["urgent_slack"]), (1, 1))
+        self.assertEqual(set(priorities.values()), {"P1", "P2"})
+        self.assertEqual(len({marker for marker, destination in published if destination in {"urgent", "critical"}}), 3)
+
+    def test_default_per_finding_delivery_sends_distinct_high_guardduty_to_both_destinations(self):
+        first = image_finding("guardduty", severity="HIGH")
+        first.update({"Id": "guardduty-first", "ProductName": "Amazon GuardDuty",
+                      "Types": ["TTPs/AnomalousBehavior/IAMUser-AnomalousBehavior"]})
+        second = {**first, "Id": "guardduty-second"}
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [first, second]}}
+        published = set()
+        def publish(_table, _sns, marker, destination, *_args, **_kwargs):
+            identity = (marker, destination)
+            if identity in published:
+                return False
+            published.add(identity)
+            return True
+        env = {"GROUPED_DELIVERY_MODE": "false", "OPSGENIE_API_MODE": "true",
+               "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+               "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack"}
+        with patch.dict(os.environ, env), patch.object(router, "_get_item", return_value={}), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            first_delivery = router.route_event(event, object(), object())
+            repeated = router.route_event(event, object(), object())
+        self.assertEqual((first_delivery["opsgenie"], first_delivery["slack"]), (2, 2))
+        self.assertEqual((repeated["opsgenie"], repeated["slack"]), (0, 0))
+
+    def test_guardduty_finding_identity_is_distinct_and_stable(self):
+        first = image_finding("guardduty", severity="HIGH")
+        first.update({"Id": "guardduty-first", "ProductName": "GuardDuty",
+                      "ProductArn": "arn:aws:securityhub:us-east-2::product/aws/guardduty",
+                      "Region": "us-east-2",
+                      "Types": ["TTPs/Discovery/Recon:EC2-PortProbeUnprotectedPort"],
+                      "Resources": [{"Type": "AwsEc2Instance", "Id": "i-example-1"}]})
+        second = {**first, "Id": "guardduty-second"}
+        updated = {**first, "UpdatedAt": "2026-11-04T08:02:00Z",
+                   "Resources": [{"Type": "AwsEc2Instance", "Id": "arn:aws:ec2:us-west-2:123456789012:instance/i-example-2"}]}
+        other_account = {**first, "AwsAccountId": "999999999999"}
+        other_region = {**first, "Region": "us-west-2"}
+        first_group = router._group_identity(first)
+        self.assertNotEqual(first_group["key"], router._group_identity(second)["key"])
+        self.assertNotEqual(first_group["label"], router._group_identity(second)["label"])
+        self.assertEqual(first_group["key"], router._group_identity(updated)["key"])
+        self.assertEqual(first_group["region"], "us-east-2")
+        self.assertNotEqual(first_group["key"], router._group_identity(other_account)["key"])
+        self.assertNotEqual(first_group["key"], router._group_identity(other_region)["key"])
+
+    def test_existing_guardduty_incident_keeps_legacy_alias_on_update(self):
+        finding = image_finding("guardduty", severity="CRITICAL")
+        finding.update({"Id": "guardduty-existing", "ProductName": "GuardDuty",
+                        "Types": ["TTPs/Initial Access/UnauthorizedAccess:EC2-SSHBruteForce"],
+                        "Resources": [{"Type": "AwsEc2Instance", "Id": "i-example-1"}]})
+        previous = router._compact_finding(finding)
+        previous["group"]["key"] = "legacy-guardduty-group"
+        previous["page_group"]["key"] = "legacy-guardduty-group"
+        finding["UpdatedAt"] = "2026-11-04T08:02:00Z"
+        current = {"notification_payload": json.dumps(previous),
+                   "notification_updated_at": previous["updated_at"], "notification_state": "ACTIVE"}
+        class Table:
+            request = None
+            def update_item(self, **request):
+                self.request = request
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "PAGING_POLICY": "{}"}):
+            self.assertTrue(router._record_grouped(table, finding, current=current))
+        recorded = json.loads(table.request["ExpressionAttributeValues"][":payload"]["S"])
+        self.assertEqual(recorded["page_group"]["key"], "legacy-guardduty-group")
+        self.assertNotIn("previous_page_group_key", recorded)
 
     def test_p2_to_p1_uses_existing_alias_without_new_alert(self):
         finding = image_finding()

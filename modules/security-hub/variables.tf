@@ -109,8 +109,8 @@ variable "finding_delivery" {
     paging = optional(object({
       critical                        = optional(bool, true)                           # Enable CRITICAL escalation; ECR uses the separate unknown-context priority.
       high_exploitable                = optional(bool, true)                           # Enable HIGH paging when exploit and exposure criteria are verified.
-      guardduty_types                 = optional(list(string), [])                     # GuardDuty finding-type prefixes eligible for paging.
-      guardduty_investigation_types   = optional(list(string), [])                     # GuardDuty finding-type prefixes that create a P2 investigation.
+      guardduty_types                 = optional(list(string), [])                     # GuardDuty finding-type prefixes promoted to P1; other HIGH/CRITICAL types default to P2.
+      guardduty_investigation_types   = optional(list(string), [])                     # GuardDuty finding-type prefixes explicitly classified as P2 investigations.
       guardduty_port_probe_p1         = optional(bool, false)                          # Explicitly permit P1 for configured port-probing findings.
       environments                    = optional(list(string), [])                     # Allowed environment labels; empty permits all.
       production_environments         = optional(list(string), ["Production", "prod"]) # Labels eligible for evidence-backed ECR P1.

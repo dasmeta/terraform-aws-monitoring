@@ -117,7 +117,9 @@ def priority_with_reason(finding, verified=None):
             return "P1", "Configured urgent GuardDuty threat type"
         if p2:
             return "P2", "Configured GuardDuty investigation type"
-        return None, "GuardDuty type not configured for Opsgenie"
+        if SEVERITY_RANK.get(level, 0) >= SEVERITY_RANK["HIGH"]:
+            return "P2", "High or critical GuardDuty finding requiring investigation"
+        return None, "Below GuardDuty Opsgenie threshold"
     if is_inspector_ecr(finding):
         ids = {v.get("Id") for v in finding.get("Vulnerabilities") or [] if v.get("Id")}
         emergency = bool(ids.intersection(policy.get("ecr_emergency_vulnerability_ids") or []))
