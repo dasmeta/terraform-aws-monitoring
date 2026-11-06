@@ -6,17 +6,15 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
   name        = "${var.name}-automated-trigger"
   description = "EventBridge rule for automated Security Hub findings - captures CRITICAL and HIGH severity findings for Networking, IAM, and EC2/EKS vulnerabilities"
 
-  # Grouped mode routes only potentially urgent findings immediately; its
-  # scheduled digest reconciles routine and resolved findings. Per-finding API
-  # mode retains all events so it can deliver finding resolutions.
+  # Grouped mode records updates and resolutions for actionable findings;
+  # Security Hub customer workflow changes leave UpdatedAt unchanged, so a
+  # timestamp-filtered reconciliation cannot recover them on its own.
   event_pattern = jsonencode(merge({
     "source" : ["aws.securityhub"],
     "detail-type" : ["Security Hub Findings - Imported"],
     }, local.grouped_delivery_enabled ? {
     "detail" : {
       "findings" : {
-        "RecordState" : ["ACTIVE"],
-        "Workflow" : { "Status" : ["NEW", "NOTIFIED"] },
         "$or" : [
           { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } },
           { "ProductName" : ["GuardDuty", "Amazon GuardDuty"] }

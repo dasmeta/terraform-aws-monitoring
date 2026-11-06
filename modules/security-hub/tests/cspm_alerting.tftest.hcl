@@ -126,8 +126,8 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 1 &&
       aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 720000 &&
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
-      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.RecordState, "ACTIVE") &&
-      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings.Workflow.Status, "NEW") &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "RecordState") &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "Workflow") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "HIGH") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "CRITICAL") &&
       contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][1].ProductName, "GuardDuty")

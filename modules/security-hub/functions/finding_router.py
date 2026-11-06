@@ -174,6 +174,7 @@ def _compact_finding(finding, verified=None):
         "workflow": finding.get("Workflow", {}).get("Status", "UNKNOWN"),
         "created_at": finding["CreatedAt"],
         "updated_at": finding.get("UpdatedAt", finding["CreatedAt"]),
+        "processed_at": finding.get("ProcessedAt", ""),
         "first_seen_at": finding["CreatedAt"],
         "last_seen_at": finding.get("LastObservedAt") or finding.get("UpdatedAt", finding["CreatedAt"]),
         "change_kind": "new",
@@ -280,10 +281,17 @@ def _record_grouped(table, finding, verified=None, current=None, lookup_inspecto
     previous = json.loads(current["notification_payload"]) if current.get("notification_payload") else None
     incoming_updated = finding.get("UpdatedAt", finding["CreatedAt"])
     previous_updated = current.get("notification_updated_at")
+    previous_processed = previous.get("processed_at") if previous else None
+    incoming_processed = finding.get("ProcessedAt")
+    try:
+        processed_advanced = bool(incoming_processed and previous_processed and
+                                  _timestamp_micros(incoming_processed) > _timestamp_micros(previous_processed))
+    except (TypeError, ValueError):
+        processed_advanced = False
     if previous_updated and _timestamp_micros(previous_updated) > _timestamp_micros(incoming_updated):
         return False
     if previous and previous_updated and _timestamp_micros(previous_updated) == _timestamp_micros(incoming_updated):
-        if not _same_source_snapshot(previous, _compact_finding(finding)):
+        if not _same_source_snapshot(previous, _compact_finding(finding)) and not processed_advanced:
             return False
     if verified is None and is_inspector_ecr(finding) and finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES and os.environ.get("ECR_DEPLOYMENT_LOOKUP_ENABLED") == "true":
         checked_at = previous.get("deployment_evidence_at") if previous else None
@@ -304,6 +312,8 @@ def _record_grouped(table, finding, verified=None, current=None, lookup_inspecto
     elif verified is None:
         verified = {}
     record = _compact_finding(finding, verified)
+    if previous_processed and not processed_advanced:
+        record["processed_at"] = previous_processed
     fallback_key = hashlib.sha256("|".join((
         record["account"], record["group"]["region"], record["group"]["product"], key,
     )).encode("utf-8")).hexdigest()
@@ -326,14 +336,17 @@ def _record_grouped(table, finding, verified=None, current=None, lookup_inspecto
                          previous.get("realtime", record["realtime"]) != record["realtime"] or
                          previous.get("risk_context") != record["risk_context"]))
     evidence_refresh = bool(previous and record["deployment_evidence_at"] != previous.get("deployment_evidence_at", ""))
+    source_changed = bool(previous and not _same_source_snapshot(previous, record))
     incoming_epoch = _timestamp_micros(record["updated_at"])
     previous_epoch = _timestamp_micros(previous_updated) if previous_updated else None
     if previous_epoch is not None and (previous_epoch > incoming_epoch or
                                        previous_epoch == incoming_epoch and
-                                       (not _same_source_snapshot(previous, record) or
-                                        not (migrate_group or migrate_page or policy_change or evidence_refresh))):
+                                       ((source_changed and not processed_advanced) or
+                                        not (migrate_group or migrate_page or policy_change or evidence_refresh or
+                                             (source_changed and processed_advanced)))):
         return False
-    if previous_epoch is None and previous_updated == record["updated_at"] and previous and not _same_source_snapshot(previous, record):
+    if (previous_epoch is None and previous_updated == record["updated_at"] and previous and
+            not _same_source_snapshot(previous, record) and not processed_advanced):
         return False
     if current.get("notification_payload"):
         # Archive events may omit EC2 tags or image details. Keep the first

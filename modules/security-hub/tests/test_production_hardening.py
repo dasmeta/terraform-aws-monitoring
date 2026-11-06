@@ -1207,6 +1207,33 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(table.request["ExpressionAttributeValues"][":pending"]["S"], "1")
         self.assertIn("#payload = :observed_payload", table.request["ConditionExpression"])
 
+    def test_customer_resolution_with_unchanged_provider_timestamp_is_recorded_once(self):
+        item = image_finding("guardduty-resolution", severity="HIGH")
+        item.update({"Id": "guardduty-resolution", "ProductName": "GuardDuty",
+                     "ProcessedAt": "2026-11-04T08:01:05Z"})
+        previous = router._compact_finding(item)
+        current = {"notification_payload": json.dumps(previous),
+                   "notification_updated_at": item["UpdatedAt"],
+                   "notification_updated_epoch": str(router._timestamp_micros(item["UpdatedAt"])),
+                   "notification_state": "ACTIVE", "notification_pending": "0"}
+        resolved = {**item, "ProcessedAt": "2026-11-04T08:05:00Z",
+                    "Workflow": {"Status": "RESOLVED"}}
+        class Table:
+            request = None
+            def update_item(self, **kwargs):
+                self.request = kwargs
+        table = Table()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "PAGING_POLICY": "{}"}):
+            self.assertFalse(router._record_grouped(
+                table, {**item, "ProcessedAt": "2026-11-04T08:02:00Z"}, current=current))
+            self.assertTrue(router._record_grouped(table, resolved, current=current))
+            stored = json.loads(table.request["ExpressionAttributeValues"][":payload"]["S"])
+            self.assertEqual((stored["workflow"], stored["change_kind"]), ("RESOLVED", "resolved"))
+            self.assertEqual(table.request["ExpressionAttributeValues"][":pending"]["S"], "1")
+            updated = {**current, "notification_payload": json.dumps(stored),
+                       "notification_state": "INACTIVE#2026-11-04"}
+            self.assertFalse(router._record_grouped(table, item, current=updated))
+
     def test_same_timestamp_p2_to_p1_policy_change_is_pending_for_delivery(self):
         item = image_finding()
         previous = router._compact_finding(item)
