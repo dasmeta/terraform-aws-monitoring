@@ -220,6 +220,7 @@ module "finding_group_digest" {
     SLACK_TOPIC_ARN               = module.alarm_actions[0].topic_arn
     OPSGENIE_API_KEY              = var.finding_delivery.opsgenie_api_key
     OPSGENIE_API_URL              = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_WEB_URL              = var.finding_delivery.opsgenie_web_url == null ? "auto" : var.finding_delivery.opsgenie_web_url
     OPSGENIE_ALERT_PREFIX         = var.finding_delivery.opsgenie_alert_prefix
     SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
     SECURITY_PROJECT              = var.finding_delivery.project_label

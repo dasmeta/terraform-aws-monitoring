@@ -18,7 +18,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from finding_router import _finding_key, _page_group_from_remediation, _record_grouped, _timestamp
-from group_alert_format import description_header, group_action, group_message, securityhub_url
+from group_alert_format import description_header, group_action, group_message, incident_signature, securityhub_url
 from opsgenie_notifier import _request, _wait_for_request
 
 
@@ -711,11 +711,13 @@ def summarize_group(records, identity="group"):
         "urgent_titles": collections.Counter(record["title"] for record in urgent).most_common(3),
         "urgent_vulnerability_ids": sorted({identifier for record in urgent for identifier in record["vulnerability_ids"]}),
         "urgent_finding_keys": sorted({record["finding_key"] for record in urgent}),
-        "urgent_signature": hashlib.sha256(json.dumps(
+        "legacy_urgent_signature": hashlib.sha256(json.dumps(
             sorted({(record["finding_key"], record["severity"], record.get("page_priority"),
                      tuple(record["vulnerability_ids"]), tuple(record.get("resource_ids", []))) for record in active}),
             separators=(",", ":"),
         ).encode("utf-8")).hexdigest(),
+        "urgent_signature": incident_signature([
+            {**record, "page_priority": page_priority(record)} for record in urgent]),
         "sample_resource": next((record["resource"] for record in high if record["resource"]), ""),
         "active_severities": dict(collections.Counter(record["severity"] for record in active)),
         "affected_resources": len({resource for record in active for resource in record.get("resource_ids", [record["resource"]]) if resource}),
@@ -806,7 +808,7 @@ def _ops_action(method, path, payload):
     request_id = response.get("requestId")
     if not request_id:
         raise RuntimeError("Opsgenie group action returned no request ID")
-    _wait_for_request(request_id)
+    return _wait_for_request(request_id)
 
 
 def _close_opsgenie_alias(alias, note):
@@ -829,6 +831,30 @@ def _ensure_opsgenie_priority(alias, priority):
     alert = _request("GET", path + "?identifierType=alias").get("data") or {}
     if alert.get("priority") != priority:
         _ops_action("PUT", path + "/priority?identifierType=alias", {"priority": priority})
+
+
+def _capture_opsgenie_alert_id(table, marker, alias, state):
+    """Keep the alert ID for a direct Slack link, including after closure."""
+    if not os.environ.get("OPSGENIE_WEB_URL") or state.get("opsgenie_alert_id"):
+        return
+    path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+    try:
+        alert = _request("GET", path + "?identifierType=alias").get("data") or {}
+    except Exception as error:
+        LOG.warning("Could not read Opsgenie incident ID for %s: %s", alias, error)
+        return
+    if alert.get("id"):
+        _set_fields(table, marker, {"opsgenie_alert_id": alert["id"]})
+
+
+def _opsgenie_incident_url(alert_id):
+    base = os.environ.get("OPSGENIE_WEB_URL", "")
+    if not base or not alert_id:
+        return ""
+    if base == "auto":
+        base = ("https://app.eu.opsgenie.com" if "api.eu.opsgenie.com" in
+                os.environ.get("OPSGENIE_API_URL", "") else "https://app.opsgenie.com")
+    return base.rstrip("/") + "/alert/detail/" + urllib.parse.quote(alert_id, safe="") + "/details"
 
 
 def _externally_closed_fields(summary, priority):
@@ -863,7 +889,7 @@ def _new_urgent_after_external_close(summary, state, priority):
 
 
 def _create_group_alert(alias, summary, priority):
-    _ops_action("POST", "/v2/alerts", {
+    return _ops_action("POST", "/v2/alerts", {
         "message": _opsgenie_message(summary), "alias": alias,
         "description": _opsgenie_description(summary), "priority": priority,
         "source": "AWS Security Hub",
@@ -948,6 +974,7 @@ def _deliver_incident_slack(table, sns, marker):
         return False
     payload = json.loads(state["opsgenie_slack_payload"])
     incident = payload["_dasmeta_group_digest"]
+    incident["incident_url"] = _opsgenie_incident_url(state.get("opsgenie_alert_id"))
     closing = incident["incident_action"] == "closed"
     confirmed = (state.get("opsgenie_open") == "0" if closing else
                  state.get("opsgenie_open") == "1" and
@@ -961,9 +988,13 @@ def _deliver_incident_slack(table, sns, marker):
     # Checkpoint the exact pending ID atomically. An overlapping worker can
     # stage a newer copy during SNS publication; this must not clear it.
     names = {"#pending": "opsgenie_slack_pending", "#payload": "opsgenie_slack_payload",
-             "#sent": "opsgenie_slack_sent"}
-    values = {":id": {"S": delivery_id}, ":empty": {"S": ""}}
-    update = "SET #sent = :id, #pending = :empty, #payload = :empty"
+             "#sent": "opsgenie_slack_sent", "#slack_sig": "slack_incident_signature",
+             "#slack_priority": "slack_incident_priority", "#slack_open": "slack_open"}
+    values = {":id": {"S": delivery_id}, ":empty": {"S": ""},
+              ":sig": {"S": incident["incident_signature"]},
+              ":priority": {"S": incident["incident_priority"]},
+              ":slack_open": {"S": "0" if closing else "1"}}
+    update = "SET #sent = :id, #pending = :empty, #payload = :empty, #slack_sig = :sig, #slack_priority = :priority, #slack_open = :slack_open"
     condition = "#pending = :id"
     if closing:
         names.update({"#state": "notification_state", "#open": "opsgenie_open"})
@@ -986,8 +1017,20 @@ def sync_opsgenie(table, summary, state, now, sns=None):
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
     if sns is not None and state.get("opsgenie_slack_pending"):
+        _capture_opsgenie_alert_id(table, marker, alias, state)
         _deliver_incident_slack(table, sns, marker)
         state = _get_item(table, marker)
+    if (state.get("opsgenie_open") == "1" and summary.get("urgent_signature") and
+            state.get("opsgenie_signature_version") != "2" and
+            state.get("opsgenie_urgent_signature") == summary.get("legacy_urgent_signature")):
+        # Upgrade unchanged open markers without posting a synthetic update.
+        _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
+                                    "opsgenie_signature_version": "2"})
+        state = {**state, "opsgenie_urgent_signature": summary["urgent_signature"],
+                 "opsgenie_signature_version": "2"}
+    if priority and state.get("opsgenie_open") == "1" and not state.get("opsgenie_active_count") and summary.get("active_count") is not None:
+        _set_fields(table, marker, {"opsgenie_active_count": str(summary["active_count"])})
+        state = {**state, "opsgenie_active_count": str(summary["active_count"])}
     group_updated_at = summary.get("latest_updated_at") or datetime.fromtimestamp(now, timezone.utc).isoformat()
     if not priority and state.get("opsgenie_external_closed_signature"):
         _set_fields(table, marker, {"opsgenie_external_closed_signature": "",
@@ -1011,11 +1054,18 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                                         "opsgenie_group_payload": group_payload,
                                         "opsgenie_group_updated_at": group_updated_at})
     if priority:
-        if sns is not None and (state.get("opsgenie_open") != "1" or
-                                state.get("opsgenie_priority") != priority or
-                                state.get("opsgenie_urgent_signature") != summary["urgent_signature"] or
-                                state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION):
-            action = "opened" if state.get("opsgenie_open") != "1" else "updated"
+        incident_changed = (state.get("opsgenie_open") != "1" or
+                            state.get("opsgenie_priority") != priority or
+                            state.get("opsgenie_urgent_signature") != summary["urgent_signature"] or
+                            state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION)
+        immediate_copy = (state.get("slack_open") == "1" and
+                          state.get("slack_incident_priority") == priority and
+                          state.get("slack_incident_signature") == summary["urgent_signature"])
+        if sns is not None and incident_changed and not immediate_copy:
+            action = ("opened" if state.get("opsgenie_open") != "1" else
+                      "escalated" if state.get("opsgenie_priority") == "P2" and priority == "P1" else
+                      "downgraded" if state.get("opsgenie_priority") == "P1" and priority == "P2" else
+                      "updated")
             _stage_incident_slack(table, marker, summary, state, action, priority)
         if state.get("opsgenie_no_urgent_since"):
             _set_fields(table, marker, {"opsgenie_no_urgent_since": ""})
@@ -1030,7 +1080,14 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                 if remote.get("priority") != priority:
                     _ensure_opsgenie_priority(alias, priority)
             else:
-                _create_group_alert(alias, summary, priority)
+                created = _create_group_alert(alias, summary, priority)
+                alert_id = created.get("alertId") if isinstance(created, dict) else None
+                if isinstance(alert_id, str) and alert_id:
+                    _set_fields(table, marker, {"opsgenie_alert_id": alert_id})
+                    state = {**state, "opsgenie_alert_id": alert_id}
+            if remote.get("id") and not state.get("opsgenie_alert_id"):
+                _set_fields(table, marker, {"opsgenie_alert_id": remote["id"]})
+                state = {**state, "opsgenie_alert_id": remote["id"]}
             # Record confirmed creation before optional enrichment. A failed
             # update then retries the update, not the create notification.
             confirmed = {"opsgenie_open": "1", "opsgenie_priority": priority}
@@ -1044,11 +1101,13 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                 _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                 _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
             _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
+                                        "opsgenie_signature_version": "2",
                                         "opsgenie_urgent_signature": summary["urgent_signature"],
                                         "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
         else:
             reformat = state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION
             changed_urgent = state.get("opsgenie_urgent_signature") != summary["urgent_signature"]
+            changed_count = state.get("opsgenie_active_count") != str(summary["active_count"])
             try:
                 if priority != state.get("opsgenie_priority"):
                     _ensure_opsgenie_priority(alias, priority)
@@ -1057,10 +1116,11 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                     _set_fields(table, marker, {"opsgenie_priority": priority})
                 if priority != state.get("opsgenie_priority") or reformat:
                     _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
-                if changed_urgent or reformat or priority != state.get("opsgenie_priority"):
+                if changed_urgent or changed_count or reformat or priority != state.get("opsgenie_priority"):
                     _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                     _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
                     _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
+                                                "opsgenie_signature_version": "2",
                                                 "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
                                                 "opsgenie_active_count": str(summary["active_count"])})
                 if reformat:
@@ -1076,6 +1136,7 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                     _set_fields(table, marker, {"opsgenie_open": "1", "opsgenie_priority": priority,
                                                 "notification_state": "OPEN_MARKER", "opsgenie_external_closed_signature": "",
                                                 "opsgenie_urgent_signature": summary["urgent_signature"],
+                                                "opsgenie_signature_version": "2",
                                                 "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
                                                 "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
                                                 "opsgenie_active_count": str(summary["active_count"])})
@@ -1084,6 +1145,8 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                     # no Opsgenie action was delivered to mirror.
                     _set_fields(table, marker, {"opsgenie_slack_pending": "", "opsgenie_slack_payload": ""})
         if sns is not None:
+            if incident_changed:
+                _capture_opsgenie_alert_id(table, marker, alias, state)
             _deliver_incident_slack(table, sns, marker)
         return
     if state.get("opsgenie_open") == "1" or state.get("urgent_state") == "SENT" or state.get("critical_state") == "SENT":
@@ -1095,6 +1158,7 @@ def sync_opsgenie(table, summary, state, now, sns=None):
             return
         if sns is not None:
             _stage_incident_slack(table, marker, summary, state, "closed", state.get("opsgenie_priority", "P2"))
+            _capture_opsgenie_alert_id(table, marker, alias, state)
         _close_opsgenie_alias(alias,
             "No active findings meet the paging policy after the quiet period; review remaining findings in Security Hub")
         _clear_urgent_claim(table, marker)

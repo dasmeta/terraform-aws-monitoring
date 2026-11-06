@@ -1,6 +1,23 @@
 """Stable, actionable text for Security Hub remediation-group alerts."""
 
+import hashlib
+import json
 import urllib.parse
+
+
+def incident_signature(records):
+    """Identify incident facts without making finding counts an alert update."""
+    facts = set()
+    for record in records:
+        vulnerabilities = tuple(sorted(record.get("vulnerability_ids") or []))
+        identity = ("vulnerabilities", vulnerabilities) if vulnerabilities else (
+            "finding", record.get("finding_key") or record.get("finding_id") or "unknown")
+        risk = record.get("risk_context") or {}
+        facts.add((identity, record.get("page_priority") or "", record.get("severity") or "",
+                   record.get("exploit_available") or "", record.get("fix_available") or "",
+                   risk.get("deployment") or "", risk.get("exposure") or "",
+                   bool(risk.get("active_exploitation"))))
+    return hashlib.sha256(json.dumps(sorted(facts), separators=(",", ":")).encode()).hexdigest()
 
 
 def group_action(group):

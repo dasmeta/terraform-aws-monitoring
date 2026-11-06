@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 from finding_policy import (environment, exploitable, is_guardduty, is_inspector_ecr,
                             paging_priority, priority_with_reason, project, public_exposure,
                             realtime, risk_context)
+from group_alert_format import incident_signature
 
 
 LOG = logging.getLogger(__name__)
@@ -565,11 +566,13 @@ def _route_resolution(event, finding, table, sns, key, now, counts):
         return
     payload = {**event, "detail": {**event["detail"], "findings": [finding]}}
     status = "ARCHIVED" if finding.get("RecordState") == "ARCHIVED" else "RESOLVED"
-    if _publish_once(table, sns, key, "slack_resolution", os.environ["SLACK_TOPIC_ARN"], {**payload, "_dasmeta_resolution_delivery": status}, now, lifecycle="CLOSED"):
-        counts["resolved_slack"] += 1
     if item.get("opsgenie_delivery_mode") == "API" and item.get("opsgenie_state") == "SENT":
         if _publish_once(table, sns, key, "opsgenie_resolution", os.environ["HIGH_TOPIC_ARN"], {**payload, "_dasmeta_opsgenie_action": "close"}, now, lifecycle="CLOSED"):
             counts["closed_opsgenie"] += 1
+    if _publish_once(table, sns, key, "slack_resolution", os.environ["SLACK_TOPIC_ARN"],
+                     {**payload, "_dasmeta_resolution_delivery": status,
+                      "_dasmeta_opsgenie_alias": "securityhub-" + key}, now, lifecycle="CLOSED"):
+        counts["resolved_slack"] += 1
 
 
 def route_event(event, table, sns, now=None):
@@ -601,11 +604,19 @@ def route_event(event, table, sns, now=None):
                 continue
             page_priority = record["page_priority"] if "page_priority" in record else paging_priority(finding)
             send_realtime = record["realtime"] if "realtime" in record else realtime(finding)
+            # An Opsgenie incident always gets an immediate Slack counterpart.
+            send_realtime = send_realtime or bool(page_priority)
             if send_realtime or page_priority:
                 group = record.get("page_group", record["group"])
                 marker = "group#" + group["key"]
                 group_state = _get_item(table, marker)
                 p1 = page_priority == "P1"
+                if (page_priority and group_state.get("slack_open") == "1" and
+                        group_state.get("slack_incident_priority") == page_priority and
+                        group_state.get("opsgenie_slack_sent")):
+                    # The worker already mirrored this incident while a
+                    # delayed EventBridge retry was waiting to run.
+                    send_realtime = False
                 # Claim by incident priority, so a new P1 can promote an open
                 # application P2 without creating another CVE-level alert.
                 page_destination = "critical" if p1 else "urgent"
@@ -613,25 +624,36 @@ def route_event(event, table, sns, now=None):
                 if not p1:
                     if group_state.get("critical_state") == "SENT":
                         page_priority = None
+                        send_realtime = False
                     if group_state.get("critical_slack_state") == "SENT":
                         send_realtime = False
-                    elif page_priority and group_state.get("urgent_slack_state") == "SENT" and group_state.get("urgent_state") != "SENT":
-                        slack_destination = "escalation_slack"
                 payload = {**event, "detail": {**event["detail"], "findings": [finding]},
                            "_dasmeta_group_urgent": True, "_dasmeta_group": group,
                            "_dasmeta_page_priority": page_priority,
+                           "_dasmeta_incident_action": ("escalated" if p1 and
+                               (group_state.get("opsgenie_priority") == "P2" or
+                                group_state.get("urgent_state") == "SENT") else "opened"),
                            "_dasmeta_priority_reason": record.get("priority_reason", ""),
                            "_dasmeta_risk_context": record.get("risk_context", {})}
                 if page_priority and _publish_once(table, sns, marker, page_destination, os.environ["HIGH_TOPIC_ARN"], payload, now):
                     counts["urgent"] += 1
                 if send_realtime and _publish_once(table, sns, marker, slack_destination, os.environ["SLACK_TOPIC_ARN"], payload, now):
                     counts["urgent_slack"] += 1
+                    fields = {"#open": "slack_open"}
+                    values = {":open": {"S": "1"}}
+                    update = "SET #open = :open"
+                    if page_priority:
+                        fields.update({"#signature": "slack_incident_signature",
+                                       "#priority": "slack_incident_priority"})
+                        values.update({":signature": {"S": incident_signature([record])},
+                                       ":priority": {"S": page_priority}})
+                        update += ", #signature = :signature, #priority = :priority"
                     table.update_item(
                         TableName=os.environ["DELIVERY_TABLE_NAME"],
                         Key={"finding_key": {"S": marker}},
-                        UpdateExpression="SET #open = :open",
-                        ExpressionAttributeNames={"#open": "slack_open"},
-                        ExpressionAttributeValues={":open": {"S": "1"}},
+                        UpdateExpression=update,
+                        ExpressionAttributeNames=fields,
+                        ExpressionAttributeValues=values,
                     )
         LOG.info("Security Hub grouped intake counts: %s", counts)
         return counts
@@ -666,11 +688,14 @@ def route_event(event, table, sns, now=None):
                 continue
         payload = {**event, "detail": {**event["detail"], "findings": [finding]}}
         slack_payload = {**payload, "_dasmeta_first_delivery": True}
-        if _publish_once(table, sns, key, "slack", os.environ["SLACK_TOPIC_ARN"], slack_payload, now, lifecycle="OPEN" if api_mode else None):
-            counts["slack"] += 1
+        if api_mode and finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES:
+            slack_payload.update({"_dasmeta_opsgenie_alias": "securityhub-" + key,
+                                  "_dasmeta_opsgenie_priority": "P1" if finding["Severity"]["Label"] == "CRITICAL" else "P2"})
         if finding.get("Severity", {}).get("Label") in HIGH_SEVERITIES:
             if _publish_once(table, sns, key, "opsgenie", os.environ["HIGH_TOPIC_ARN"], payload, now, "API" if api_mode else None, "OPEN" if api_mode else None):
                 counts["opsgenie"] += 1
+        if _publish_once(table, sns, key, "slack", os.environ["SLACK_TOPIC_ARN"], slack_payload, now, lifecycle="OPEN" if api_mode else None):
+            counts["slack"] += 1
     LOG.info("Security Hub routing counts: %s", counts)
     return counts
 

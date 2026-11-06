@@ -86,6 +86,7 @@ variable "finding_delivery" {
     opsgenie_endpoint      = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
     opsgenie_api_key       = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
     opsgenie_api_url       = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_web_url       = optional(string)                             # Optional Opsgenie web base URL for direct incident links; null derives the regional default.
     opsgenie_alert_prefix  = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
     teams_delivery         = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
     teams_webhooks         = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
@@ -130,6 +131,7 @@ variable "finding_delivery" {
       (var.finding_delivery.opsgenie_endpoint == null || can(regex("^https://api([.]eu)?[.]opsgenie[.]com/v1/json/integrations/webhooks/amazonsecurityhub[?]apiKey=.+$", var.finding_delivery.opsgenie_endpoint))) &&
       (var.finding_delivery.opsgenie_api_key == null || try(length(trimspace(var.finding_delivery.opsgenie_api_key)) > 0, false)) &&
       contains(["https://api.opsgenie.com", "https://api.eu.opsgenie.com"], var.finding_delivery.opsgenie_api_url) &&
+      (var.finding_delivery.opsgenie_web_url == null || can(regex("^https://[A-Za-z0-9.-]+[.]opsgenie[.]com/?$", var.finding_delivery.opsgenie_web_url))) &&
       try(length(trimspace(var.finding_delivery.opsgenie_alert_prefix)) > 0, false)
     )
     error_message = "Enabled finding_delivery requires per_finding or grouped mode, an API key for grouped mode, exactly one Opsgenie endpoint or API key, a supported API URL, a nonempty alert prefix, and a valid UTC cutover_at when provided."

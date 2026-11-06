@@ -144,6 +144,7 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         title = f"Security Hub | {priority} incident {action} | {label}"
         lines = [
             f"*{safe(title)[:180]}*",
+            f"Incident: `{safe(digest.get('incident_alias', 'unknown'))}`",
             f"Environment: {safe(digest.get('environment') or 'Unknown')} | AWS account: {safe(digest['account'])} | Region: {safe(digest['region'])}",
             f"Active findings: {active} | Affected resources: {digest['affected_resources']} | Distinct vulnerabilities: {digest['vulnerability_count']}",
             f"Deployment: {safe(digest.get('deployment_status', 'unknown'))} | Exposure: {safe(digest.get('exposure_status', 'unknown'))} | Fix: {safe(digest.get('fix_status', 'unknown'))}",
@@ -153,6 +154,8 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
         if digest.get("top_vulnerabilities"):
             lines.append("Top vulnerabilities: " + safe("; ".join(digest["top_vulnerabilities"]))[:700])
         lines.append("Recommended action: Verify deployment, exploitability, exposure, and patched version availability.")
+        if digest.get("incident_url"):
+            lines.append(f"<{digest['incident_url']}|Open Opsgenie incident>")
         lines.append(f"<{digest['finding_url']}|View all findings in Security Hub>")
         return {"color": "good" if closing else "danger" if priority == "P1" else "warning",
                 "fallback": title, "text": "\n".join(lines)}
@@ -245,12 +248,18 @@ def format_group_urgent(message: Dict[str, Any]) -> Dict[str, Any]:
     if resource_label.startswith("sha256:"):
         resource_label = resource_label[:19]
     product = group.get("product") or finding.get("ProductName", "Security Hub")
+    priority = message.get("_dasmeta_page_priority")
+    incident_action = message.get("_dasmeta_incident_action", "opened")
+    alias = "securityhub-group-" + group["key"] if priority else ""
     lines = [
-        f"🚨 *Security Alert | {safe(product)}*",
+        (f"🚨 *Security Hub | {safe(priority)} incident {safe(incident_action)} | {safe(group['label'])[:100]}*"
+         if priority else f"🚨 *Security Alert | {safe(product)}*"),
         f"*Severity:* {safe(severity)} | *Environment:* {safe(group.get('environment') or 'Unknown')} | *Region:* {safe(group['region'])}",
         f"*AWS account:* {safe(group.get('account') or finding.get('AwsAccountId', 'Unknown'))}",
         f"*Finding:* {safe(title)[:180]}",
     ]
+    if alias:
+        lines.append(f"*Incident:* `{safe(alias)}`")
     if resource_label:
         lines.append(f"*Resource:* `{safe(resource_label)[:100]}`")
     if group.get("finding_type"):
@@ -269,8 +278,8 @@ def format_group_urgent(message: Dict[str, Any]) -> Dict[str, Any]:
     lines.append(f"*Recommended action:* {safe(action)}")
     lines.append(f"<{url}|View findings in Security Hub>")
     return {
-        "color": "danger",
-        "fallback": f"Urgent {severity} security finding: {title}",
+        "color": "warning" if priority == "P2" else "danger",
+        "fallback": f"Security Hub {priority} incident {incident_action}: {group['label']}" if priority else f"Urgent {severity} security finding: {title}",
         "text": "\n".join(lines),
     }
 
@@ -285,6 +294,7 @@ def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, A
     """
     service_url = get_service_url(region=region, service="securityhub")
     finding = message["detail"]["findings"][0]
+    alias = message.get("_dasmeta_opsgenie_alias")
 
     resolution = message.get("_dasmeta_resolution_delivery")
     if resolution in {"RESOLVED", "ARCHIVED"}:
@@ -292,15 +302,35 @@ def format_aws_security_hub(message: Dict[str, Any], region: str) -> Dict[str, A
         finding_id = finding.get("Id", "")
         encoded_id = urllib.parse.quote(urllib.parse.quote(finding_id, safe=""), safe="")
         finding_url = f"{service_url}#/findings?search=Id%3D%255Coperator%255C%253AEQUALS%255C%253A{encoded_id}"
+        fields = [
+            {"title": "Status", "value": resolution, "short": True},
+            {"title": "Severity", "value": finding.get("Severity", {}).get("Label", "UNKNOWN"), "short": True},
+            {"title": "Product", "value": finding.get("ProductName", "Security Hub"), "short": True},
+            {"title": "AWS account", "value": finding.get("AwsAccountId", "Unknown"), "short": True},
+            {"title": "Finding", "value": finding_url, "short": False},
+        ]
+        if alias:
+            fields.insert(0, {"title": "Opsgenie incident", "value": alias, "short": False})
         return {
             "color": "good" if resolution == "RESOLVED" else "#808080",
-            "fallback": f"Security finding {resolution.lower()}: {title}",
-            "text": f"Security Hub finding {resolution.lower()} - {title}",
+            "fallback": f"Security Hub incident {resolution.lower()}: {title}" if alias else f"Security finding {resolution.lower()}: {title}",
+            "text": f"Security Hub incident {resolution.lower()} - {title}" if alias else f"Security Hub finding {resolution.lower()} - {title}",
+            "fields": fields,
+        }
+
+    if alias:
+        priority = message.get("_dasmeta_opsgenie_priority", "P2")
+        finding_id = urllib.parse.quote(urllib.parse.quote(finding.get("Id", ""), safe=""), safe="")
+        finding_url = f"{service_url}#/findings?search=Id%3D%255Coperator%255C%253AEQUALS%255C%253A{finding_id}"
+        return {
+            "color": "danger" if priority == "P1" else "warning",
+            "fallback": f"Security Hub {priority} incident opened: {finding.get('Title', 'Security finding')}",
+            "text": f"Security Hub | {priority} incident opened | {finding.get('Title', 'Security finding')}",
             "fields": [
-                {"title": "Status", "value": resolution, "short": True},
-                {"title": "Severity", "value": finding.get("Severity", {}).get("Label", "UNKNOWN"), "short": True},
-                {"title": "Product", "value": finding.get("ProductName", "Security Hub"), "short": True},
+                {"title": "Opsgenie incident", "value": alias, "short": False},
                 {"title": "AWS account", "value": finding.get("AwsAccountId", "Unknown"), "short": True},
+                {"title": "Region", "value": region, "short": True},
+                {"title": "Severity", "value": finding.get("Severity", {}).get("Label", "UNKNOWN"), "short": True},
                 {"title": "Finding", "value": finding_url, "short": False},
             ],
         }

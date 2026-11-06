@@ -72,7 +72,7 @@ def _wait_for_request(request_id):
         if "isSuccess" in data:
             if not data["isSuccess"]:
                 raise RuntimeError("Opsgenie rejected alert action: " + data.get("status", "unknown"))
-            return
+            return data
         time.sleep(min(0.25 * (attempt + 1), 1))
     raise RuntimeError("Opsgenie alert action has no confirmed result")
 

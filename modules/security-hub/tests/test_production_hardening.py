@@ -2020,6 +2020,101 @@ class HardeningTests(unittest.TestCase):
         action.assert_not_called()
         self.assertEqual(sns.messages, [])
 
+    def test_count_only_finding_does_not_change_incident_signature(self):
+        first = router._compact_finding(image_finding())
+        first["page_priority"] = "P2"
+        duplicate = {**first, "finding_key": "another-image", "resource_ids": ["another-image"]}
+        novel = {**duplicate, "finding_key": "new-vulnerability",
+                 "vulnerability_ids": ["CVE-2026-99999"]}
+        original = digest.summarize_group([first], identity="page_group")
+        counted = digest.summarize_group([first, duplicate], identity="page_group")
+        changed = digest.summarize_group([first, novel], identity="page_group")
+        self.assertEqual(original["urgent_signature"], counted["urgent_signature"])
+        self.assertNotEqual(original["urgent_signature"], changed["urgent_signature"])
+
+    def test_immediate_slack_copy_prevents_duplicate_scheduled_open(self):
+        record = router._compact_finding(image_finding())
+        record["page_priority"] = "P2"
+        summary = digest.summarize_group([record], identity="page_group")
+        ledger, marker = self.incident_ledger(
+            summary, slack_open="1", slack_incident_priority="P2",
+            slack_incident_signature=summary["urgent_signature"])
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_request", side_effect=urllib.error.HTTPError("", 404, "missing", {}, None)), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        action.assert_called_once()
+        self.assertEqual(sns.messages, [])
+
+    def test_count_only_change_updates_details_without_slack_message(self):
+        record = router._compact_finding(image_finding())
+        record["page_priority"] = "P2"
+        summary = digest.summarize_group([record], identity="page_group")
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["urgent_signature"],
+            opsgenie_active_count="1", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        counted = {**summary, "active_count": 2}
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, counted, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        self.assertEqual([call.args[0] for call in action.call_args_list], ["POST", "PUT"])
+        self.assertEqual(sns.messages, [])
+        self.assertEqual(ledger.items[marker]["opsgenie_active_count"]["S"], "2")
+
+    def test_legacy_signature_upgrade_is_silent(self):
+        record = router._compact_finding(image_finding())
+        record["page_priority"] = "P2"
+        summary = digest.summarize_group([record], identity="page_group")
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["legacy_urgent_signature"],
+            opsgenie_active_count="1", opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack"}), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        action.assert_not_called()
+        self.assertEqual(sns.messages, [])
+        self.assertEqual(ledger.items[marker]["opsgenie_urgent_signature"]["S"], summary["urgent_signature"])
+
+    def test_retryable_incident_copy_keeps_direct_opsgenie_link(self):
+        record = router._compact_finding(image_finding())
+        record["page_priority"] = "P2"
+        summary = digest.summarize_group([record], identity="page_group")
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature=summary["urgent_signature"],
+            opsgenie_alert_id="alert-123")
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack",
+                                  "OPSGENIE_WEB_URL": "auto", "OPSGENIE_API_URL": "https://api.eu.opsgenie.com"}):
+            digest._stage_incident_slack(ledger, marker, summary, digest._get_item(ledger, marker), "updated", "P2")
+            digest._deliver_incident_slack(ledger, sns, marker)
+        incident = sns.messages[0]["_dasmeta_group_digest"]
+        self.assertEqual(incident["incident_url"],
+                         "https://app.eu.opsgenie.com/alert/detail/alert-123/details")
+        self.assertEqual(ledger.items[marker]["opsgenie_slack_pending"]["S"], "")
+
+    def test_opsgenie_link_lookup_failure_does_not_block_slack_copy(self):
+        summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
+        summary["priority"] = "P2"
+        ledger, marker = self.incident_ledger(
+            summary, opsgenie_open="1", opsgenie_priority="P2",
+            opsgenie_urgent_signature="previous", opsgenie_active_count="1",
+            opsgenie_format_version=digest.OPSGENIE_FORMAT_VERSION)
+        sns = AcceptedSns()
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "arn:slack",
+                                  "OPSGENIE_WEB_URL": "auto", "OPSGENIE_API_URL": "https://api.opsgenie.com"}), \
+             patch.object(digest, "_request", side_effect=urllib.error.URLError("unavailable")), \
+             patch.object(digest, "_ops_action") as action:
+            digest.sync_opsgenie(ledger, summary, digest._get_item(ledger, marker), 1793790000, sns=sns)
+        self.assertEqual(action.call_count, 2)
+        self.assertEqual(len(sns.messages), 1)
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_url"], "")
+
     def test_scheduled_opsgenie_create_has_grouped_slack_copy(self):
         summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")
         summary["priority"] = "P2"
@@ -2124,6 +2219,7 @@ class HardeningTests(unittest.TestCase):
         priority.assert_called_once()
         self.assertEqual(len(sns.messages), 1)
         self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_priority"], "P1")
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_action"], "escalated")
         self.assertEqual(ledger.items[marker]["opsgenie_priority"]["S"], "P1")
 
     def test_opsgenie_downgrade_is_mirrored_to_slack(self):
@@ -2141,6 +2237,7 @@ class HardeningTests(unittest.TestCase):
         priority.assert_called_once()
         self.assertEqual(len(sns.messages), 1)
         self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_priority"], "P2")
+        self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["incident_action"], "downgraded")
 
     def test_overlapping_incident_updates_cannot_replace_unseen_slack_copy(self):
         summary = digest.summarize_group([router._compact_finding(image_finding())], identity="page_group")

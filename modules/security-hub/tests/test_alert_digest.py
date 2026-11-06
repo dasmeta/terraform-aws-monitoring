@@ -221,7 +221,7 @@ class AlertDigestTests(unittest.TestCase):
             router.route_event(event, Table(), object(), now=1793779260)
         self.assertEqual(len(published), 2)
         self.assertTrue(all(marker == group_key for marker, _ in published))
-        self.assertEqual({destination for _, destination in published}, {"critical", "critical_slack"})
+        self.assertEqual([destination for _, destination in published], ["critical", "critical_slack"])
 
     def test_new_cves_in_alerted_image_reuse_group_claim(self):
         first = finding("cve-a", severity="HIGH", exploit=True)
@@ -438,6 +438,11 @@ class AlertDigestTests(unittest.TestCase):
         self.assertFalse(any(path.endswith("/notes?identifierType=alias") for method, path, _ in calls if method == "POST"))
         self.assertFalse(any(path == "/v2/alerts" for _, path, _ in calls))
 
+    def test_confirmed_opsgenie_request_exposes_alert_id_for_slack_link(self):
+        with patch.object(notifier, "_request", return_value={"data": {
+                "isSuccess": True, "alertId": "alert-123"}}):
+            self.assertEqual(notifier._wait_for_request("request-123")["alertId"], "alert-123")
+
     def test_existing_group_is_promoted_once(self):
         calls = []
         def request(method, path, payload=None):
@@ -459,12 +464,168 @@ class AlertDigestTests(unittest.TestCase):
             "digest_kind": "incident", "incident_action": "updated", "incident_priority": "P1",
             "deployment_status": "deployed", "exposure_status": "exposed", "fix_status": "available",
             "priority_reasons": ["Verified exposure"], "top_vulnerabilities": ["CVE-2026-10001"],
+            "incident_url": "https://app.opsgenie.com/alert/detail/alert-123/details",
         })
         rendered = slack.parse_notification(payload, "Security Hub grouped incident", "eu-central-1")
         self.assertIn("P1 incident updated", rendered["text"])
+        self.assertIn("Incident:", rendered["text"])
+        self.assertIn("Open Opsgenie incident", rendered["text"])
         self.assertIn("Deployment: deployed", rendered["text"])
         self.assertIn("CVE-2026-10001", rendered["text"])
         self.assertIn("View all findings in Security Hub", rendered["text"])
+
+    def test_grouped_slack_failure_does_not_prevent_urgent_opsgenie_publish(self):
+        item = finding(severity="CRITICAL")
+        stored = router._compact_finding(item)
+        stored["page_priority"] = "P1"
+        stored["realtime"] = False
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [item]}}
+        marker = "group#" + stored["page_group"]["key"]
+        attempts = []
+        def get_item(_table, key):
+            return {} if key == marker else {
+                "notification_updated_at": item["UpdatedAt"], "notification_state": "ACTIVE",
+                "notification_payload": json.dumps(stored)}
+        def publish(_table, _sns, _key, destination, *_args):
+            attempts.append(destination)
+            if destination == "critical_slack":
+                raise RuntimeError("Slack SNS unavailable")
+            return True
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                  "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack", "DELIVERY_TABLE_NAME": "test"}), \
+             patch.object(router, "_record_grouped", return_value=True), \
+             patch.object(router, "_get_item", side_effect=get_item), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            with self.assertRaisesRegex(RuntimeError, "Slack SNS unavailable"):
+                router.route_event(event, object(), object())
+        self.assertEqual(attempts, ["critical", "critical_slack"])
+
+    def test_per_finding_slack_failure_does_not_prevent_opsgenie_publish(self):
+        item = finding(severity="CRITICAL")
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [item]}}
+        attempts = []
+        def publish(_table, _sns, _key, destination, *_args, **_kwargs):
+            attempts.append(destination)
+            if destination == "slack":
+                raise RuntimeError("Slack SNS unavailable")
+            return True
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "false", "OPSGENIE_API_MODE": "true",
+                                  "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                  "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack"}), \
+             patch.object(router, "_get_item", return_value={}), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            with self.assertRaisesRegex(RuntimeError, "Slack SNS unavailable"):
+                router.route_event(event, object(), object())
+        self.assertEqual(attempts, ["opsgenie", "slack"])
+
+    def test_per_finding_resolution_slack_failure_does_not_prevent_opsgenie_close(self):
+        item = finding(severity="CRITICAL")
+        item["Workflow"] = {"Status": "RESOLVED"}
+        item["UpdatedAt"] = "2026-11-04T09:00:00Z"
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [item]}}
+        state = {"slack_state": "SENT", "opsgenie_state": "SENT", "opsgenie_delivery_mode": "API",
+                 "lifecycle": "CLOSED", "resolved_at": item["UpdatedAt"]}
+        attempts = []
+        counts = {"skipped": 0, "resolved_slack": 0, "closed_opsgenie": 0}
+        def publish(_table, _sns, _key, destination, *_args, **_kwargs):
+            attempts.append(destination)
+            if destination == "slack_resolution":
+                raise RuntimeError("Slack SNS unavailable")
+            return True
+        with patch.dict(os.environ, {"HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack"}), \
+             patch.object(router, "_get_item", return_value=state), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            with self.assertRaisesRegex(RuntimeError, "Slack SNS unavailable"):
+                router._route_resolution(event, item, object(), object(), router._finding_key(item), 1793790000, counts)
+        self.assertEqual(attempts, ["opsgenie_resolution", "slack_resolution"])
+        self.assertEqual(counts["closed_opsgenie"], 1)
+
+    def test_per_finding_api_slack_uses_same_opsgenie_alias_on_open_and_close(self):
+        item = finding(severity="CRITICAL")
+        alias = "securityhub-" + router._finding_key(item)
+        event = {"detail": {"findings": [item]}, "_dasmeta_opsgenie_alias": alias,
+                 "_dasmeta_opsgenie_priority": "P1"}
+        opened = slack.format_aws_security_hub(event, "eu-central-1")
+        self.assertIn("P1 incident opened", opened["text"])
+        self.assertEqual(opened["fields"][0]["value"], alias)
+        resolved = slack.format_aws_security_hub({**event, "_dasmeta_resolution_delivery": "RESOLVED"}, "eu-central-1")
+        self.assertIn("incident resolved", resolved["text"])
+        self.assertEqual(resolved["fields"][0]["value"], alias)
+
+    def test_immediate_p2_uses_same_incident_alias_as_scheduled_copy(self):
+        item = ecr_finding("f-1", "a" * 64)
+        page_group = router._paging_identity(item, router._group_identity(item))
+        payload = {"detail": {"findings": [item]}, "_dasmeta_group_urgent": True,
+                   "_dasmeta_group": page_group, "_dasmeta_page_priority": "P2"}
+        rendered = slack.format_group_urgent(payload)
+        self.assertIn("P2 incident opened", rendered["text"])
+        self.assertIn("securityhub-group-" + page_group["key"], rendered["text"])
+        self.assertEqual(rendered["color"], "warning")
+        payload["_dasmeta_page_priority"] = "P1"
+        payload["_dasmeta_incident_action"] = "escalated"
+        self.assertIn("P1 incident escalated", slack.format_group_urgent(payload)["text"])
+
+    def test_opsgenie_retry_does_not_send_second_immediate_slack_copy(self):
+        item = ecr_finding("f-1", "a" * 64)
+        stored = router._compact_finding(item)
+        stored["page_priority"] = "P2"
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [item]}}
+        marker = "group#" + stored["page_group"]["key"]
+        attempts = []
+        def get_item(_table, key):
+            return {"urgent_slack_state": "SENT"} if key == marker else {
+                "notification_updated_at": item["UpdatedAt"], "notification_state": "ACTIVE",
+                "notification_payload": json.dumps(stored)}
+        def publish(_table, _sns, _key, destination, *_args):
+            attempts.append(destination)
+            return destination == "urgent"
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                  "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack"}), \
+             patch.object(router, "_record_grouped", return_value=True), \
+             patch.object(router, "_get_item", side_effect=get_item), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            router.route_event(event, object(), object())
+        self.assertEqual(attempts, ["urgent", "urgent_slack"])
+
+    def test_router_retry_after_worker_mirror_skips_stale_slack_copy(self):
+        item = ecr_finding("f-1", "a" * 64)
+        stored = router._compact_finding(item)
+        stored["page_priority"] = "P2"
+        marker = "group#" + stored["page_group"]["key"]
+        event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+                 "detail": {"findings": [item]}}
+        attempts = []
+        def get_item(_table, key):
+            return {"slack_open": "1", "slack_incident_priority": "P2",
+                    "opsgenie_slack_sent": "delivery-id"} if key == marker else {
+                "notification_updated_at": item["UpdatedAt"], "notification_state": "ACTIVE",
+                "notification_payload": json.dumps(stored)}
+        def publish(_table, _sns, _key, destination, *_args):
+            attempts.append(destination)
+            return False
+        with patch.dict(os.environ, {"GROUPED_DELIVERY_MODE": "true", "FINDING_CUTOVER_AT": "2026-11-04T07:00:00Z",
+                                  "HIGH_TOPIC_ARN": "high", "SLACK_TOPIC_ARN": "slack"}), \
+             patch.object(router, "_record_grouped", return_value=False), \
+             patch.object(router, "_get_item", side_effect=get_item), \
+             patch.object(router, "_publish_once", side_effect=publish):
+            router.route_event(event, object(), object())
+        self.assertEqual(attempts, ["urgent"])
+
+    def test_incident_identity_is_isolated_by_account_region_and_project(self):
+        item = ecr_finding("f-1", "a" * 64)
+        with patch.dict(os.environ, {"SECURITY_PROJECT": "project-a"}):
+            initial = router._paging_identity(item, router._group_identity(item))["key"]
+            other_account = {**item, "AwsAccountId": "210987654321"}
+            other_region = {**item, "Resources": [{**item["Resources"][0],
+                "Id": item["Resources"][0]["Id"].replace("eu-central-1", "us-east-2")}]}
+            self.assertNotEqual(initial, router._paging_identity(other_account, router._group_identity(other_account))["key"])
+            self.assertNotEqual(initial, router._paging_identity(other_region, router._group_identity(other_region))["key"])
+        with patch.dict(os.environ, {"SECURITY_PROJECT": "project-b"}):
+            self.assertNotEqual(initial, router._paging_identity(item, router._group_identity(item))["key"])
 
 
 if __name__ == "__main__":
