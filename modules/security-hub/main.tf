@@ -137,7 +137,7 @@ resource "aws_securityhub_account" "sec-hub" {
 
 resource "aws_securityhub_action_target" "sec-hub-target" {
   name        = var.action_target_name
-  identifier  = "SendToTargets"
+  identifier  = var.action_target_identifier
   description = "This is custom action sends selected findings to Targets"
 
   depends_on = [
