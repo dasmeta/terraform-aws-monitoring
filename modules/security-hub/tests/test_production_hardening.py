@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import sys
+import threading
 import unittest
 import urllib.error
 import zlib
@@ -340,6 +341,68 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(sns.messages[0]["_dasmeta_group_digest"]["new_count"], 10001)
         self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_chunks"]["N"], "21")
         self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_state"]["S"], "DONE")
+        self.assertTrue(all(ledger.items[record["finding_key"]]["notification_digest_pending"]["S"] == "0"
+                            for record in records))
+
+    def test_daily_acknowledgements_run_concurrently_without_losing_the_checkpoint(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        template = self.daily_record()
+        records = [{**template, "finding_key": f"finding-{index}"} for index in range(8)]
+        for record in records:
+            ledger.items[record["finding_key"]] = {
+                "finding_key": {"S": record["finding_key"]},
+                "notification_digest_pending": {"S": "1"},
+                "notification_pending_at": {"S": record["_ledger_revision"]},
+            }
+        groups, pages = self.daily_groups(records)
+        barrier = threading.Barrier(len(records))
+        original_update = ledger.update_item
+
+        def update(**request):
+            if ":revision" in request.get("ExpressionAttributeValues", {}):
+                barrier.wait(timeout=3)
+            return original_update(**request)
+
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(ledger, "update_item", side_effect=update), \
+             patch.object(digest.time, "time", return_value=1000):
+            self.assertTrue(digest.send_slack_batch_packed(ledger, sns, groups, pages, now))
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_cursor"]["N"], "1")
+        self.assertEqual(len(sns.messages), 1)
+
+    def test_partial_parallel_ack_failure_retries_before_sns_publish(self):
+        ledger, sns = DailyLedger(), AcceptedSns()
+        template = self.daily_record()
+        records = [{**template, "finding_key": f"finding-{index}"} for index in range(8)]
+        for record in records:
+            ledger.items[record["finding_key"]] = {
+                "finding_key": {"S": record["finding_key"]},
+                "notification_digest_pending": {"S": "1"},
+                "notification_pending_at": {"S": record["_ledger_revision"]},
+            }
+        groups, pages = self.daily_groups(records)
+        original_update = ledger.update_item
+        failed = threading.Event()
+
+        def update(**request):
+            if request["Key"]["finding_key"]["S"] == "finding-3" and not failed.is_set():
+                failed.set()
+                raise DailyLedger.error("ProvisionedThroughputExceededException")
+            return original_update(**request)
+
+        now = int(datetime(2026, 11, 4, 9, tzinfo=timezone.utc).timestamp())
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(ledger, "update_item", side_effect=update), \
+             patch.object(digest.time, "time", return_value=1000):
+            with self.assertRaises(ClientError):
+                digest.send_slack_batch_packed(ledger, sns, groups, pages, now)
+        self.assertEqual(ledger.items[digest.DAILY_OUTBOX_KEY]["daily_ack_cursor"]["N"], "0")
+        self.assertEqual(len(sns.messages), 0)
+        with patch.dict(os.environ, {"DELIVERY_TABLE_NAME": "test", "SLACK_TOPIC_ARN": "test-topic"}), \
+             patch.object(digest.time, "time", return_value=1901):
+            self.assertTrue(digest._deliver_daily_outbox(ledger, sns))
+        self.assertEqual(len(sns.messages), 1)
         self.assertTrue(all(ledger.items[record["finding_key"]]["notification_digest_pending"]["S"] == "0"
                             for record in records))
 

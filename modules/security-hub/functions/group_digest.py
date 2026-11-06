@@ -1610,7 +1610,9 @@ def _deliver_daily_outbox(table, sns):
         if not chunk.get("daily_acks"):
             raise RuntimeError("Daily digest finding-ack chunk is missing; retry after recovery")
         acknowledgements = json.loads(zlib.decompress(base64.b64decode(chunk["daily_acks"])))
-        for key, revision in acknowledgements:
+
+        def acknowledge(item):
+            key, revision = item
             try:
                 table.update_item(
                     TableName=os.environ["DELIVERY_TABLE_NAME"],
@@ -1626,6 +1628,11 @@ def _deliver_daily_outbox(table, sns):
                 if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                     raise
                 # A newer finding snapshot must remain pending for a later brief.
+        # A large first digest can include hundreds of thousands of findings.
+        # Keep each chunk bounded while overlapping independent conditional writes.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            for _ in executor.map(acknowledge, acknowledgements):
+                pass
         _write_owned_daily(table, outbox["daily_id"], owner, {"daily_ack_cursor": index + 1})
     checkpoint = _get_item(table, "group#checkpoint")
     if not checkpoint.get("last_daily_slack_at") or _timestamp(checkpoint["last_daily_slack_at"]) < _timestamp(watermark):
