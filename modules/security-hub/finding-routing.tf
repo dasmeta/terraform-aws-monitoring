@@ -24,12 +24,33 @@ resource "aws_dynamodb_table" "finding_delivery" {
     type = "S"
   }
 
+  attribute {
+    name = "notification_state"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "notification-state"
+    hash_key        = "notification_state"
+    range_key       = "finding_key"
+    projection_type = "ALL"
+  }
+
+  timeouts {
+    update = "60m"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
 
   server_side_encryption {
     enabled = true
+  }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
   }
 }
 
@@ -40,6 +61,7 @@ module "high_severity_actions" {
   topic_name               = "${var.name}-high-severity-findings"
   create_topic             = true
   web_endpoints            = var.finding_delivery.opsgenie_endpoint == null ? [] : [var.finding_delivery.opsgenie_endpoint]
+  teams_webhooks           = local.finding_teams_to_opsgenie
   enable_dead_letter_queue = true
 }
 
@@ -51,7 +73,7 @@ module "security_failure_actions" {
   create_topic    = true
   email_addresses = distinct(concat(var.alarm_actions.email_addresses, var.alarm_actions.fallback_email_addresses))
   phone_numbers   = distinct(concat(var.alarm_actions.phone_numbers, var.alarm_actions.fallback_phone_numbers))
-  teams_webhooks  = var.alarm_actions.teams_webhooks
+  teams_webhooks  = distinct(concat(var.alarm_actions.teams_webhooks, var.finding_delivery.teams_webhooks))
   slack_webhooks = [for index, webhook in var.alarm_actions.slack_webhooks : merge(webhook, {
     instance_key = "security-delivery-${index}"
   })]
@@ -86,16 +108,27 @@ module "finding_router" {
   description   = "Route first delivery of new Security Hub findings to security Slack and high-severity Opsgenie"
   runtime       = "python3.12"
   handler       = "finding_router.lambda_handler"
-  source_path   = "${path.module}/functions/finding_router.py"
+  source_path   = "${path.module}/functions"
+  hash_extra    = "finding-router"
   timeout       = 30
 
   environment_variables = {
-    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT    = local.finding_cutover_at
-    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
-    HIGH_TOPIC_ARN        = module.high_severity_actions[0].topic_arn
-    OPSGENIE_API_MODE     = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
-    GROUPED_DELIVERY_MODE = local.grouped_delivery_enabled ? "true" : "false"
+    DELIVERY_TABLE_NAME           = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT            = local.finding_cutover_at
+    SLACK_TOPIC_ARN               = module.alarm_actions[0].topic_arn
+    HIGH_TOPIC_ARN                = module.high_severity_actions[0].topic_arn
+    OPSGENIE_API_MODE             = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
+    GROUPED_DELIVERY_MODE         = local.grouped_delivery_enabled ? "true" : "false"
+    SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_PROJECT              = var.finding_delivery.project_label
+    SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
+    REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
+    GUARD_DUTY_MIN_SEVERITY       = var.finding_delivery.realtime.guardduty_min_severity
+    HIGH_REQUIRES_EXPLOIT         = tostring(var.finding_delivery.realtime.high_requires_exploit)
+    HIGH_REQUIRES_PUBLIC_EXPOSURE = tostring(var.finding_delivery.realtime.high_requires_public_exposure)
+    PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
+    ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
+    FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true
@@ -114,12 +147,14 @@ module "opsgenie_api_notifier" {
   runtime       = "python3.12"
   handler       = "opsgenie_notifier.lambda_handler"
   source_path   = "${path.module}/functions"
+  hash_extra    = "opsgenie-api-notifier"
   timeout       = 30
 
   environment_variables = {
     OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
     OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
     OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT  = var.finding_delivery.environment_label
   }
 
   dead_letter_target_arn    = module.high_severity_actions[0].dead_letter_queue_arn
@@ -135,10 +170,26 @@ data "aws_iam_policy_document" "finding_group_digest" {
     resources = ["*"]
   }
 
+  dynamic "statement" {
+    for_each = nonsensitive(var.finding_delivery.paging.ecr_deployment_lookup_enabled) ? [1] : []
+
+    content {
+      sid       = "ReadInspectorImageUse"
+      actions   = ["inspector2:ListFindings"]
+      resources = ["*"]
+    }
+  }
+
   statement {
     sid       = "ReadAndUpdateFindingLedger"
-    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Scan"]
+    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]
     resources = [aws_dynamodb_table.finding_delivery[0].arn]
+  }
+
+  statement {
+    sid       = "QueryActiveFindingLedger"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.finding_delivery[0].arn}/index/notification-state"]
   }
 
   statement {
@@ -153,28 +204,60 @@ module "finding_group_digest" {
   version = "6.8.0"
   count   = local.grouped_delivery_enabled ? 1 : 0
 
-  function_name = substr("${var.name}-finding-group-digest", 0, 64)
-  description   = "Reconcile all Security Hub findings and notify by remediation group"
-  runtime       = "python3.12"
-  handler       = "group_digest.lambda_handler"
-  source_path   = "${path.module}/functions"
-  hash_extra    = "finding-group-digest"
-  timeout       = 300
-  memory_size   = 512
+  function_name                  = substr("${var.name}-finding-group-digest", 0, 64)
+  description                    = "Reconcile all Security Hub findings and notify by remediation group"
+  runtime                        = "python3.12"
+  handler                        = "group_digest.lambda_handler"
+  source_path                    = "${path.module}/functions"
+  hash_extra                     = "finding-group-digest"
+  timeout                        = 900
+  memory_size                    = 4096
+  reserved_concurrent_executions = 1
 
   environment_variables = {
-    DELIVERY_TABLE_NAME   = aws_dynamodb_table.finding_delivery[0].name
-    FINDING_CUTOVER_AT    = local.finding_cutover_at
-    SLACK_TOPIC_ARN       = module.alarm_actions[0].topic_arn
-    OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
-    OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
-    OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
+    DELIVERY_TABLE_NAME           = aws_dynamodb_table.finding_delivery[0].name
+    FINDING_CUTOVER_AT            = local.finding_cutover_at
+    SLACK_TOPIC_ARN               = module.alarm_actions[0].topic_arn
+    OPSGENIE_API_KEY              = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL              = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_WEB_URL              = var.finding_delivery.opsgenie_web_url == null ? "auto" : var.finding_delivery.opsgenie_web_url
+    OPSGENIE_ALERT_PREFIX         = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_PROJECT              = var.finding_delivery.project_label
+    SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
+    QUIET_PERIOD_SECONDS          = tostring(var.finding_delivery.quiet_period_minutes * 60)
+    DAILY_DIGEST_ENABLED          = tostring(var.finding_delivery.daily_digest.enabled)
+    DAILY_DIGEST_HOUR_UTC         = tostring(var.finding_delivery.daily_digest.hour_utc)
+    DAILY_DIGEST_MAX_GROUPS       = tostring(var.finding_delivery.daily_digest.max_groups)
+    ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
+    REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
+    PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
+    FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)
   }
 
   attach_policy_json        = true
   policy_json               = data.aws_iam_policy_document.finding_group_digest[0].json
   dead_letter_target_arn    = aws_sqs_queue.eventbridge_failed_delivery[0].arn
   attach_dead_letter_policy = true
+}
+
+# Surface scaling pressure before the 900-second digest timeout causes missed
+# reconciliation cycles. Delivery uses the existing failure notification path.
+resource "aws_cloudwatch_metric_alarm" "finding_group_digest_duration" {
+  count = local.grouped_delivery_enabled ? 1 : 0
+
+  alarm_name          = "${var.name}-finding-group-digest-duration"
+  alarm_description   = "Security Hub grouped digest exceeded 720 seconds; review finding volume and reconciliation capacity."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Duration"
+  dimensions          = { FunctionName = module.finding_group_digest[0].lambda_function_name }
+  statistic           = "Maximum"
+  period              = 900
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 720000
+  treat_missing_data  = "ignore"
+  alarm_actions       = [local.delivery_failure_escalation_topic_arn]
 }
 
 resource "aws_lambda_permission" "opsgenie_api_sns" {
@@ -211,7 +294,7 @@ resource "aws_cloudwatch_event_rule" "finding_group_digest" {
   count = local.grouped_delivery_enabled ? 1 : 0
 
   name                = substr("${var.name}-finding-group-digest", 0, 64)
-  description         = "Reconcile Security Hub and deliver one digest per remediation group"
+  description         = "Reconcile Security Hub groups and deliver one daily security digest"
   schedule_expression = "rate(15 minutes)"
 }
 
@@ -309,16 +392,18 @@ resource "aws_cloudwatch_metric_alarm" "finding_destination_new_failure" {
     } }
   ) : {}
 
-  alarm_name          = substr("${var.name}-${each.key}-new-failures", 0, 255)
-  alarm_description   = "New Security Hub ${each.key} delivery failure; inspect the destination, subscription logs, and dead-letter queue."
-  namespace           = each.value.namespace
-  metric_name         = each.value.metric_name
-  dimensions          = each.value.dimensions
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
+  alarm_name        = substr("${var.name}-${each.key}-new-failures", 0, 255)
+  alarm_description = "New Security Hub ${each.key} delivery failure; inspect the destination, subscription logs, and dead-letter queue."
+  namespace         = each.value.namespace
+  metric_name       = each.value.metric_name
+  dimensions        = each.value.dimensions
+  statistic         = "Sum"
+  period            = 300
+  # Keep an ongoing digest failure in ALARM through intervening zero-error datapoints.
+  evaluation_periods  = each.key == "group-digest-lambda" ? 3 : 1
+  datapoints_to_alarm = each.key == "group-digest-lambda" ? 1 : null
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = 1
-  treat_missing_data  = "notBreaching"
+  treat_missing_data  = each.key == "group-digest-lambda" ? "ignore" : "notBreaching"
   alarm_actions       = [module.security_failure_actions[0].topic_arn]
 }

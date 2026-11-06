@@ -117,11 +117,22 @@ run "grouped_mode_reconciles_all_findings_and_monitors_digest_failures" {
       module.finding_router[0].lambda_function_name != module.finding_group_digest[0].lambda_function_name &&
       aws_cloudwatch_event_rule.finding_group_digest[0].schedule_expression == "rate(15 minutes)" &&
       length(aws_cloudwatch_event_target.finding_group_digest) == 1 &&
+      length([for index in aws_dynamodb_table.finding_delivery[0].global_secondary_index : index
+      if index.name == "notification-state" && index.hash_key == "notification_state"]) == 1 &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].treat_missing_data == "ignore" &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].evaluation_periods == 3 &&
+      aws_cloudwatch_metric_alarm.finding_destination_new_failure["group-digest-lambda"].datapoints_to_alarm == 1 &&
+      length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 1 &&
+      aws_cloudwatch_metric_alarm.finding_group_digest_duration[0].threshold == 720000 &&
       contains(jsondecode(aws_sqs_queue_policy.eventbridge_failed_delivery[0].policy).Statement[0].Condition.ArnEquals["aws:SourceArn"], aws_cloudwatch_event_rule.finding_group_digest[0].arn) &&
-      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail")
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "RecordState") &&
+      !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings), "Workflow") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "HIGH") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][0].Severity.Label, "CRITICAL") &&
+      contains(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern).detail.findings["$or"][1].ProductName, "GuardDuty")
     )
-    error_message = "Grouped mode must reconcile all finding severities and monitor scheduled digest delivery."
+    error_message = "Grouped mode must route urgent findings immediately, reconcile routine findings on schedule, and monitor digest delivery."
   }
 }
 
@@ -159,6 +170,7 @@ run "api_mode_tracks_resolution_and_uses_lambda_subscription" {
       length(module.opsgenie_api_notifier) == 1 &&
       length(aws_sns_topic_subscription.opsgenie_api) == 1 &&
       length(aws_cloudwatch_event_target.automated_alerts_router) == 1 &&
+      length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 0 &&
       !contains(keys(jsondecode(aws_cloudwatch_event_rule.automated_alerts.event_pattern)), "detail") &&
       aws_cloudwatch_metric_alarm.finding_destination_new_failure["opsgenie-api-lambda"].metric_name == "Errors"
     )
@@ -181,7 +193,7 @@ run "disabled_has_no_delivery_target_or_queue" {
   }
 
   assert {
-    condition     = length(aws_cloudwatch_event_target.automated_alerts_sns) == 0 && length(aws_sqs_queue.eventbridge_failed_delivery) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric) == 0
+    condition     = length(aws_cloudwatch_event_target.automated_alerts_sns) == 0 && length(aws_sqs_queue.eventbridge_failed_delivery) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_queue_nonempty) == 0 && length(aws_cloudwatch_metric_alarm.eventbridge_failed_delivery_metric) == 0 && length(aws_cloudwatch_metric_alarm.finding_group_digest_duration) == 0
     error_message = "Disabled alerting must create neither an SNS target nor a delivery failure queue."
   }
 }
@@ -338,4 +350,88 @@ run "reject_delivery_failure_topic_without_recipients" {
   }
 
   expect_failures = [aws_sqs_queue.eventbridge_failed_delivery]
+}
+
+run "teams_follow_normal_slack_stream" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "slack"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 1 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 0
+    error_message = "Slack Teams mode must subscribe only to the normal topic."
+  }
+}
+
+run "teams_follow_urgent_opsgenie_stream" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "opsgenie"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 0 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 1
+    error_message = "Opsgenie Teams mode must subscribe only to the urgent topic."
+  }
+}
+
+run "teams_follow_both_streams" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+    alarm_actions                          = { enabled = true, create_topic = false, topic_name = "example-security-alerts" }
+    finding_delivery = {
+      enabled           = true
+      notification_mode = "grouped"
+      opsgenie_api_key  = sensitive("example-api-key")
+      teams_delivery    = "both"
+      teams_webhooks    = [sensitive("https://example.com/teams")]
+    }
+  }
+
+  assert {
+    condition     = length(try(nonsensitive(local.finding_teams_to_slack), local.finding_teams_to_slack)) == 1 && length(try(nonsensitive(local.finding_teams_to_opsgenie), local.finding_teams_to_opsgenie)) == 1
+    error_message = "Both Teams mode must subscribe to both topics."
+  }
 }

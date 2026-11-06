@@ -6,20 +6,29 @@ resource "aws_cloudwatch_event_rule" "automated_alerts" {
   name        = "${var.name}-automated-trigger"
   description = "EventBridge rule for automated Security Hub findings - captures CRITICAL and HIGH severity findings for Networking, IAM, and EC2/EKS vulnerabilities"
 
-  # Legacy callers retain the HIGH/CRITICAL filter. Opt-in routing sends all
-  # active findings to a durable per-destination router, which selects Opsgenie
-  # only for HIGH/CRITICAL and suppresses repeated scan updates.
+  # Grouped mode records updates and resolutions for actionable findings;
+  # Security Hub customer workflow changes leave UpdatedAt unchanged, so a
+  # timestamp-filtered reconciliation cannot recover them on its own.
   event_pattern = jsonencode(merge({
     "source" : ["aws.securityhub"],
     "detail-type" : ["Security Hub Findings - Imported"],
-    }, local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null) ? {} : {
+    }, local.grouped_delivery_enabled ? {
+    "detail" : {
+      "findings" : {
+        "$or" : [
+          { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } },
+          { "ProductName" : ["GuardDuty", "Amazon GuardDuty"] }
+        ]
+      }
+    }
+    } : {}, !local.grouped_delivery_enabled && !(local.finding_delivery_enabled && nonsensitive(var.finding_delivery.opsgenie_api_key != null)) ? {
     "detail" : {
       "findings" : merge({
         "RecordState" : ["ACTIVE"],
         "Workflow" : { "Status" : ["NEW", "NOTIFIED"] }
       }, local.finding_delivery_enabled ? {} : { "Severity" : { "Label" : ["CRITICAL", "HIGH"] } })
     }
-  }))
+  } : {}))
 }
 
 # EventBridge target for automated findings notifications via SNS (alarm_actions module)
@@ -138,7 +147,7 @@ resource "aws_sqs_queue" "eventbridge_failed_delivery" {
           length(var.alarm_actions.slack_webhooks) +
           length(var.alarm_actions.email_addresses) + length(var.alarm_actions.fallback_email_addresses) +
           length(var.alarm_actions.phone_numbers) + length(var.alarm_actions.fallback_phone_numbers) +
-          length(var.alarm_actions.teams_webhooks)
+          length(var.alarm_actions.teams_webhooks) + length(var.finding_delivery.teams_webhooks)
         ) > 0
       )
       error_message = "Enabled Security Hub alerting requires a separate same-account/Region failure SNS topic and at least one Slack, email, SMS, or Teams recipient for failure alarms."

@@ -2,6 +2,7 @@ data "aws_region" "current" {}
 
 locals {
   slack_webhooks_by_name = { for webhook in var.slack_webhooks : coalesce(webhook.instance_key, "${webhook.channel}-${webhook.username}") => webhook }
+  teams_webhook_count    = try(nonsensitive(length(var.teams_webhooks)), length(var.teams_webhooks))
 }
 
 # slack notify subscription
@@ -10,12 +11,15 @@ module "notify_slack" {
   version = "6.7.0"
 
   # Instance keys stay public and stable when the Slack channel changes.
-  for_each = toset(nonsensitive(keys(local.slack_webhooks_by_name)))
+  for_each = toset(try(nonsensitive(keys(local.slack_webhooks_by_name)), keys(local.slack_webhooks_by_name)))
 
   # sns/subscription configs
   sns_topic_name       = module.topic.name
   create_sns_topic     = false
   lambda_function_name = substr(replace("${each.key}-slack", ".", "-"), 0, 63)
+  # Multiple subscriptions package the same source concurrently. Keep each
+  # archive filename distinct without changing the Lambda resource address.
+  hash_extra = "${var.topic_name}-${each.key}"
 
   # lambda configs
   slack_webhook_url = sensitive(local.slack_webhooks_by_name[each.key].hook_url)
@@ -67,7 +71,7 @@ module "notify_servicenow" {
 module "notify_teams" {
   source = "./modules/lambda-subscription"
 
-  for_each = { for key, webhook in var.teams_webhooks : key => webhook }
+  for_each = { for index in range(local.teams_webhook_count) : tostring(index) => index }
 
   # sns/subscription configs
   sns_topic_name          = module.topic.name
@@ -83,7 +87,7 @@ module "notify_teams" {
   ]
 
   environment_variables = {
-    WEBHOOK_URL = sensitive(each.value)
+    WEBHOOK_URL = sensitive(var.teams_webhooks[each.value])
     REGION      = data.aws_region.current.name
     LOG_LEVEL   = var.log_level
   }

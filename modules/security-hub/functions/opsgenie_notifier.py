@@ -9,6 +9,8 @@ import urllib.parse
 import urllib.error
 import urllib.request
 
+from group_alert_format import description_header, group_message, securityhub_url
+
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
@@ -70,7 +72,7 @@ def _wait_for_request(request_id):
         if "isSuccess" in data:
             if not data["isSuccess"]:
                 raise RuntimeError("Opsgenie rejected alert action: " + data.get("status", "unknown"))
-            return
+            return data
         time.sleep(min(0.25 * (attempt + 1), 1))
     raise RuntimeError("Opsgenie alert action has no confirmed result")
 
@@ -83,41 +85,61 @@ def deliver(message):
         group = message.get("_dasmeta_group") or _group_identity(finding)
         alias = "securityhub-group-" + group["key"]
         path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
+        priority = message.get("_dasmeta_page_priority") or "P1"
+        context = message.get("_dasmeta_risk_context") or {}
+        deployment = context.get("deployment", "unknown").replace("_", " ")
+        exposure = context.get("exposure", "unknown")
         try:
             existing = _request("GET", path + "?identifierType=alias").get("data")
         except urllib.error.HTTPError as error:
             if error.code != 404:
                 raise
             existing = None
-        if existing and existing.get("priority") == "P1":
-            LOG.info("Opsgenie urgent group already has P1 priority: %s", alias)
+        if existing and existing.get("status", "open").lower() == "open":
+            if existing.get("priority") != priority and priority == "P1":
+                result = _request("PUT", path + "/priority?identifierType=alias", {"priority": priority})
+                request_id = result.get("requestId")
+                if not request_id:
+                    raise RuntimeError("Opsgenie priority change returned no request ID")
+                _wait_for_request(request_id)
+            # Reconciliation updates distinct CVEs in the description. A
+            # retried SNS event must not add duplicate Opsgenie notes.
+            LOG.info("Opsgenie incident already exists for %s", alias)
             return
-        if existing:
-            result = _request("PUT", path + "/priority?identifierType=alias", {"priority": "P1"})
         else:
-            if group["cluster"] and group["nodepool"] and group["image"]:
-                action = f"Patch {group['cluster']}/{group['nodepool']} node image {group['image']}"
-            else:
-                resource = (finding.get("Resources") or [{}])[0].get("Id", "").rsplit("/", 1)[-1]
-                action = f"Investigate {finding.get('Title', 'Security finding')}" + (f" on {resource}" if resource else "")
+            resource = (finding.get("Resources") or [{}])[0].get("Id", "")
+            resource_label = resource.rsplit("/", 1)[-1][:120] if resource else "unknown"
+            container = group.get("incident_category") == "container-vulnerability"
+            description = (
+                f"Priority: {priority}\nEnvironment: {group.get('environment') or 'Unknown'}\n"
+                f"AWS account: {group['account']}\nRegion: {group['region']}\n"
+                f"Application: {group['repository']}\n"
+                f"Deployment: {deployment} | Exposure: {exposure}\n"
+                f"Escalation reason: {message.get('_dasmeta_priority_reason') or 'Configured investigation policy'}\n"
+                f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
+                "Recommended action: Verify deployment, exploitability, exposure, and patched version availability.\n"
+                f"Security Hub: {securityhub_url(group)}\n"
+                f"First detected: {finding.get('CreatedAt', 'unknown')}\n"
+                f"Last updated: {finding.get('UpdatedAt', finding.get('CreatedAt', 'unknown'))}"
+            ) if container else (
+                description_header(group)
+                + f"Severity: {finding.get('Severity', {}).get('Label', 'UNKNOWN')}\n"
+                f"Finding: {finding.get('Title', 'Security finding')[:180]}\n"
+                f"Resource: {resource_label}\n"
+                f"Security Hub: {securityhub_url(group)}\n"
+                "Review the finding and related resources in Security Hub."
+            )
             result = _request("POST", "/v2/alerts", {
-                "message": f"{os.environ.get('OPSGENIE_ALERT_PREFIX', 'Security Hub')} Security P1: {action}"[:130],
+                "message": group_message(group, os.environ.get("OPSGENIE_ALERT_PREFIX", "Security Hub"), priority),
                 "alias": alias,
-                "description": (
-                    f"Urgent Security Hub finding: {finding.get('Title', 'Security finding')}\n"
-                    f"Resource: {(finding.get('Resources') or [{}])[0].get('Id', 'unknown')}\n"
-                    f"Finding ID: {finding['Id']}\n"
-                    "The scheduled group digest will reconcile all affected resources."
-                )[:15000],
-                "priority": "P1",
+                "description": description[:15000],
+                "priority": priority,
                 "source": "AWS Security Hub",
                 "tags": ["securityhub-grouped", group["product"].lower().replace(" ", "-")],
-                "details": {
-                    "AWS account": finding["AwsAccountId"],
-                    "Cluster": (group["cluster"] or "n/a")[:50],
-                    "Node pool": (group["nodepool"] or "n/a")[:50],
-                    "AMI": (group["image"] or "n/a")[:50],
-                },
+                "details": ({"AWS account": finding["AwsAccountId"], "Application": group["repository"][:100],
+                             "Deployment status": deployment, "Exposure status": exposure} if container else {
+                    "AWS account": finding["AwsAccountId"], "Cluster": (group["cluster"] or "n/a")[:50],
+                    "Node pool": (group["nodepool"] or "n/a")[:50], "AMI": (group["image"] or "n/a")[:50]}),
             })
         request_id = result.get("requestId")
         if not request_id:

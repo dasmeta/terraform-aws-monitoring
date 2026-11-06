@@ -1,4 +1,6 @@
 locals {
+  finding_teams_to_slack    = contains(["slack", "both"], var.finding_delivery.teams_delivery) ? var.finding_delivery.teams_webhooks : []
+  finding_teams_to_opsgenie = contains(["opsgenie", "both"], var.finding_delivery.teams_delivery) ? var.finding_delivery.teams_webhooks : []
   # SNS topic name for alarm_actions module
   sns_topic_name                        = var.alarm_actions.topic_name != "" ? var.alarm_actions.topic_name : "${var.name}-security-hub-findings"
   finding_delivery_enabled              = var.alarm_actions.enabled && nonsensitive(var.finding_delivery.enabled)
