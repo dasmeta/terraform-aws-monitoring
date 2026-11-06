@@ -9,6 +9,17 @@ variable "action_target_name" {
   description = "Name of the Security Hub action target. This name is used in EventBridge event patterns to filter manual trigger events."
 }
 
+variable "action_target_identifier" {
+  type        = string
+  default     = "SendToTargets"
+  description = "Unique identifier for this Security Hub custom action within the AWS account and Region. Set a distinct value when deploying another module instance."
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.action_target_identifier))
+    error_message = "The action target identifier must contain only letters, numbers, hyphens, or underscores."
+  }
+}
+
 # CloudWatch Alarm Actions configuration for Security Hub findings notifications
 # This module manages SNS topics and subscriptions for sending Security Hub findings to various channels
 variable "alarm_actions" {

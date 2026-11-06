@@ -435,3 +435,44 @@ run "teams_follow_both_streams" {
     error_message = "Both Teams mode must subscribe to both topics."
   }
 }
+
+run "action_target_identifier_defaults_to_existing_value" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+  }
+
+  assert {
+    condition     = aws_securityhub_action_target.sec-hub-target.identifier == "SendToTargets"
+    error_message = "Existing consumers must retain the original action target identifier."
+  }
+}
+
+run "action_target_identifier_can_be_unique" {
+  command = plan
+
+  variables {
+    name                                   = "example-security-hub"
+    action_target_identifier               = "BuycycleFindings"
+    enable_security_hub                    = false
+    enable_security_hub_finding_aggregator = false
+    config                                 = { enabled = false }
+    inspector                              = { enabled = false }
+    guardduty                              = { enabled = false }
+    macie                                  = { enabled = false }
+    enabled_standards                      = []
+  }
+
+  assert {
+    condition     = aws_securityhub_action_target.sec-hub-target.identifier == "BuycycleFindings"
+    error_message = "A second module instance must be able to use a distinct action target identifier."
+  }
+}
