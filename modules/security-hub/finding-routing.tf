@@ -120,6 +120,7 @@ module "finding_router" {
     OPSGENIE_API_MODE             = var.finding_delivery.opsgenie_api_key == null ? "false" : "true"
     GROUPED_DELIVERY_MODE         = local.grouped_delivery_enabled ? "true" : "false"
     SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_ACCOUNT_ENVIRONMENTS = jsonencode(var.finding_delivery.account_environment_labels)
     SECURITY_PROJECT              = var.finding_delivery.project_label
     SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
     REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
@@ -151,10 +152,11 @@ module "opsgenie_api_notifier" {
   timeout       = 30
 
   environment_variables = {
-    OPSGENIE_API_KEY      = var.finding_delivery.opsgenie_api_key
-    OPSGENIE_API_URL      = var.finding_delivery.opsgenie_api_url
-    OPSGENIE_ALERT_PREFIX = var.finding_delivery.opsgenie_alert_prefix
-    SECURITY_ENVIRONMENT  = var.finding_delivery.environment_label
+    OPSGENIE_API_KEY              = var.finding_delivery.opsgenie_api_key
+    OPSGENIE_API_URL              = var.finding_delivery.opsgenie_api_url
+    OPSGENIE_ALERT_PREFIX         = var.finding_delivery.opsgenie_alert_prefix
+    SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_ACCOUNT_ENVIRONMENTS = jsonencode(var.finding_delivery.account_environment_labels)
   }
 
   dead_letter_target_arn    = module.high_severity_actions[0].dead_letter_queue_arn
@@ -177,6 +179,16 @@ data "aws_iam_policy_document" "finding_group_digest" {
       sid       = "ReadInspectorImageUse"
       actions   = ["inspector2:ListFindings"]
       resources = ["*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = nonsensitive(var.finding_delivery.deployment_inventory != null) ? [1] : []
+
+    content {
+      sid       = "ReadRunningImageInventory"
+      actions   = ["s3:GetObject"]
+      resources = ["arn:aws:s3:::${var.finding_delivery.deployment_inventory.bucket}/${var.finding_delivery.deployment_inventory.key}"]
     }
   }
 
@@ -223,6 +235,7 @@ module "finding_group_digest" {
     OPSGENIE_WEB_URL              = var.finding_delivery.opsgenie_web_url == null ? "auto" : var.finding_delivery.opsgenie_web_url
     OPSGENIE_ALERT_PREFIX         = var.finding_delivery.opsgenie_alert_prefix
     SECURITY_ENVIRONMENT          = var.finding_delivery.environment_label
+    SECURITY_ACCOUNT_ENVIRONMENTS = jsonencode(var.finding_delivery.account_environment_labels)
     SECURITY_PROJECT              = var.finding_delivery.project_label
     SECURITY_ACCOUNT_LABEL        = var.finding_delivery.account_label
     QUIET_PERIOD_SECONDS          = tostring(var.finding_delivery.quiet_period_minutes * 60)
@@ -230,6 +243,7 @@ module "finding_group_digest" {
     DAILY_DIGEST_HOUR_UTC         = tostring(var.finding_delivery.daily_digest.hour_utc)
     DAILY_DIGEST_MAX_GROUPS       = tostring(var.finding_delivery.daily_digest.max_groups)
     ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
+    DEPLOYMENT_INVENTORY_CONFIG   = var.finding_delivery.deployment_inventory == null ? "" : jsonencode(var.finding_delivery.deployment_inventory)
     REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
     PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
     FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)

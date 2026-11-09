@@ -149,6 +149,8 @@ def format_group_digest(message: Dict[str, Any]) -> Dict[str, Any]:
             f"Active findings: {active} | Affected resources: {digest['affected_resources']} | Distinct vulnerabilities: {digest['vulnerability_count']}",
             f"Deployment: {safe(digest.get('deployment_status', 'unknown'))} | Exposure: {safe(digest.get('exposure_status', 'unknown'))} | Fix: {safe(digest.get('fix_status', 'unknown'))}",
         ]
+        if digest.get("running_environment"):
+            lines.append(f"Running environments: {safe(digest['running_environment'])}")
         if digest.get("priority_reasons"):
             lines.append("Reason: " + safe("; ".join(digest["priority_reasons"]))[:500])
         if digest.get("top_vulnerabilities"):

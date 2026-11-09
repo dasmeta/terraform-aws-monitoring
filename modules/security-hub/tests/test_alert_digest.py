@@ -71,6 +71,83 @@ def group(key, product="Inspector"):
 
 
 class AlertDigestTests(unittest.TestCase):
+    def test_member_account_environment_updates_text_without_changing_alias(self):
+        item = finding("member-finding", severity="CRITICAL")
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": "{}"}):
+            original = router._compact_finding(item)
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": '{"123456789012":"Dev"}'}):
+            updated = router._compact_finding(item)
+            stored = {"group": dict(original["group"]), "page_group": dict(original["group"])}
+            digest._resolve_record_environment(stored)
+        self.assertEqual(updated["group"]["environment"], "Dev")
+        self.assertEqual(stored["group"]["environment"], "Dev")
+        self.assertEqual(stored["page_group"]["environment"], "Dev")
+        self.assertEqual(updated["group"]["key"], original["group"]["key"])
+        summary = digest.summarize_group([updated])
+        self.assertEqual(digest._opsgenie_details(summary)["Environment"], "Dev")
+        self.assertIn("Environment: Dev", digest._opsgenie_description(summary))
+
+    def test_dev_critical_inspector_downgrades_existing_incident_to_p2(self):
+        item = finding("member-critical", severity="CRITICAL")
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": "{}",
+                                  "PAGING_POLICY": "{}"}):
+            old = router._compact_finding(item)
+        self.assertEqual(old["page_priority"], "P1")
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": '{"123456789012":"Dev"}',
+                                  "PAGING_POLICY": '{"inspector_critical_p2_environments":["Dev"]}'}):
+            current = router._compact_finding(item)
+            digest._resolve_record_environment(old)
+        self.assertEqual(current["page_priority"], "P2")
+        self.assertEqual(old["page_priority"], "P2")
+        self.assertEqual(current["page_group"]["key"], old["page_group"]["key"])
+
+        item["AwsAccountId"] = "222222222222"
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": '{"222222222222":"Production"}',
+                                  "PAGING_POLICY": '{"inspector_critical_p2_environments":["Dev"]}'}):
+            self.assertEqual(router._compact_finding(item)["page_priority"], "P1")
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": '{"222222222222":"Root"}',
+                                  "PAGING_POLICY": '{"inspector_critical_p2_environments":["Dev"]}'}):
+            self.assertEqual(router._compact_finding(item)["page_priority"], "P1")
+
+    def test_ecr_alias_stays_stable_when_account_label_is_added(self):
+        item = ecr_finding("image-finding", "a" * 64)
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": "{}"}):
+            before = router._compact_finding(item)
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS": '{"123456789012":"Dev"}'}):
+            after = router._compact_finding(item)
+        self.assertEqual(before["group"]["key"], after["group"]["key"])
+        self.assertEqual(before["page_group"]["key"], after["page_group"]["key"])
+        self.assertEqual(after["group"]["environment"], "Dev")
+
+    def test_mixed_account_daily_digest_has_no_production_label(self):
+        dev = finding("dev", severity="CRITICAL")
+        prod = finding("prod", severity="CRITICAL")
+        prod["AwsAccountId"] = "222222222222"
+        with patch.dict(os.environ, {"SECURITY_ENVIRONMENT": "Production",
+                                  "SECURITY_ACCOUNT_LABEL": "Example production",
+                                  "SECURITY_ACCOUNT_ENVIRONMENTS":
+                                  '{"123456789012":"Dev","222222222222":"Production"}',
+                                  "DAILY_DIGEST_MAX_GROUPS": "5"}):
+            records = [router._compact_finding(item) for item in (dev, prod)]
+            for record in records:
+                record["pending"] = True
+            payloads = []
+            with patch.object(digest, "_get_item", return_value={}), \
+                 patch.object(digest, "_publish_slack", side_effect=lambda _sns, summary: payloads.append(summary)), \
+                 patch.object(digest, "_acknowledge_new"), patch.object(digest, "_set_fields"):
+                digest.send_slack_batch(object(), object(),
+                                        {record["group"]["key"]: [record] for record in records}, 1793782800)
+        self.assertEqual(payloads[0]["environment"], "Multiple environments")
+        self.assertEqual(payloads[0]["account_label"], "Multiple accounts")
+
     def test_ecr_same_cve_package_across_digests_is_one_group(self):
         first = ecr_finding("f-1", "a" * 64)
         second = ecr_finding("f-2", "b" * 64)

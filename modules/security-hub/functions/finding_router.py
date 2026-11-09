@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from finding_policy import (environment, exploitable, is_guardduty, is_inspector_ecr,
+from finding_policy import (_unmapped_environment, environment, exploitable, is_guardduty, is_inspector_ecr,
                             paging_priority, priority_with_reason, project, public_exposure,
                             realtime, risk_context)
 from group_alert_format import incident_signature
@@ -102,7 +102,7 @@ def _group_identity(finding):
                            for p in v.get("VulnerablePackages") or [] if p.get("Name")})
         vulnerability = ",".join(identifiers) or _finding_key(finding)
         package = ",".join(packages) or "unknown package"
-        parts = (account, region, environment(finding), project(finding), product, "ecr",
+        parts = (account, region, _unmapped_environment(finding), project(finding), product, "ecr",
                  ecr_repository, vulnerability, package)
         label = f"Inspector | {ecr_repository} | {vulnerability if identifiers else 'unknown vulnerability'} / {package}"
     elif product == "Inspector" and resource.get("Type") == "AwsLambdaFunction" and resource_id:
@@ -133,6 +133,7 @@ def _group_identity(finding):
         "source_ip": source_ip if is_guardduty(finding) else "",
         "target_port": target_port if is_guardduty(finding) else None,
         "environment": environment(finding),
+        "identity_environment": _unmapped_environment(finding),
         "project": project(finding),
         "repository": ecr_repository if product == "Inspector" and resource.get("Type") == "AwsEcrContainerImage" else "",
         "vulnerability": vulnerability,
@@ -266,8 +267,9 @@ def _page_group_from_remediation(group, resource=""):
         return group
     project_name = group.get("project") or os.environ.get("SECURITY_PROJECT") or "Unknown"
     environment_name = group.get("environment") or os.environ.get("SECURITY_ENVIRONMENT") or "Unknown"
+    identity_environment = group.get("identity_environment") or os.environ.get("SECURITY_ENVIRONMENT") or environment_name
     parts = (group["account"], group["region"], project_name,
-             environment_name, group["repository"], "container-vulnerability")
+             identity_environment, group["repository"], "container-vulnerability")
     return {**group, "project": project_name, "environment": environment_name,
             "key": hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest(),
             "label": f"Container vulnerabilities | {group['repository']}",
