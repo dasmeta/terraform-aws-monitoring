@@ -1,0 +1,27 @@
+name: Notification package regression
+
+on:
+  pull_request:
+    paths:
+      - modules/cloudwatch-alarm-actions/**
+      - .github/workflows/notification-package-test.yaml
+  push:
+    branches: [main, master]
+    paths:
+      - modules/cloudwatch-alarm-actions/**
+      - .github/workflows/notification-package-test.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  package-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.5
+          terraform_wrapper: false
+      - name: Test clean and existing generated packages without AWS
+        run: python3 modules/cloudwatch-alarm-actions/tests/test_package_consistency.py

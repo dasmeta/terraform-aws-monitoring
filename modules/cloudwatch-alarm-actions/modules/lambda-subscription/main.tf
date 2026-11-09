@@ -36,7 +36,9 @@ module "lambda" {
 
   create_package          = false
   ignore_source_code_hash = true
-  local_existing_package  = local.lambda_function_output_path
+  # Keep the filename unknown until the archive exists. output_path alone is
+  # known during planning even when archive creation is deferred until apply.
+  local_existing_package = data.archive_file.lambda_code_zip.output_size > 0 ? data.archive_file.lambda_code_zip.output_path : null
 
   # Create and use an IAM role which can log function output to CloudWatch,
   # plus the custom policy which can copy ALB logs from S3 to CloudWatch.

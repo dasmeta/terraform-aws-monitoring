@@ -10,6 +10,25 @@ module "monitoring_cloudwatch_alarm_actions" {
   web_endpoints = ["https://api.opsgenie.com/v1/json/cloudwatch?apiKey=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
 }
 ```
+
+## Notification package creation
+
+Teams, Jira, and ServiceNow subscriptions generate their Lambda ZIPs during
+Terraform execution. The Lambda consumer waits for the archive's computed size
+before using its path, including on clean HCP Terraform runners where SNS
+dependencies defer packaging until apply. No prebuilt ZIP is required.
+
+Run the filesystem regression with Terraform 1.13 or newer:
+
+```sh
+python3 modules/cloudwatch-alarm-actions/tests/test_package_consistency.py
+```
+
+This test runs from the repository root and creates only temporary local
+archives and Terraform state. It makes no AWS calls. The native tests in
+`tests/teams_package_consistency.tftest.hcl` additionally exercise two actual
+Teams subscription instances using mocked AWS operations.
+
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
