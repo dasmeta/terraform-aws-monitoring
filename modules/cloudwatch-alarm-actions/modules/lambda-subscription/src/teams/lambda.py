@@ -27,6 +27,7 @@ def security_hub_message(raw_message):
     if isinstance(digest, dict):
         return (
             f"Security Hub digest: {digest.get('label', 'remediation group')}\n"
+            f"Environment: {digest.get('environment') or 'Unverified'}\n"
             f"New or escalated: {digest.get('new_count', 0)}; active: {digest.get('active_count', 0)}\n"
             f"{digest.get('finding_url', '')}"
         )[:1500]

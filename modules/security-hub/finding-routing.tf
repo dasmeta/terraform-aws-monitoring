@@ -180,6 +180,16 @@ data "aws_iam_policy_document" "finding_group_digest" {
     }
   }
 
+  dynamic "statement" {
+    for_each = nonsensitive(var.finding_delivery.deployment_inventory != null) ? [1] : []
+
+    content {
+      sid       = "ReadRunningImageInventory"
+      actions   = ["s3:GetObject"]
+      resources = ["arn:aws:s3:::${var.finding_delivery.deployment_inventory.bucket}/${var.finding_delivery.deployment_inventory.key}"]
+    }
+  }
+
   statement {
     sid       = "ReadAndUpdateFindingLedger"
     actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]
@@ -230,6 +240,7 @@ module "finding_group_digest" {
     DAILY_DIGEST_HOUR_UTC         = tostring(var.finding_delivery.daily_digest.hour_utc)
     DAILY_DIGEST_MAX_GROUPS       = tostring(var.finding_delivery.daily_digest.max_groups)
     ECR_DEPLOYMENT_LOOKUP_ENABLED = tostring(var.finding_delivery.paging.ecr_deployment_lookup_enabled)
+    DEPLOYMENT_INVENTORY_CONFIG   = var.finding_delivery.deployment_inventory == null ? "" : jsonencode(var.finding_delivery.deployment_inventory)
     REALTIME_ENABLED              = tostring(var.finding_delivery.realtime.enabled)
     PAGING_POLICY                 = jsonencode(var.finding_delivery.paging)
     FINDING_RETENTION_DAYS        = tostring(var.finding_delivery.finding_retention_days)

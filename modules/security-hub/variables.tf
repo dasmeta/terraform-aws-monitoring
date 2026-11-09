@@ -80,21 +80,27 @@ variable "alarm_actions" {
 variable "finding_delivery" {
   description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time. Optional Teams webhooks can follow the Slack topic, Opsgenie topic, or both."
   type = object({
-    enabled                = optional(bool, false)                        # Enable durable Security Hub finding delivery.
-    cutover_at             = optional(string)                             # UTC creation timestamp before which findings are ignored.
-    notification_mode      = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
-    opsgenie_endpoint      = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
-    opsgenie_api_key       = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
-    opsgenie_api_url       = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
-    opsgenie_web_url       = optional(string)                             # Optional Opsgenie web base URL for direct incident links; null derives the regional default.
-    opsgenie_alert_prefix  = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
-    teams_delivery         = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
-    teams_webhooks         = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
-    environment_label      = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
-    project_label          = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
-    account_label          = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
-    quiet_period_minutes   = optional(number, 60)                         # Time without actionable findings before a group is reported quiet.
-    finding_retention_days = optional(number, 365)                        # Days to keep resolved finding snapshots for deduplication and reopen tracking.
+    enabled               = optional(bool, false)                        # Enable durable Security Hub finding delivery.
+    cutover_at            = optional(string)                             # UTC creation timestamp before which findings are ignored.
+    notification_mode     = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
+    opsgenie_endpoint     = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
+    opsgenie_api_key      = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
+    opsgenie_api_url      = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_web_url      = optional(string)                             # Optional Opsgenie web base URL for direct incident links; null derives the regional default.
+    opsgenie_alert_prefix = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
+    teams_delivery        = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
+    teams_webhooks        = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
+    environment_label     = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
+    project_label         = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
+    account_label         = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
+    deployment_inventory = optional(object({
+      bucket            = string       # S3 bucket containing the running-pod image snapshot.
+      key               = string       # Object key of the atomically published snapshot.
+      max_age_seconds   = number       # Maximum age before the display environment becomes unverified.
+      required_clusters = list(string) # Clusters that must appear in a complete snapshot.
+    }))
+    quiet_period_minutes   = optional(number, 60)  # Time without actionable findings before a group is reported quiet.
+    finding_retention_days = optional(number, 365) # Days to keep resolved finding snapshots for deduplication and reopen tracking.
     daily_digest = optional(object({
       enabled    = optional(bool, true) # Publish the daily grouped Slack summary.
       hour_utc   = optional(number, 8)  # Earliest UTC hour for the daily summary; reconciliation still runs every 15 minutes.
@@ -121,6 +127,19 @@ variable "finding_delivery" {
     }), {})
   })
   default = {}
+
+  validation {
+    condition = var.finding_delivery.deployment_inventory == null ? true : (
+      var.finding_delivery.notification_mode == "grouped" &&
+      length(trimspace(var.finding_delivery.deployment_inventory.bucket)) > 0 &&
+      length(trimspace(var.finding_delivery.deployment_inventory.key)) > 0 &&
+      var.finding_delivery.deployment_inventory.max_age_seconds >= 60 &&
+      var.finding_delivery.deployment_inventory.max_age_seconds <= 3600 &&
+      length(var.finding_delivery.deployment_inventory.required_clusters) > 0 &&
+      length(distinct(var.finding_delivery.deployment_inventory.required_clusters)) == length(var.finding_delivery.deployment_inventory.required_clusters)
+    )
+    error_message = "deployment_inventory requires grouped mode, bucket, key, age between 60 and 3600 seconds, and distinct required clusters."
+  }
 
   validation {
     condition = !var.finding_delivery.enabled || (

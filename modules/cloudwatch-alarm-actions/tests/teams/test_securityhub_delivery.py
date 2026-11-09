@@ -22,6 +22,13 @@ def sns_record(message):
 
 
 class TeamsSecurityHubDeliveryTests(unittest.TestCase):
+    def test_group_digest_card_displays_running_environment(self):
+        card = teams.handle_notification(sns_record({"_dasmeta_group_digest": {
+            "label": "Container vulnerabilities | api", "environment": "dev, prod",
+            "new_count": 1, "active_count": 2, "finding_url": "https://example.com/findings"}}))
+        fact = card["attachments"][0]["content"]["body"][1]["items"][0]["facts"][0]["value"]
+        self.assertIn("Environment: dev, prod", fact)
+
     def test_urgent_finding_card_is_concise(self):
         event = {"_dasmeta_group_urgent": True, "_dasmeta_group": {"label": "Inspector | api | sha256:abc"},
                  "detail-type": "Security Hub Findings - Imported", "detail": {"findings": [{
