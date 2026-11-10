@@ -95,10 +95,11 @@ variable "finding_delivery" {
     project_label              = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
     account_label              = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
     deployment_inventory = optional(object({
-      bucket            = string       # S3 bucket containing the running-pod image snapshot.
-      key               = string       # Object key of the atomically published snapshot.
-      max_age_seconds   = number       # Maximum age before the display environment becomes unverified.
-      required_clusters = list(string) # Clusters that must appear in a complete snapshot.
+      bucket            = string           # S3 bucket containing the running-pod image snapshot.
+      key               = string           # Object key of the atomically published snapshot.
+      kms_key_arn       = optional(string) # Customer-managed KMS key ARN for an SSE-KMS encrypted snapshot; grants the digest Lambda decrypt access.
+      max_age_seconds   = number           # Maximum age before the display environment becomes unverified.
+      required_clusters = list(string)     # Clusters that must appear in a complete snapshot.
     }))
     quiet_period_minutes   = optional(number, 60)  # Time without actionable findings before a group is reported quiet.
     finding_retention_days = optional(number, 365) # Days to keep resolved finding snapshots for deduplication and reopen tracking.
@@ -135,12 +136,13 @@ variable "finding_delivery" {
       var.finding_delivery.notification_mode == "grouped" &&
       length(trimspace(var.finding_delivery.deployment_inventory.bucket)) > 0 &&
       length(trimspace(var.finding_delivery.deployment_inventory.key)) > 0 &&
+      (var.finding_delivery.deployment_inventory.kms_key_arn == null || can(regex("^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.finding_delivery.deployment_inventory.kms_key_arn))) &&
       var.finding_delivery.deployment_inventory.max_age_seconds >= 60 &&
       var.finding_delivery.deployment_inventory.max_age_seconds <= 3600 &&
       length(var.finding_delivery.deployment_inventory.required_clusters) > 0 &&
       length(distinct(var.finding_delivery.deployment_inventory.required_clusters)) == length(var.finding_delivery.deployment_inventory.required_clusters)
     )
-    error_message = "deployment_inventory requires grouped mode, bucket, key, age between 60 and 3600 seconds, and distinct required clusters."
+    error_message = "deployment_inventory requires grouped mode, bucket, key, an optional KMS key ARN, age between 60 and 3600 seconds, and distinct required clusters."
   }
 
   validation {

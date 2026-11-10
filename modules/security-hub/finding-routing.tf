@@ -192,6 +192,16 @@ data "aws_iam_policy_document" "finding_group_digest" {
     }
   }
 
+  dynamic "statement" {
+    for_each = nonsensitive(try(var.finding_delivery.deployment_inventory.kms_key_arn, null) != null) ? [1] : []
+
+    content {
+      sid       = "DecryptRunningImageInventory"
+      actions   = ["kms:Decrypt"]
+      resources = [var.finding_delivery.deployment_inventory.kms_key_arn]
+    }
+  }
+
   statement {
     sid       = "ReadAndUpdateFindingLedger"
     actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Scan"]

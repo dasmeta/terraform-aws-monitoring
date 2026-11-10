@@ -10,3 +10,5 @@ An optional, fresh Kubernetes image inventory may enrich grouped Inspector ECR a
 - Stale, incomplete, or unavailable inventory is Unverified.
 - The input is optional and leaves existing consumers unchanged.
 - Existing incidents receive a description update when the displayed environment changes.
+- The snapshot JSON schema, lowercase environment rule, and exact cluster coverage are documented for publishers.
+- A consumer using an SSE-KMS customer-managed key can grant the digest Lambda `kms:Decrypt` for that key without broad KMS access.
