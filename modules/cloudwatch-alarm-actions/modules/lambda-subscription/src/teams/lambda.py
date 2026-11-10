@@ -25,8 +25,11 @@ def security_hub_message(raw_message):
         return None
     digest = event.get("_dasmeta_group_digest")
     if isinstance(digest, dict):
+        running_line = f"Running environments: {digest['running_environment']}\n" if digest.get('running_environment') else ""
         return (
             f"Security Hub digest: {digest.get('label', 'remediation group')}\n"
+            f"Environment: {digest.get('environment') or 'Unknown'}\n"
+            f"{running_line}"
             f"New or escalated: {digest.get('new_count', 0)}; active: {digest.get('active_count', 0)}\n"
             f"{digest.get('finding_url', '')}"
         )[:1500]

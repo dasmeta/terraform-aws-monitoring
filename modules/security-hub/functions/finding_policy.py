@@ -2,6 +2,7 @@
 
 import json
 import os
+from functools import lru_cache
 
 
 SEVERITY_RANK = {"UNKNOWN": 0, "INFORMATIONAL": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
@@ -36,7 +37,17 @@ def is_inspector_ecr(finding):
         resource.get("Type") == "AwsEcrContainerImage" for resource in finding.get("Resources") or [])
 
 
-def environment(finding):
+@lru_cache(maxsize=8)
+def _account_environments(raw):
+    return json.loads(raw or "{}")
+
+
+def environment_for_account(account, fallback=""):
+    mapped = _account_environments(os.environ.get("SECURITY_ACCOUNT_ENVIRONMENTS", "{}"))
+    return str(mapped.get(account, "")).strip() or fallback
+
+
+def _unmapped_environment(finding):
     configured = os.environ.get("SECURITY_ENVIRONMENT", "").strip()
     if configured:
         return configured
@@ -46,6 +57,10 @@ def environment(finding):
         if value:
             return value
     return "Unknown"
+
+
+def environment(finding):
+    return environment_for_account(finding.get("AwsAccountId", ""), _unmapped_environment(finding))
 
 
 def project(finding):
@@ -144,7 +159,11 @@ def priority_with_reason(finding, verified=None):
             return "P1", "Exploitable HIGH on a production image with observed use and verified exposure"
         return None, "Routine Inspector image finding for daily digest"
     if level == "CRITICAL":
-        return ("P1", "Critical non-container finding") if policy.get("critical", True) else (None, "Critical paging disabled by policy")
+        if not policy.get("critical", True):
+            return None, "Critical paging disabled by policy"
+        if finding.get("ProductName") == "Inspector" and environment(finding) in policy.get("inspector_critical_p2_environments", []):
+            return "P2", "Critical Inspector finding in configured P2 environment"
+        return "P1", "Critical non-container finding"
     if allowed and environment(finding) not in allowed:
         return None, "Environment outside configured escalation scope"
     if (level == "HIGH" and policy.get("high_exploitable", True) and exploitable(finding) and

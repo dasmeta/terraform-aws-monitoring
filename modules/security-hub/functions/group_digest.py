@@ -18,6 +18,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 from finding_router import _finding_key, _page_group_from_remediation, _record_grouped, _timestamp
+from finding_policy import environment_for_account
+from deployment_inventory import displayed_environment, load_inventory
 from group_alert_format import description_header, group_action, group_message, incident_signature, securityhub_url
 from opsgenie_notifier import _request, _wait_for_request
 
@@ -43,6 +45,24 @@ OPSGENIE_FORMAT_VERSION = "4"
 
 def _decode(item):
     return {key: next(iter(value.values())) for key, value in item.items()}
+
+
+def _resolve_record_environment(record):
+    """Refresh stored labels without changing the ledger's grouping keys."""
+    for identity in ("group", "page_group"):
+        if record.get(identity):
+            group = record[identity]
+            group["environment"] = environment_for_account(
+                group["account"], group.get("environment", "Unknown"))
+    policy = json.loads(os.environ.get("PAGING_POLICY", "{}"))
+    if (record.get("group", {}).get("environment") in policy.get("inspector_critical_p2_environments", []) and
+            record.get("severity") == "CRITICAL" and
+            record.get("group", {}).get("product") == "Inspector" and
+            ":ecr:" not in record.get("resource", "") and
+            record.get("page_priority") == "P1"):
+        record["page_priority"] = "P2"
+        record["priority_reason"] = "Critical Inspector finding in configured P2 environment"
+    return record
 
 
 def _get_item(table, key):
@@ -505,6 +525,7 @@ def _scan_segment(table, packed=False, segment=0, segments=1, pending_after=None
                     record["previous_page_group_key"] = record["group"]["key"]
                     if record["severity"] == "CRITICAL":
                         record["page_priority"] = "P2"
+            _resolve_record_environment(record)
             if _timestamp(record["created_at"]) < _timestamp(os.environ["FINDING_CUTOVER_AT"]):
                 continue
             pending_at = (row.get("notification_pending_at") or row.get("notification_updated_at") or
@@ -683,7 +704,7 @@ def _needs_opsgenie_sync(summary, key, active_markers):
     return bool(summary["priority"] or key in active_markers)
 
 
-def summarize_group(records, identity="group"):
+def summarize_group(records, identity="group", inventory=None):
     if not records:
         raise ValueError("Cannot summarize an empty finding group")
     new_severities = collections.Counter(record["severity"] for record in records if record.get("pending", True))
@@ -700,7 +721,7 @@ def summarize_group(records, identity="group"):
     urgent = [record for record in active if page_priority(record)]
     priority = "P1" if any(page_priority(record) == "P1" for record in urgent) else "P2" if urgent else None
     titles = collections.Counter(record["title"] for record in active)
-    return {
+    result = {
         "group": records[0].get(identity, records[0]["group"]),
         "new_count": sum(new_severities.values()),
         "new_severities": dict(new_severities),
@@ -744,12 +765,16 @@ def summarize_group(records, identity="group"):
                       else "unavailable" if active and all(record.get("fix_available") == "NO" for record in active)
                       else "unknown",
     }
+    if inventory is not None and result["group"].get("repository") and result["group"].get("product") == "Inspector":
+        result["running_environment"] = displayed_environment(active or records, inventory)
+    return result
 
 
 def _opsgenie_details(summary):
     group = summary["group"]
     details = {
         "AWS account": group["account"],
+        "Environment": group.get("environment") or "Unknown",
         "Active findings": str(summary["active_count"]),
         "Affected resources": str(summary["affected_resources"]),
         "Distinct vulnerabilities": str(len(summary["vulnerability_ids"])),
@@ -757,6 +782,8 @@ def _opsgenie_details(summary):
     if group.get("incident_category") == "container-vulnerability":
         details.update({"Application": group["repository"][:100], "Affected images": str(summary["affected_images"]),
                         "Deployment status": summary["deployment_status"], "Exposure status": summary["exposure_status"]})
+        if "running_environment" in summary:
+            details["Running environment"] = summary["running_environment"][:100]
     else:
         details.update({"Cluster": (group["cluster"] or "n/a")[:50],
                         "Node pool": (group["nodepool"] or "n/a")[:50], "AMI": (group["image"] or "n/a")[:50]})
@@ -776,8 +803,10 @@ def _opsgenie_description(summary):
     group = summary["group"]
     if group.get("incident_category") == "container-vulnerability":
         top = "\n".join(f"- {item}" for item in summary["top_vulnerabilities"]) or "- Vulnerability metadata unavailable"
+        running_line = f"Running environments: {summary['running_environment']}\n" if "running_environment" in summary else ""
         return (
             f"Priority: {summary['priority']}\nEnvironment: {group.get('environment') or 'Unknown'}\n"
+            f"{running_line}"
             f"AWS account: {group['account']}\nRegion: {group['region']}\nApplication: {group['repository']}\n"
             f"Critical: {summary['active_severities'].get('CRITICAL', 0)} | High: {summary['active_severities'].get('HIGH', 0)}\n"
             f"Distinct vulnerabilities: {len(summary['vulnerability_ids'])}\n"
@@ -794,6 +823,7 @@ def _opsgenie_description(summary):
     severities = ", ".join(f"{label} {summary['high_severities'].get(label, 0)}" for label in ("CRITICAL", "HIGH"))
     return (
         description_header(group)
+        + f"Environment: {group.get('environment') or 'Unknown'}\n"
         + f"Urgent findings: {summary['urgent_count']}; HIGH/CRITICAL findings: {summary['high_count']} ({severities})\n"
         f"Affected resources: {summary['affected_resources']}\n"
         f"Urgent vulnerabilities or controls: {top}\n"
@@ -1016,6 +1046,9 @@ def sync_opsgenie(table, summary, state, now, sns=None):
     alias = "securityhub-group-" + group_key
     path = "/v2/alerts/" + urllib.parse.quote(alias, safe="")
     priority = summary["priority"]
+    previous_group = json.loads(state.get("opsgenie_group_payload") or "{}")
+    environment_changed = (previous_group.get("environment") and
+                           previous_group["environment"] != summary["group"].get("environment"))
     if sns is not None and state.get("opsgenie_slack_pending"):
         _capture_opsgenie_alert_id(table, marker, alias, state)
         _deliver_incident_slack(table, sns, marker)
@@ -1054,13 +1087,18 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                                         "opsgenie_group_payload": group_payload,
                                         "opsgenie_group_updated_at": group_updated_at})
     if priority:
+        display_environment = summary.get("running_environment", summary["group"].get("environment", "Unknown"))
+        changed_environment = ("running_environment" in summary and
+                               state.get("opsgenie_display_environment") != display_environment)
         incident_changed = (state.get("opsgenie_open") != "1" or
                             state.get("opsgenie_priority") != priority or
                             state.get("opsgenie_urgent_signature") != summary["urgent_signature"] or
-                            state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION)
+                            state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION or
+                            changed_environment)
         immediate_copy = (state.get("slack_open") == "1" and
                           state.get("slack_incident_priority") == priority and
-                          state.get("slack_incident_signature") == summary["urgent_signature"])
+                          state.get("slack_incident_signature") == summary["urgent_signature"] and
+                          not changed_environment)
         if sns is not None and incident_changed and not immediate_copy:
             action = ("opened" if state.get("opsgenie_open") != "1" else
                       "escalated" if state.get("opsgenie_priority") == "P2" and priority == "P1" else
@@ -1103,6 +1141,7 @@ def sync_opsgenie(table, summary, state, now, sns=None):
             _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
                                         "opsgenie_signature_version": "2",
                                         "opsgenie_urgent_signature": summary["urgent_signature"],
+                                        "opsgenie_display_environment": display_environment,
                                         "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat()})
         else:
             reformat = state.get("opsgenie_format_version") != OPSGENIE_FORMAT_VERSION
@@ -1116,12 +1155,13 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                     _set_fields(table, marker, {"opsgenie_priority": priority})
                 if priority != state.get("opsgenie_priority") or reformat:
                     _ops_action("PUT", path + "/message?identifierType=alias", {"message": _opsgenie_message(summary)})
-                if changed_urgent or changed_count or reformat or priority != state.get("opsgenie_priority"):
+                if changed_urgent or changed_count or changed_environment or environment_changed or reformat or priority != state.get("opsgenie_priority"):
                     _ops_action("POST", path + "/details?identifierType=alias", {"details": _opsgenie_details(summary), "source": "AWS Security Hub"})
                     _ops_action("PUT", path + "/description?identifierType=alias", {"description": _opsgenie_description(summary)})
                     _set_fields(table, marker, {"opsgenie_urgent_signature": summary["urgent_signature"],
                                                 "opsgenie_signature_version": "2",
                                                 "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                                                "opsgenie_display_environment": display_environment,
                                                 "opsgenie_active_count": str(summary["active_count"])})
                 if reformat:
                     _set_fields(table, marker, {"opsgenie_format_version": OPSGENIE_FORMAT_VERSION})
@@ -1138,6 +1178,7 @@ def sync_opsgenie(table, summary, state, now, sns=None):
                                                 "opsgenie_urgent_signature": summary["urgent_signature"],
                                                 "opsgenie_signature_version": "2",
                                                 "opsgenie_format_version": OPSGENIE_FORMAT_VERSION,
+                                                "opsgenie_display_environment": display_environment,
                                                 "opsgenie_last_update_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
                                                 "opsgenie_active_count": str(summary["active_count"])})
                 elif sns is not None:
@@ -1250,6 +1291,7 @@ def _slack_payload(summary, closing):
             "application_summaries": summary.get("application_summaries", [])[:3],
             "application_total": summary.get("application_total", len(summary.get("application_summaries", []))),
             "environment": summary.get("environment", group.get("environment", "Unknown")),
+            "running_environment": summary.get("running_environment"),
             "account_label": summary.get("account_label", group["account"]),
             "top_groups": summary.get("top_groups", []),
             "quiet_count": summary.get("quiet_count", 0),
@@ -1441,6 +1483,7 @@ def send_slack_batch(table, sns, groups, now, initial=False):
     }
     regions = sorted({record["group"]["region"] for record in active_records}) or [first_group["region"]]
     accounts = {record["account"] for record in active_records}
+    environments = {record["group"].get("environment", "Unknown") for record in active_records}
     resources = {resource for record in active_records for resource in record.get("resource_ids", [record["resource"]]) if resource}
     vulnerabilities = {identifier for record in active_records for identifier in record["vulnerability_ids"]}
     summary = {
@@ -1459,9 +1502,10 @@ def send_slack_batch(table, sns, groups, now, initial=False):
                             "active": item["active_count"]} for item in selected],
         "groups_cleared": quiet_groups, "quiet_count": len(quiet_groups),
         "resolved_count": len(resolved_groups), "regions": regions,
-        "environment": os.environ.get("SECURITY_ENVIRONMENT") or first_group.get("environment", "Unknown"),
-        "account_label": os.environ.get("SECURITY_ACCOUNT_LABEL") or
-                         (next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"]),
+        "environment": next(iter(environments)) if len(environments) == 1 else "Multiple environments" if environments else first_group.get("environment", "Unknown"),
+        "account_label": (os.environ.get("SECURITY_ACCOUNT_LABEL") or next(iter(accounts))) if len(accounts) == 1 and
+                         next(iter(environments), "") == os.environ.get("SECURITY_ENVIRONMENT", "") else
+                         next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"],
         "top_groups": [{"label": item["group"]["label"], "product": item["group"]["product"],
                         "new": item["new_count"], "active": item["active_count"],
                         "resources": item["affected_resources"],
@@ -1667,7 +1711,7 @@ def _deliver_daily_outbox(table, sns):
     return True
 
 
-def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False):
+def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False, inventory=None):
     """Build the same daily brief without retaining every decoded finding."""
     existing = _get_item(table, DAILY_OUTBOX_KEY)
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
@@ -1684,7 +1728,7 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
     quiet_count = resolved_count = 0
     active_severities = collections.Counter()
     new_severities = collections.Counter()
-    accounts, regions, resources, vulnerabilities = set(), set(), set(), set()
+    accounts, regions, resources, vulnerabilities, environments = set(), set(), set(), set(), set()
     quiet_labels = []
     watermark = datetime.fromtimestamp(now, timezone.utc)
     def pending_in_snapshot(record):
@@ -1710,13 +1754,14 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
             for record in active:
                 active_severities[record["severity"]] += 1
                 accounts.add(record["account"])
+                environments.add(record["group"].get("environment", "Unknown"))
                 regions.add(record["group"]["region"])
                 resources.update(item for item in record.get("resource_ids", [record["resource"]]) if item)
                 vulnerabilities.update(record["vulnerability_ids"])
             if not initial:
                 new_count += len(changed)
                 new_severities.update(record["severity"] for record in changed)
-            summary = summarize_group(records)
+            summary = summarize_group(records, inventory=inventory)
             summary.pop("new_records", None)
             summary["new_count"] = 0 if initial else len(changed)
             summary["active_count"] = len(active)
@@ -1748,7 +1793,7 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
         active = [record for record in records if _actionable(record)]
         if not active:
             continue
-        app = summarize_group(records, identity="page_group")
+        app = summarize_group(records, identity="page_group", inventory=inventory)
         application_total += 1
         item = {"repository": group["repository"], "images": app["affected_images"],
                 "vulnerabilities": len(app["vulnerability_ids"]), "findings": len(active),
@@ -1782,9 +1827,10 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
         "groups_cleared": quiet_labels, "groups_cleared_total": quiet_count,
         "quiet_count": quiet_count, "resolved_count": resolved_count,
         "regions": sorted(regions) or [first_group["region"]],
-        "environment": os.environ.get("SECURITY_ENVIRONMENT") or first_group.get("environment", "Unknown"),
-        "account_label": os.environ.get("SECURITY_ACCOUNT_LABEL") or
-                         (next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"]),
+        "environment": next(iter(environments)) if len(environments) == 1 else "Multiple environments" if environments else first_group.get("environment", "Unknown"),
+        "account_label": (os.environ.get("SECURITY_ACCOUNT_LABEL") or next(iter(accounts))) if len(accounts) == 1 and
+                         next(iter(environments), "") == os.environ.get("SECURITY_ENVIRONMENT", "") else
+                         next(iter(accounts)) if len(accounts) == 1 else "Multiple accounts" if accounts else first_group["account"],
         "top_groups": [{"label": item["group"]["label"], "product": item["group"]["product"],
                         "new": item["new_count"], "active": item["active_count"],
                         "resources": item["affected_resources"],
@@ -1799,6 +1845,7 @@ def send_slack_batch_packed(table, sns, groups, page_groups, now, initial=False)
 
 def run(table, securityhub, sns, now=None, context=None):
     now = int(time.time() if now is None else now)
+    inventory = load_inventory(now=datetime.fromtimestamp(now, timezone.utc))
     recovered_daily = _deliver_daily_outbox(table, sns)
     checkpoint_state = _get_item(table, "group#checkpoint")
     initial = not checkpoint_state.get("reconciled_through")
@@ -1830,7 +1877,7 @@ def run(table, securityhub, sns, now=None, context=None):
     migrated = 0
     failures = []
     for key, records in page_groups.items():
-        summary = summarize_group(records, identity="page_group")
+        summary = summarize_group(records, identity="page_group", inventory=inventory)
         if not _needs_opsgenie_sync(summary, key, active_markers):
             continue
         state = _get_item(table, "group#" + key)
@@ -1840,7 +1887,7 @@ def run(table, securityhub, sns, now=None, context=None):
             LOG.exception("Opsgenie group delivery failed for %s", key)
             failures.append(error)
     if _daily_due(checkpoint_state, now):
-        sent += int(send_slack_batch_packed(table, sns, groups, page_groups, now, initial=initial))
+        sent += int(send_slack_batch_packed(table, sns, groups, page_groups, now, initial=initial, inventory=inventory))
     remaining = MAX_LEGACY_MIGRATIONS_PER_RUN
     for key, records in page_groups.items():
         if remaining <= 0:

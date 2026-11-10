@@ -80,21 +80,29 @@ variable "alarm_actions" {
 variable "finding_delivery" {
   description = "Opt-in finding routing. Use either an AmazonSecurityHub endpoint or an Opsgenie Alert API key for lifecycle delivery. Grouped notifications require the API key. Cutover defaults to first apply time. Optional Teams webhooks can follow the Slack topic, Opsgenie topic, or both."
   type = object({
-    enabled                = optional(bool, false)                        # Enable durable Security Hub finding delivery.
-    cutover_at             = optional(string)                             # UTC creation timestamp before which findings are ignored.
-    notification_mode      = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
-    opsgenie_endpoint      = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
-    opsgenie_api_key       = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
-    opsgenie_api_url       = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
-    opsgenie_web_url       = optional(string)                             # Optional Opsgenie web base URL for direct incident links; null derives the regional default.
-    opsgenie_alert_prefix  = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
-    teams_delivery         = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
-    teams_webhooks         = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
-    environment_label      = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
-    project_label          = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
-    account_label          = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
-    quiet_period_minutes   = optional(number, 60)                         # Time without actionable findings before a group is reported quiet.
-    finding_retention_days = optional(number, 365)                        # Days to keep resolved finding snapshots for deduplication and reopen tracking.
+    enabled                    = optional(bool, false)                        # Enable durable Security Hub finding delivery.
+    cutover_at                 = optional(string)                             # UTC creation timestamp before which findings are ignored.
+    notification_mode          = optional(string, "per_finding")              # Use per_finding or grouped Slack and Opsgenie notifications.
+    opsgenie_endpoint          = optional(string)                             # Legacy AmazonSecurityHub webhook endpoint.
+    opsgenie_api_key           = optional(string)                             # Opsgenie Alert API key for lifecycle or grouped delivery.
+    opsgenie_api_url           = optional(string, "https://api.opsgenie.com") # Opsgenie regional API base URL.
+    opsgenie_web_url           = optional(string)                             # Optional Opsgenie web base URL for direct incident links; null derives the regional default.
+    opsgenie_alert_prefix      = optional(string, "Security Hub")             # Prefix of Opsgenie alert messages.
+    teams_delivery             = optional(string, "none")                     # Teams topic selection: none, slack, opsgenie, or both.
+    teams_webhooks             = optional(list(string), [])                   # Teams webhook URLs used by the selected topic or topics.
+    environment_label          = optional(string, "")                         # Environment shown in grouped alerts; empty uses a resource tag when present.
+    account_environment_labels = optional(map(string), {})                    # Override the displayed environment by finding AWS account ID in delegated-administrator setups.
+    project_label              = optional(string, "")                         # Project boundary for Inspector container-image remediation groups; empty uses a resource tag.
+    account_label              = optional(string, "")                         # Friendly account label shown in grouped alerts; empty uses the AWS account ID.
+    deployment_inventory = optional(object({
+      bucket            = string           # S3 bucket containing the running-pod image snapshot.
+      key               = string           # Object key of the atomically published snapshot.
+      kms_key_arn       = optional(string) # Customer-managed KMS key ARN for an SSE-KMS encrypted snapshot; grants the digest Lambda decrypt access.
+      max_age_seconds   = number           # Maximum age before the display environment becomes unverified.
+      required_clusters = list(string)     # Clusters that must appear in a complete snapshot.
+    }))
+    quiet_period_minutes   = optional(number, 60)  # Time without actionable findings before a group is reported quiet.
+    finding_retention_days = optional(number, 365) # Days to keep resolved finding snapshots for deduplication and reopen tracking.
     daily_digest = optional(object({
       enabled    = optional(bool, true) # Publish the daily grouped Slack summary.
       hour_utc   = optional(number, 8)  # Earliest UTC hour for the daily summary; reconciliation still runs every 15 minutes.
@@ -107,20 +115,43 @@ variable "finding_delivery" {
       high_requires_public_exposure = optional(bool, true)     # Require verified exposure for immediate HIGH Slack alerts.
     }), {})
     paging = optional(object({
-      critical                        = optional(bool, true)                           # Enable CRITICAL escalation; ECR uses the separate unknown-context priority.
-      high_exploitable                = optional(bool, true)                           # Enable HIGH paging when exploit and exposure criteria are verified.
-      guardduty_types                 = optional(list(string), [])                     # GuardDuty finding-type prefixes promoted to P1; other HIGH/CRITICAL types default to P2.
-      guardduty_investigation_types   = optional(list(string), [])                     # GuardDuty finding-type prefixes explicitly classified as P2 investigations.
-      guardduty_port_probe_p1         = optional(bool, false)                          # Explicitly permit P1 for configured port-probing findings.
-      environments                    = optional(list(string), [])                     # Allowed environment labels; empty permits all.
-      production_environments         = optional(list(string), ["Production", "prod"]) # Labels eligible for evidence-backed ECR P1.
-      ecr_critical_unknown_priority   = optional(string, "P2")                         # P2, P1, or DIGEST when ECR deployment or exposure is unverified.
-      ecr_deployment_lookup_enabled   = optional(bool, false)                          # Opt in when this account can read matching Inspector ECS/EKS image-use findings; failures stay unknown.
-      ecr_emergency_vulnerability_ids = optional(list(string), [])                     # Security-owner verified emergency CVE/GHSA IDs eligible for P1.
-      require_public_exposure         = optional(bool, true)                           # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
+      critical                           = optional(bool, true)                           # Enable CRITICAL escalation; ECR uses the separate unknown-context priority.
+      high_exploitable                   = optional(bool, true)                           # Enable HIGH paging when exploit and exposure criteria are verified.
+      guardduty_types                    = optional(list(string), [])                     # GuardDuty finding-type prefixes promoted to P1; other HIGH/CRITICAL types default to P2.
+      guardduty_investigation_types      = optional(list(string), [])                     # GuardDuty finding-type prefixes explicitly classified as P2 investigations.
+      guardduty_port_probe_p1            = optional(bool, false)                          # Explicitly permit P1 for configured port-probing findings.
+      environments                       = optional(list(string), [])                     # Allowed environment labels; empty permits all.
+      production_environments            = optional(list(string), ["Production", "prod"]) # Labels eligible for evidence-backed ECR P1.
+      ecr_critical_unknown_priority      = optional(string, "P2")                         # P2, P1, or DIGEST when ECR deployment or exposure is unverified.
+      inspector_critical_p2_environments = optional(list(string), [])                     # Environment labels whose CRITICAL non-container Inspector findings use P2 instead of P1.
+      ecr_deployment_lookup_enabled      = optional(bool, false)                          # Opt in when this account can read matching Inspector ECS/EKS image-use findings; failures stay unknown.
+      ecr_emergency_vulnerability_ids    = optional(list(string), [])                     # Security-owner verified emergency CVE/GHSA IDs eligible for P1.
+      require_public_exposure            = optional(bool, true)                           # Require explicit public exposure evidence for HIGH paging; GuardDuty uses finding-type policy.
     }), {})
   })
   default = {}
+
+  validation {
+    condition = var.finding_delivery.deployment_inventory == null ? true : (
+      var.finding_delivery.notification_mode == "grouped" &&
+      length(trimspace(var.finding_delivery.deployment_inventory.bucket)) > 0 &&
+      length(trimspace(var.finding_delivery.deployment_inventory.key)) > 0 &&
+      (var.finding_delivery.deployment_inventory.kms_key_arn == null || can(regex("^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.finding_delivery.deployment_inventory.kms_key_arn))) &&
+      var.finding_delivery.deployment_inventory.max_age_seconds >= 60 &&
+      var.finding_delivery.deployment_inventory.max_age_seconds <= 3600 &&
+      length(var.finding_delivery.deployment_inventory.required_clusters) > 0 &&
+      length(distinct(var.finding_delivery.deployment_inventory.required_clusters)) == length(var.finding_delivery.deployment_inventory.required_clusters)
+    )
+    error_message = "deployment_inventory requires grouped mode, bucket, key, an optional KMS key ARN, age between 60 and 3600 seconds, and distinct required clusters."
+  }
+
+  validation {
+    condition = alltrue([
+      for account, label in var.finding_delivery.account_environment_labels :
+      can(regex("^[0-9]{12}$", account)) && length(trimspace(label)) > 0
+    ])
+    error_message = "Account environment labels require 12-digit AWS account IDs and nonempty values."
+  }
 
   validation {
     condition = !var.finding_delivery.enabled || (
@@ -161,6 +192,7 @@ variable "finding_delivery" {
       length(var.finding_delivery.paging.production_environments) > 0 &&
       alltrue([for label in var.finding_delivery.paging.production_environments : trimspace(label) != ""]) &&
       contains(["P1", "P2", "DIGEST"], var.finding_delivery.paging.ecr_critical_unknown_priority) &&
+      alltrue([for label in var.finding_delivery.paging.inspector_critical_p2_environments : trimspace(label) != ""]) &&
       alltrue([for identifier in var.finding_delivery.paging.ecr_emergency_vulnerability_ids : trimspace(identifier) != ""])
     )
     error_message = "Grouped delivery requires 1-1440 quiet minutes, UTC digest hour 0-23, 3-5 displayed groups, a valid GuardDuty severity, and nonempty paging type prefixes."
