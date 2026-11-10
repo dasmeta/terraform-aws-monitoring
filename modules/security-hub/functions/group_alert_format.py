@@ -23,6 +23,8 @@ def incident_signature(records):
 def group_action(group):
     if group.get("incident_category") == "container-vulnerability":
         return f"Review container vulnerabilities in {group['repository']}"
+    if group.get("product") == "GuardDuty":
+        return f"Investigate {group.get('label', 'GuardDuty finding')}"
     if group.get("repository") and group.get("vulnerability"):
         return f"Patch {group['package']} for {group['vulnerability']} in {group['repository']}"
     if group.get("cluster") and group.get("nodepool") and group.get("image"):

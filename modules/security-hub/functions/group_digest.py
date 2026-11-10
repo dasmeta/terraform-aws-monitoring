@@ -792,6 +792,9 @@ def _opsgenie_description(summary):
         )[:15000]
     top = ", ".join(summary["urgent_vulnerability_ids"][:10]) or ", ".join(title for title, _ in summary["urgent_titles"])
     severities = ", ".join(f"{label} {summary['high_severities'].get(label, 0)}" for label in ("CRITICAL", "HIGH"))
+    guidance = ("Investigate the observed activity and affected resource; verify cause and containment before closing this alert."
+                if group.get("product") == "GuardDuty" else
+                "Patch the shared image or control; verify the finding resolves in Security Hub before closing this alert.")
     return (
         description_header(group)
         + f"Urgent findings: {summary['urgent_count']}; HIGH/CRITICAL findings: {summary['high_count']} ({severities})\n"
@@ -799,7 +802,7 @@ def _opsgenie_description(summary):
         f"Urgent vulnerabilities or controls: {top}\n"
         f"Example resource: {summary['sample_resource'] or 'n/a'}\n"
         f"Security Hub: {_securityhub_url(group)}\n"
-        "Patch the shared image or control; verify the finding resolves in Security Hub before closing this alert."
+        + guidance
     )[:15000]
 
 
