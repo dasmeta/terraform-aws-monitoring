@@ -32,6 +32,31 @@ def finding(identifier, resource, product="Inspector"):
     }
 
 
+class GuardDutyActionTests(unittest.TestCase):
+    def test_ec2_dns_finding_with_ami_calls_for_investigation(self):
+        group = {
+            "label": "GuardDuty | TTPs/UnauthorizedAccess:EC2-MetadataDNSRebind | i-06273c64bb39a6931 | 1370d743",
+            "product": "GuardDuty", "finding_type": "TTPs/UnauthorizedAccess:EC2-MetadataDNSRebind",
+            "account": "774305617028", "region": "us-east-2", "cluster": "eks-dev",
+            "nodepool": "general", "image": "ami-04e2bf742b1d6ff74",
+        }
+        summary = {
+            "group": group, "urgent_vulnerability_ids": [], "urgent_titles": [("DNS rebinding lookup", "HIGH")],
+            "urgent_count": 1, "high_count": 1, "high_severities": {"HIGH": 1},
+            "affected_resources": 1, "sample_resource": "i-06273c64bb39a6931",
+        }
+
+        title = alert_format.group_message(group, "Sela Security Hub", "P1")
+        immediate_description = alert_format.description_header(group)
+        grouped_description = digest._opsgenie_description(summary)
+
+        self.assertIn("Investigate GuardDuty", title)
+        self.assertIn("Investigate GuardDuty", immediate_description)
+        self.assertIn("Investigate GuardDuty", grouped_description)
+        self.assertIn("i-06273c64bb39a6931", grouped_description)
+        self.assertNotIn("Patch", title + immediate_description + grouped_description)
+
+
 class InspectorGroupingTests(unittest.TestCase):
     def test_group_titles_are_stable_and_actionable(self):
         cases = [
