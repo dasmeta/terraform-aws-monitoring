@@ -21,6 +21,8 @@ AWS Security Hub standards rely on AWS Config to evaluate resource configuration
 
 ## Usage
 
+For an existing recorder, match its name, bucket, and recording scope before importing. Set `create_service_linked_role = false` to reuse `AWSServiceRoleForConfig`, and `delivery_frequency = ""` to preserve a channel without scheduled snapshots. A nonempty `excluded_resource_types` list with `record_all_resources = true` selects exclusion recording.
+
 ```hcl
 module "config" {
   source  = "dasmeta/monitoring/aws//modules/config"
@@ -79,7 +81,7 @@ module "config" {
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0, < 7.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 
 ## Modules
 
@@ -107,7 +109,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_create_service_linked_role"></a> [create\_service\_linked\_role](#input\_create\_service\_linked\_role) | Whether to create the AWS Config service-linked role. Set to false if the role already exists in your account. If set to false and the role doesn't exist, Terraform will fail. If set to true and the role already exists, Terraform will fail with EntityAlreadyExists error - in that case, set this to false and import the existing role: terraform import module.config.aws\_iam\_service\_linked\_role.config aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig | `bool` | `true` | no |
-| <a name="input_delivery_frequency"></a> [delivery\_frequency](#input\_delivery\_frequency) | Frequency for Config snapshot delivery. Valid values: One\_Hour, Three\_Hours, Six\_Hours, Twelve\_Hours, TwentyFour\_Hours | `string` | `"TwentyFour_Hours"` | no |
+| <a name="input_delivery_frequency"></a> [delivery\_frequency](#input\_delivery\_frequency) | Frequency for Config snapshot delivery. Valid values: One\_Hour, Three\_Hours, Six\_Hours, Twelve\_Hours, TwentyFour\_Hours. Set null or an empty string to omit scheduled snapshots. | `string` | `"TwentyFour_Hours"` | no |
 | <a name="input_excluded_resource_types"></a> [excluded\_resource\_types](#input\_excluded\_resource\_types) | List of resource types to exclude when record\_all\_resources is true. | `list(string)` | `[]` | no |
 | <a name="input_include_global_resources"></a> [include\_global\_resources](#input\_include\_global\_resources) | Include global resources (IAM, etc.) in AWS Config recording | `bool` | `true` | no |
 | <a name="input_included_resource_types"></a> [included\_resource\_types](#input\_included\_resource\_types) | List of resource types to include when record\_all\_resources is false. If empty and record\_all\_resources is false, all resources are excluded. | `list(string)` | `[]` | no |

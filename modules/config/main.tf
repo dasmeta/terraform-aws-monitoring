@@ -20,7 +20,7 @@ data "aws_caller_identity" "current" {}
 # Get the existing service-linked role (used when create_service_linked_role = false)
 data "aws_iam_role" "config_service_linked_role" {
   count = var.create_service_linked_role ? 0 : 1
-  name  = "aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig"
+  name  = "AWSServiceRoleForConfig"
 }
 
 # Create the service-linked role (used when create_service_linked_role = true)
@@ -47,7 +47,7 @@ resource "aws_config_configuration_recorder" "this" {
   ]
 
   recording_group {
-    all_supported                 = var.record_all_resources && length(var.included_resource_types) == 0
+    all_supported                 = var.record_all_resources && length(var.included_resource_types) == 0 && length(var.excluded_resource_types) == 0
     include_global_resource_types = var.include_global_resources
 
     # If specific resource types are excluded, use exclusion-based recording
@@ -58,11 +58,12 @@ resource "aws_config_configuration_recorder" "this" {
       }
     }
 
-    # If specific resource types are provided, use inclusion-based recording
+    # Exclusion recording requires an explicit strategy and all_supported=false.
+    # Keep the existing inclusion behavior when recording a selected resource list.
     dynamic "recording_strategy" {
-      for_each = !var.record_all_resources && length(var.included_resource_types) > 0 ? [1] : []
+      for_each = var.record_all_resources && length(var.excluded_resource_types) > 0 ? ["EXCLUSION_BY_RESOURCE_TYPES"] : (!var.record_all_resources && length(var.included_resource_types) > 0 ? ["INCLUSION_BY_RESOURCE_TYPES"] : [])
       content {
-        use_only = "INCLUSION_BY_RESOURCE_TYPES"
+        use_only = recording_strategy.value
       }
     }
 
@@ -77,7 +78,7 @@ resource "aws_config_delivery_channel" "this" {
   s3_bucket_name = var.s3_bucket_name != "" ? var.s3_bucket_name : aws_s3_bucket.config[0].bucket
 
   dynamic "snapshot_delivery_properties" {
-    for_each = var.delivery_frequency != null ? [1] : []
+    for_each = var.delivery_frequency != null && var.delivery_frequency != "" ? [1] : []
     content {
       delivery_frequency = var.delivery_frequency
     }

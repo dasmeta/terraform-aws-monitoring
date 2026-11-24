@@ -42,7 +42,7 @@ variable "s3_bucket_force_destroy" {
 variable "delivery_frequency" {
   type        = string
   default     = "TwentyFour_Hours"
-  description = "Frequency for Config snapshot delivery. Valid values: One_Hour, Three_Hours, Six_Hours, Twelve_Hours, TwentyFour_Hours"
+  description = "Frequency for Config snapshot delivery. Valid values: One_Hour, Three_Hours, Six_Hours, Twelve_Hours, TwentyFour_Hours. Set null or an empty string to omit scheduled snapshots."
 }
 
 variable "tags" {

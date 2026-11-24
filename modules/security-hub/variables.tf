@@ -265,13 +265,14 @@ variable "enabled_standards" {
 # Note: Config can be enabled independently of Security Hub, but is REQUIRED for Security Hub standards to evaluate resources
 variable "config" {
   type = object({
+    name                       = optional(string)                     # Existing recorder and delivery channel name; defaults to the Security Hub module name
     enabled                    = optional(bool, true)                 # Enable/disable AWS Config. REQUIRED for Security Hub standards to work properly. Can be enabled independently of Security Hub.
     create_service_linked_role = optional(bool, true)                 # Whether to create the AWS Config service-linked role. Set to false if the role already exists in your account. If set to true and the role already exists, Terraform will fail with EntityAlreadyExists - in that case, set this to false and import the existing role
     record_all_resources       = optional(bool, true)                 # Record all supported resource types in AWS Config. If false, use included_resource_types to specify which resources to record
     include_global_resources   = optional(bool, true)                 # Include global resources (IAM, etc.) in AWS Config recording
     s3_bucket_name             = optional(string, "")                 # S3 bucket name for AWS Config. If empty, a bucket will be created automatically
     s3_bucket_force_destroy    = optional(bool, false)                # Force destroy S3 bucket for Config when deleting the module
-    delivery_frequency         = optional(string, "TwentyFour_Hours") # Frequency for Config snapshot delivery. Valid values: One_Hour, Three_Hours, Six_Hours, Twelve_Hours, TwentyFour_Hours
+    delivery_frequency         = optional(string, "TwentyFour_Hours") # Snapshot frequency; use an empty string to omit scheduled snapshots
     included_resource_types    = optional(list(string), [])           # List of resource types to include when record_all_resources is false. If empty and record_all_resources is false, all resources are excluded
     excluded_resource_types    = optional(list(string), [])           # List of resource types to exclude when record_all_resources is true
     rules = optional(map(object({                                     # Map of Config rules to create. Key is the rule name. If empty, no rules will be created

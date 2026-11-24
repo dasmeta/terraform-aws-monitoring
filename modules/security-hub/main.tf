@@ -4,7 +4,7 @@ module "config" {
   source = "../config"
   count  = var.config.enabled ? 1 : 0
 
-  name                       = var.name
+  name                       = coalesce(var.config.name, var.name)
   create_service_linked_role = var.config.create_service_linked_role
   record_all_resources       = var.config.record_all_resources
   include_global_resources   = var.config.include_global_resources
